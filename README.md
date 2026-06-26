@@ -1,130 +1,112 @@
-# EA-VF-MAPPO: Residual Execution-Aware Voronoi MAPPO for Multi-Robot Exploration
+# Vision-Guided Swarm Exploration
 
-A Python implementation of a hierarchical multi-robot exploration framework for
-unknown environments. An interpretable, multi-criteria **Voronoi-based
-frontier assignment** provides an analytical baseline for "which unexplored
-region should robot *i* go to next"; a **residual reinforcement-learning
-policy** (vision-guided: a CNN over each robot's local occupancy-grid view)
-learns a bounded correction on top of that baseline to account for execution
-risk, collision risk, and communication constraints the analytical method
-can't capture on its own. Trained with **MAPPO** (Multi-Agent PPO) under a
-centralized-critic / decentralized-execution (CTDE) scheme.
+Residual Execution-Aware Voronoi MAPPO for multi-robot exploration in unknown
+environments.
 
-Currently a simulation-only research codebase; real-robot deployment is
-planned as a follow-up phase (see `docs/handoff_2026-06-23.md` for the most
-recent engineering/debugging history).
+This repository implements a simulation-based research prototype for swarm
+robotic exploration. The system combines classical frontier exploration,
+execution-aware Voronoi assignment, and multi-agent reinforcement learning. A
+residual actor learns to adjust an analytical frontier-assignment baseline,
+while a centralized critic is used during MAPPO training.
 
-## Architecture
+## Core Idea
 
-```
+The project is built around a hierarchical exploration loop:
+
+1. Robots build local occupancy-grid observations from simulated range sensing.
+2. Frontier candidates are detected from the explored/unknown boundary.
+3. An execution-aware Voronoi module estimates assignment costs for each robot
+   and frontier.
+4. A residual policy refines that analytical assignment using local BEV
+   observations and frontier tokens.
+5. A low-level controller plans and follows grid paths toward selected targets.
+6. Evaluation scripts report coverage, reward, collision, and trajectory
+   behavior across multiple maps and random seeds.
+
+## Project Structure
+
+```text
 eavf_mappo/
-├── mapping/          Occupancy grid: world<->grid coordinate conversion,
-│                     ray-cast map updates, local + global BEV image
-│                     extraction (the "vision" input to the policy).
-├── envs/
-│   ├── grid_world.py             Hidden ground-truth world generator
-│   │                             (open_room/corridor/maze/office/cluttered)
-│   │                             and a ray-cast LiDAR-style sensor model.
-│   └── multi_robot_exploration_env.py
-│                                 MultiRobotExplorationEnv: dict-keyed
-│                                 multi-agent reset()/step() API, reward
-│                                 aggregation, and high-level decision
-│                                 trigger logic (stuck/interval/arrival).
-├── planning/         Grid A* search and one-shot BFS distance fields.
-├── exploration/
-│   ├── frontier_detector.py      Frontier detection, connected-component
-│   │                             clustering, FrontierToken construction,
-│   │                             top-K candidate selection.
-│   ├── frontier_token.py         FrontierToken: per-candidate feature
-│   │                             vector (distance, path cost, risk terms,
-│   │                             information gain, comm uncertainty).
-│   └── execution_aware_voronoi.py
-│                                 Six-criterion normalized cost matrix +
-│                                 greedy (optionally cross-robot-unique)
-│                                 frontier assignment — the analytical
-│                                 backbone the residual actor refines.
-├── robots/           RobotState dataclass (pose, velocity, target, path,
-│                     collision/stuck bookkeeping).
-├── communication/    FrontierMessage + a learned-importance, bandwidth-
-│                     limited top-k message scheduler.
-├── control/          Differential-drive local controller: A*-path
-│                     following, collision-recovery behavior.
-├── marl/
-│   ├── actor.py                  ResidualFrontierActor: CNN (BEV) + token
-│   │                             encoder + masked attention -> a bounded
-│   │                             residual on the analytical cost, plus two
-│   │                             maskable "continue/release" special
-│   │                             actions.
-│   ├── critic.py                 CentralizedCritic (training-time only;
-│   │                             sees the team's currently-explored map,
-│   │                             never the hidden ground truth).
-│   ├── action_adapter.py         Decodes the actor's discrete action index
-│   │                             into the env's integer action contract.
-│   ├── rollout.py                Per-robot decision construction and
-│   │                             hierarchical rollout collection (one RL
-│   │                             transition per high-level decision, reward
-│   │                             accumulated over the low-level steps it
-│   │                             spans — not one transition per tick).
-│   ├── rollout_buffer.py         RolloutBatch/RolloutBuffer plus minibatch
-│   │                             slicing.
-│   └── mappo.py                  GAE (computed per agent), PPO clipped
-│                                 objective, return normalization, and
-│                                 value-loss clipping.
-├── evaluation/
-│   ├── policies.py               Heuristic baselines (nearest_frontier,
-│   │                             round_robin, constant) for comparison.
-│   ├── runner.py / checkpoint_runner.py
-│   │                             Episode/evaluation loops for heuristic
-│   │                             policies and for a trained checkpoint.
-│   ├── reporting.py              CSV writers + training/evaluation curve
-│   │                             plotting.
-│   └── visualization.py          Renders an episode (map, robots, paths,
-│                                 frontiers) to an animated GIF.
-└── utils/            Config merging, seeding, the RetentionRatio metric.
+  envs/           Grid-world map generation and multi-robot exploration env
+  mapping/        Occupancy grid updates and local/global BEV extraction
+  exploration/    Frontier detection, frontier tokens, Voronoi assignment
+  planning/       A* path planning
+  control/        Differential-drive local controller
+  communication/  Lightweight frontier message scheduling
+  robots/         Robot state definitions
+  marl/           Residual actor, centralized critic, rollout buffer, MAPPO
+  evaluation/     Baselines, checkpoint evaluation, reporting, visualization
 
-scripts/        CLI entry points: train.py, evaluate.py, evaluate_checkpoint.py,
-                visualize_episode.py, diagnose_training.py, plot_*.py
-tests/          Unit tests (unittest) covering every module above.
-configs/        experiment_config.yaml — canonical experiment configuration.
-docs/           Design/debugging history (handoff notes, plans).
+scripts/          CLI entry points for training, evaluation, plotting, GIFs
+tests/            Unit tests for environment, planning, MARL, and evaluation
+configs/          Example experiment configuration
+docs/             Development notes, plans, and handoff records
 ```
 
-## Quickstart
-
-Run the test suite:
+## Installation
 
 ```bash
-python -m unittest discover -v
+pip install -e .
 ```
 
-Evaluate heuristic baselines and generate CSV/PNG reports:
+Main dependencies are NumPy, PyTorch, and Matplotlib.
+
+## Quick Commands
+
+Run tests:
 
 ```bash
-python scripts/evaluate.py --seeds 0 1 --policies nearest_frontier round_robin \
-    --max-steps 30 --map-size 8 --sensor-range 1.5 --output-dir results/demo
+python -m unittest discover
 ```
 
-Train the residual actor/critic with MAPPO:
+Visualize one exploration episode:
+
+```bash
+python scripts/visualize_episode.py --policy nearest_frontier --map-type office \
+    --seed 0 --episode-steps 400 --render-steps 400 --frame-stride 4 \
+    --output results/viz/demo.gif
+```
+
+Evaluate heuristic baselines:
+
+```bash
+python scripts/evaluate.py --policies nearest_frontier round_robin constant \
+    --map-type office --seeds 0 1 2 3 4 --max-steps 400 \
+    --output-dir results/eval_office
+```
+
+Train the residual MAPPO policy:
 
 ```bash
 python scripts/train.py --iterations 200 --rollout-length 32 --n-robots 2 \
     --map-size 8 --map-type office --output-dir results/train_run
 ```
 
-Evaluate a trained checkpoint against the baselines, or render an episode:
+Evaluate a trained checkpoint:
 
 ```bash
-python scripts/evaluate_checkpoint.py --checkpoint results/train_run/checkpoint.pt ...
-python scripts/visualize_episode.py --checkpoint results/train_run/checkpoint.pt \
-    --episode-steps 200 --output results/viz/episode.gif
+python scripts/evaluate_checkpoint.py --checkpoint results/train_run/checkpoint.pt \
+    --map-types office corridor maze cluttered --seeds 0 1 2 \
+    --output-dir results/checkpoint_eval
 ```
+
+## Maps and Reproducibility
+
+`open_room` is a fixed baseline map. `office`, `corridor`, `maze`, and
+`cluttered` support seed-controlled variation: the same seed reproduces the
+same environment, while different seeds create different layouts. This makes it
+possible to use a fixed seed for demos and multiple seeds for robustness
+evaluation in unfamiliar environments.
+
+## Outputs
+
+The scripts write CSV metrics, training curves, evaluation plots, checkpoints,
+and animated GIFs under `results/`. Typical metrics include final coverage,
+time to coverage threshold, episode return, path length, and collision count.
 
 ## Status
 
-The training pipeline runs end-to-end (env <-> actor/critic <-> MAPPO update
-<-> checkpoint). See `docs/handoff_2026-06-23.md` for the detailed history of
-a training-stability investigation (policy collapse into a degenerate "do
-nothing" exploration strategy, root-caused and fixed) and
-`docs/visualization_plan_2026-06-23.md` for the graphical-feedback tooling
-design. Real-robot deployment and a full ablation/baseline evaluation pass
-are the next phases of work.
+This is currently a simulation-focused research codebase. The main pipeline
+from environment rollout to MAPPO update, checkpointing, evaluation, and GIF
+visualization is implemented and covered by unit tests. Real-robot deployment
+and larger-scale benchmark studies are future work.
