@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Generated training/evaluation artifacts (checkpoints, logs, GIFs, plots) —
+# these are reproducible from scripts/train.py and scripts/evaluate.py and
+# tend to be large/binary, so they don't belong in version control.
+results/
+
+# Local reference material (e.g. downloaded papers) — keep these on disk
+# but out of the repo; they're not project source.
+docs/*.pdf
+
+# Editor/IDE
+.claude/
+.agents/
+.vscode/
+.idea/

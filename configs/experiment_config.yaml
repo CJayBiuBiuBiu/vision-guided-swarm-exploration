@@ -1,0 +1,73 @@
+env:
+  map_size_m: 10.0
+  resolution: 0.05
+  n_robots: 2
+  max_episode_steps: 400
+  sensor_range_m: 3.0
+  sensor_fov_deg: 360
+  coverage_done_thresh: 0.95
+
+robot:
+  radius: 0.15
+  wheel_base_L: 0.3
+  wheel_radius_r: 0.05
+  v_max: 0.5
+  omega_max: 1.5
+  a_v: 1.0
+  a_omega: 3.0
+
+high_level:
+  arrival_thresh_m: 0.3
+  stuck_timeout: 30
+  max_high_level_interval: 50
+  frontier_K: 8
+  bev_size: [5, 64, 64]
+
+voronoi:
+  alpha: 1.0
+  beta: 0.5
+  gamma: 0.8
+  delta: 0.6
+  eta: 0.4
+  lam: 1.2
+  normalize: minmax
+
+residual:
+  tau: 0.5
+  residual_reg: 0.01
+
+reward:
+  w_coverage: 10.0
+  w_path: 0.05
+  w_collision: 5.0
+  w_overlap: 1.0
+  w_comm: 0.2
+  w_frontier: 2.0
+  time_penalty: 0.01
+  charge_target_assignment_comm: false
+
+mappo:
+  lr: 3.0e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_eps: 0.2
+  entropy_coef: 0.05
+  value_coef: 0.5
+  normalize_returns: true
+  value_clip_eps: 0.2
+  update_epochs: 8
+  minibatch_size: 512
+  rollout_length: 256
+  max_grad_norm: 0.5
+
+comm:
+  mode: frontier_token
+  r_comm_m: 5.0
+  packet_drop: 0.0
+  delay_steps: 0
+  B_max: 4
+  msg_size: 1
+
+experiment:
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7]
+  map_types: [open_room, maze, office, corridor, cluttered]
