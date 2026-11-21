@@ -1,0 +1,514 @@
+diff --git a/docs/PUBLICATION_MILESTONES.md b/docs/PUBLICATION_MILESTONES.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a0e337ac32954f794389eb696c24548350c321b
+--- /dev/null
++++ b/docs/PUBLICATION_MILESTONES.md
+@@ -0,0 +1,34 @@
++# Publication experiment milestones
++
++## S1. Observed-area control — 2026-11-21
++
++Status: implementation and focused local tests complete. Gazebo pilot pending.
++
++- The default `reference_coverage` mode preserves legacy control behavior.
++- The `observed_free_area` mode counts unique laser-cleared grid cells and
++  uses area gain in square metres to reset the stall timer. Footprint
++  clears and invalid scans do not count. The default 0.5 m² threshold is a
++  pilot starting value, not a tuned parameter.
++- Observed-area mode requires laser mapping, a finite simulation horizon,
++  frozen policy evaluation and disabled coverage-dependent tail and
++  adaptive modes. It disables early completion and sends a zero value
++  in the legacy policy-observation coverage field. The original geometry
++  score stays in the evaluation CSV and displayed progress.
++- The observed-area CSV adds the mode and observed free area. Use a new
++  output directory and keep original CSVs, checkpoints and manifests.
++- Local verification: 22 focused tests pass. Python and launch XML parse.
++  The Ubuntu VM reset the SSH connection, so this checkpoint does not
++  include new simulation results.
++
++For the paired pilot, keep the world, robot poses, checkpoints, vision
++settings and seed fixed. Use `selection_mode:=mappo_hybrid`,
++`mapping_mode:=laser_scan`, `max_simulation_seconds:=300`,
++`fixed_horizon_only:=true`, `complete_on_coverage:=false` and
++`tail_completion_enabled:=false` in both conditions. Switch
++`control_progress_mode` between `reference_coverage` and
++`observed_free_area`. Supply a distinct `metrics_path` for every run.
++Calculate 90% and 97% threshold times from the evaluation CSV.
++
++GitHub checkpoint: review and publish the S1 changes as a separate commit
++after reviewing the pre-existing changes in the working tree. Suggested
++commit title: `Separate observed exploration progress from reference coverage`.
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 93467c6b2761c8f84e4dafbcb289053a917010a0..a3547ddf90158a673f9e3560067593f46f39295b 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -37,6 +37,12 @@
+        doc="Stop at the first coverage threshold crossing for timed evaluations"/>
+   <arg name="max_simulation_seconds" default="0"
+        doc="Stop at this Gazebo /clock horizon; zero disables the limit"/>
++  <arg name="fixed_horizon_only" default="false"
++       doc="Disable early completion for a matched fixed-budget comparison"/>
++  <arg name="control_progress_mode" default="reference_coverage"
++       doc="reference_coverage (legacy) or observed_free_area (fixed-horizon audit)"/>
++  <arg name="observed_area_progress_epsilon_m2" default="0.5"
++       doc="Minimum newly observed free area that resets the stall timer"/>
+   <arg name="hybrid_fallback_stall_seconds" default="60.0"/>
+   <arg name="hybrid_fallback_active_seconds" default="30.0"/>
+   <arg name="hybrid_fallback_progress_epsilon" default="0.2"/>
+@@ -197,6 +203,11 @@
+     <param name="shutdown_on_done" value="$(arg shutdown_on_done)"/>
+     <param name="complete_on_coverage" value="$(arg complete_on_coverage)"/>
+     <param name="max_simulation_seconds" value="$(arg max_simulation_seconds)"/>
++    <param name="fixed_horizon_only" value="$(arg fixed_horizon_only)"/>
++    <param name="control_progress_mode" value="$(arg control_progress_mode)"/>
++    <param name="observed_area_progress_epsilon_m2"
++           value="$(arg observed_area_progress_epsilon_m2)"/>
++    <param name="starts_policy_training" value="$(arg start_mappo_training)"/>
+     <param name="hybrid_fallback_stall_seconds"
+            value="$(arg hybrid_fallback_stall_seconds)"/>
+     <param name="hybrid_fallback_active_seconds"
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index bd44ef14a4f7c76b4812b02d5f3f05f63e8ad366..f5a424713954ca0171b96d0c7156283232554c81 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -27,6 +27,7 @@ import csv
+ import hashlib
+ import json
+ import threading
++from contextlib import nullcontext
+ from pathlib import Path
+ 
+ import rospy
+@@ -44,7 +45,9 @@ from scipy.spatial import Voronoi
+ from frontier_scoring import (
+     assign_by_cost, blend_phase_costs, combine_assignment_cost_terms,
+     combine_cost_terms, line_risk_path_cost, normalize_rows, SELECTION_MODES)
+-from hybrid_fallback import CoverageStallFallback
++from hybrid_fallback import (
++    CoverageStallFallback, OBSERVED_FREE_AREA, REFERENCE_COVERAGE,
++    validate_progress_mode)
+ from communication_model import CommunicationModel
+ from motion_safety import recovery_succeeded
+ from recovery_memory import TimedSpatialBlacklist
+@@ -443,6 +446,17 @@ class Coordinator(object):
+             '~complete_on_coverage', False))
+         self.max_simulation_seconds = float(rospy.get_param(
+             '~max_simulation_seconds', 0.0))
++        self.fixed_horizon_only = bool(rospy.get_param('~fixed_horizon_only', False))
++        if self.fixed_horizon_only and (
++                not math.isfinite(self.max_simulation_seconds) or
++                self.max_simulation_seconds <= 0.0 or self.complete_on_coverage):
++            raise ValueError(
++                'fixed_horizon_only requires a positive simulation horizon '
++                'and complete_on_coverage=false')
++        self.control_progress_mode = rospy.get_param(
++            '~control_progress_mode', REFERENCE_COVERAGE)
++        self.observed_area_progress_epsilon_m2 = float(rospy.get_param(
++            '~observed_area_progress_epsilon_m2', 0.5))
+         self.hybrid_fallback_stall_seconds = float(rospy.get_param(
+             '~hybrid_fallback_stall_seconds', 60.0))
+         self.hybrid_fallback_active_seconds = float(rospy.get_param(
+@@ -463,6 +477,13 @@ class Coordinator(object):
+             '~tail_completion_enabled', False))
+         self.tail_completion_coverage = float(rospy.get_param(
+             '~tail_completion_coverage', 90.0))
++        validate_progress_mode(
++            self.control_progress_mode, self.mapping_mode,
++            self.max_simulation_seconds,
++            uses_coverage_phase=(
++                self.complete_on_coverage or self.tail_completion_enabled or
++                self.selection_mode in ADAPTIVE_SELECTION_MODES),
++            starts_training=bool(rospy.get_param('~starts_policy_training', False)))
+         self.stuck_blacklist_ttl = float(rospy.get_param(
+             '~stuck_blacklist_ttl', 90.0))
+         self.recovery_direction_mode = rospy.get_param(
+@@ -527,6 +548,10 @@ class Coordinator(object):
+         self.coverage_mask_sha256 = hashlib.sha256(
+             self.truth_obstacle_mask.astype(np.uint8).tobytes()).hexdigest()
+         self.ever_explored_truth_free = np.zeros_like(self.grid, dtype=bool)
++        self.observed_free = (
++            np.zeros_like(self.grid, dtype=bool)
++            if self.control_progress_mode == OBSERVED_FREE_AREA else None)
++        self._observed_progress_lock = threading.Lock()
+         self.last_coverage_explored_cells = 0
+ 
+         # (x, y) points reported by _stuck_event_cb. Unlike the old approach,
+@@ -608,11 +633,15 @@ class Coordinator(object):
+         self.tail_completion_active = False
+         self.tail_completion_activations = 0
+         self.tail_completion_goal_assignments = 0
++        observed_area_mode = self.control_progress_mode == OBSERVED_FREE_AREA
+         self.hybrid_fallback = CoverageStallFallback(
+             stall_seconds=self.hybrid_fallback_stall_seconds,
+             active_seconds=self.hybrid_fallback_active_seconds,
+-            progress_epsilon=self.hybrid_fallback_progress_epsilon,
+-            minimum_coverage=self.hybrid_fallback_minimum_coverage)
++            progress_epsilon=(self.observed_area_progress_epsilon_m2
++                              if observed_area_mode else
++                              self.hybrid_fallback_progress_epsilon),
++            minimum_coverage=(0.0 if observed_area_mode else
++                              self.hybrid_fallback_minimum_coverage))
+         self.frontier_tracks = {}  # id -> (last position, last seen control time)
+         self.next_frontier_track_id = 0
+         self._last_metrics_write = 0.0
+@@ -710,17 +739,22 @@ class Coordinator(object):
+         if position is None or yaw is None or msg.range_max <= 0.0:
+             return
+         effective_max = min(float(msg.range_max), self.scan_mapping_range)
+-        update_grid_from_scan(
+-            self.grid, position, yaw, msg.ranges, msg.angle_min,
+-            msg.angle_increment, msg.range_min, effective_max, ARENA,
+-            GRID_RES, ray_stride=self.scan_ray_stride,
+-            inflation_cells=self.scan_inflation_cells)
+-        clear_robot_footprints(
+-            self.grid, list(self.positions.values()), ARENA, GRID_RES,
+-            radius_cells=max(1, self.scan_inflation_cells))
+-        self.ever_explored_truth_free |= (
+-            (self.grid == 1) & ~self.truth_obstacle_mask)
+-        self.scan_ready.add(name)
++        progress_guard = (self._observed_progress_lock
++                          if self.observed_free is not None else nullcontext())
++        with progress_guard:
++            processed = update_grid_from_scan(
++                self.grid, position, yaw, msg.ranges, msg.angle_min,
++                msg.angle_increment, msg.range_min, effective_max, ARENA,
++                GRID_RES, ray_stride=self.scan_ray_stride,
++                inflation_cells=self.scan_inflation_cells,
++                observed_free=self.observed_free)
++            clear_robot_footprints(
++                self.grid, list(self.positions.values()), ARENA, GRID_RES,
++                radius_cells=max(1, self.scan_inflation_cells))
++            self.ever_explored_truth_free |= (
++                (self.grid == 1) & ~self.truth_obstacle_mask)
++            if processed or self.observed_free is None:
++                self.scan_ready.add(name)
+ 
+     def _policy_action_cb(self, msg, name):
+         if msg.robot_name and msg.robot_name != name:
+@@ -1248,8 +1282,15 @@ class Coordinator(object):
+         if directory and not os.path.isdir(directory):
+             os.makedirs(directory)
+         new_file = not os.path.exists(self.metrics_path) or os.path.getsize(self.metrics_path) == 0
++        fields = METRIC_FIELDS
++        if self.observed_free is not None:
++            fields = fields + ['control_progress_mode', 'observed_free_area_m2']
++        if not new_file:
++            with open(self.metrics_path, newline='') as existing:
++                if next(csv.reader(existing), None) != fields:
++                    raise ValueError('metrics CSV schema differs; choose a new metrics_path')
+         self._metrics_file = open(self.metrics_path, 'a', newline='')
+-        self._metrics_writer = csv.DictWriter(self._metrics_file, fieldnames=METRIC_FIELDS)
++        self._metrics_writer = csv.DictWriter(self._metrics_file, fieldnames=fields)
+         if new_file:
+             self._metrics_writer.writeheader()
+             self._metrics_file.flush()
+@@ -1263,7 +1304,7 @@ class Coordinator(object):
+                 self._metrics_writer = None
+ 
+     def _write_metrics(self, coverage, raw_frontiers, candidate_frontiers,
+-                       force=False):
++                       force=False, observed_free_area=None):
+         now = time.time()
+         if not force and now - self._last_metrics_write < self.metrics_period:
+             return
+@@ -1431,6 +1472,9 @@ class Coordinator(object):
+         # ROS shutdown callbacks can run while the final control iteration is
+         # building this row. Serialize the actual write with file closure so a
+         # timeout cannot produce an otherwise spurious node traceback.
++        if observed_free_area is not None:
++            row.update(control_progress_mode=self.control_progress_mode,
++                       observed_free_area_m2='%.4f' % observed_free_area)
+         with self._metrics_lock:
+             if self._metrics_writer is None or self._metrics_file is None:
+                 return
+@@ -1560,16 +1604,34 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     x, y = self.positions[name]
+                     self.mark_explored(x, y, SENSING_RANGE)
+ 
+-            coverage = self.coverage_pct()
++            reference_control = self.control_progress_mode == REFERENCE_COVERAGE
++            observed_free_area = None
++            if reference_control:
++                coverage = self.coverage_pct()
++            else:
++                with self._observed_progress_lock:
++                    coverage = self.coverage_pct()
++                    observed_free_area = (
++                        np.count_nonzero(self.observed_free) * GRID_RES ** 2)
++                    progress_ready = len(self.scan_ready) == len(self.robot_names)
++            control_coverage = coverage if reference_control else None
+             fallback_active = False
+-            if self.selection_mode in HYBRID_SELECTION_MODES:
++            if (self.selection_mode in HYBRID_SELECTION_MODES and
++                    (reference_control or progress_ready)):
++                progress = control_coverage if reference_control else observed_free_area
+                 fallback_activated, fallback_active = self.hybrid_fallback.update(
+-                    coverage, self._control_now())
++                    progress, self._control_now())
+                 if fallback_activated:
+-                    rospy.logwarn(
+-                        '[coordinator] coverage stalled at %.2f%%; using execution-aware '
+-                        'frontier selection for %.0f seconds',
+-                        coverage, self.hybrid_fallback_active_seconds)
++                    if reference_control:
++                        rospy.logwarn(
++                            '[coordinator] coverage stalled at %.2f%%; using execution-aware '
++                            'frontier selection for %.0f seconds',
++                            progress, self.hybrid_fallback_active_seconds)
++                    else:
++                        rospy.logwarn(
++                            '[coordinator] observed free area stalled at %.2f m^2; using '
++                            'execution-aware frontier selection for %.0f seconds',
++                            progress, self.hybrid_fallback_active_seconds)
+                     # A bounded recovery window must be able to replace stale
+                     # goals; otherwise fallback has no effect until the low-level
+                     # controller independently reports a failure.
+@@ -1578,9 +1640,9 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                         self.current_goal_id[name] = None
+                         self.current_path[name] = None
+             tail_active = bool(
+-                self.tail_completion_enabled and
++                reference_control and self.tail_completion_enabled and
+                 self.selection_mode in POLICY_SELECTION_MODES and
+-                coverage >= self.tail_completion_coverage)
++                control_coverage >= self.tail_completion_coverage)
+             if tail_active and not self.tail_completion_active:
+                 self.tail_completion_activations += 1
+                 rospy.logwarn(
+@@ -1614,7 +1676,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             else:
+                 self.all_idle_since = None
+ 
+-            if not self.exploration_done_logged:
++            if (reference_control and not self.fixed_horizon_only and
++                    not self.exploration_done_logged):
+                 control_now = self._control_now()
+                 sensing_ready = (
+                     self.mapping_mode != 'laser_scan' or
+@@ -1627,11 +1690,11 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 coverage_done = (
+                     self.complete_on_coverage and sensing_ready and
+                     (control_now - self.start_control_time) >= STARTUP_GRACE_PERIOD and
+-                    coverage >= self.coverage_done_threshold)
++                    control_coverage >= self.coverage_done_threshold)
+                 practically_done = (
+                     not self.complete_on_coverage and
+                     all_idle and self.all_idle_since is not None and
+-                    coverage >= self.coverage_done_threshold and
++                    control_coverage >= self.coverage_done_threshold and
+                     (control_now - self.all_idle_since) >= self.idle_done_hold)
+                 if strictly_done or coverage_done or practically_done:
+                     if strictly_done:
+@@ -1665,7 +1728,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+ 
+             if self.exploration_done_logged or self.evaluation_horizon_reached:
+                 self._write_metrics(
+-                    coverage, all_frontiers, np.empty((0, 2)), force=True)
++                    coverage, all_frontiers, np.empty((0, 2)), force=True,
++                    observed_free_area=observed_free_area)
+                 if self.shutdown_on_done:
+                     shutdown_reason = (
+                         'exploration mission complete'
+@@ -1685,7 +1749,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             # while all_frontiers is still non-empty, every robot just goes
+             # idle this tick rather than falsely declaring the mission done.
+             frontiers = self.cluster_frontier_points(self.filter_blacklisted(all_frontiers))
+-            self._write_metrics(coverage, all_frontiers, frontiers)
++            self._write_metrics(coverage, all_frontiers, frontiers,
++                                observed_free_area=observed_free_area)
+             if len(frontiers) == 0:
+                 rate = self._safe_sleep(rate)
+                 continue
+@@ -1700,7 +1765,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 if self.selection_mode in ADAPTIVE_SELECTION_MODES:
+                     adaptive_coverage = (
+                         self.adaptive_execution_full_coverage
+-                        if tail_active else coverage)
++                        if tail_active else control_coverage)
+                     effective_ownership_costs, self.adaptive_execution_weight = \
+                         blend_phase_costs(
+                             execution_features['distance'], ownership_costs,
+@@ -1716,7 +1781,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 owner = self.voronoi_owner(
+                     frontiers, self.robot_names, robot_positions)
+             self._publish_policy_observations(
+-                coverage, frontiers, frontier_ids, owner,
++                control_coverage if reference_control else 0.0,
++                frontiers, frontier_ids, owner,
+                 execution_costs, execution_features)
+ 
+             for i, name in enumerate(self.robot_names):
+@@ -1853,7 +1919,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                             if self.selection_mode in ADAPTIVE_SELECTION_MODES:
+                                 adaptive_coverage = (
+                                     self.adaptive_execution_full_coverage
+-                                    if tail_active else coverage)
++                                    if tail_active else control_coverage)
+                                 refined_cost, _ = blend_phase_costs(
+                                     execution_features['distance'][i, own_indices],
+                                     refined_execution_cost, adaptive_coverage,
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/hybrid_fallback.py b/turtlebot_ddpg/scripts/voronoi_exploration/hybrid_fallback.py
+index a115746f6560fd807972dcabcb75eec8b8715556..14aa14153c2bb6d763ee0cff6138cddc2874b2d2 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/hybrid_fallback.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/hybrid_fallback.py
+@@ -1,9 +1,34 @@
+ #!/usr/bin/env python3
+ """Coverage-stall detector for the MAPPO execution-aware fallback."""
+ 
++import math
++
++
++REFERENCE_COVERAGE = 'reference_coverage'
++OBSERVED_FREE_AREA = 'observed_free_area'
++
++
++def validate_progress_mode(mode, mapping_mode, max_seconds, uses_coverage_phase,
++                           starts_training):
++    """Reject combinations that would use truth coverage in a fixed-horizon audit."""
++    if mode not in (REFERENCE_COVERAGE, OBSERVED_FREE_AREA):
++        raise ValueError('unknown control progress mode: %s' % mode)
++    if mode == REFERENCE_COVERAGE:
++        return
++    if mapping_mode != 'laser_scan':
++        raise ValueError('observed_free_area requires laser_scan mapping')
++    if not math.isfinite(max_seconds) or max_seconds <= 0.0:
++        raise ValueError('observed_free_area requires a positive simulation horizon')
++    if uses_coverage_phase:
++        raise ValueError(
++            'observed_free_area is incompatible with coverage-based completion, '
++            'tail completion or adaptive execution')
++    if starts_training:
++        raise ValueError('observed_free_area is an evaluation mode for frozen policies')
++
+ 
+ class CoverageStallFallback(object):
+-    """Open a bounded rule-control window after measurable coverage stalls."""
++    """Open a bounded rule-control window after scalar progress stalls."""
+ 
+     def __init__(self, stall_seconds=60.0, active_seconds=30.0,
+                  progress_epsilon=0.2, minimum_coverage=20.0):
+@@ -13,8 +38,8 @@ class CoverageStallFallback(object):
+         self.minimum_coverage = float(minimum_coverage)
+         if self.stall_seconds <= 0.0 or self.active_seconds <= 0.0:
+             raise ValueError('fallback durations must be positive')
+-        if self.progress_epsilon <= 0.0:
+-            raise ValueError('progress_epsilon must be positive')
++        if not math.isfinite(self.progress_epsilon) or self.progress_epsilon <= 0.0:
++            raise ValueError('progress_epsilon must be finite and positive')
+         self.anchor_coverage = None
+         self.anchor_time = None
+         self.active_until = None
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/scan_mapping.py b/turtlebot_ddpg/scripts/voronoi_exploration/scan_mapping.py
+index 32b6dbe17298d485ed2554509983d84018949b2d..41d717482be68855447c1998f5c85b8d71a3696a 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/scan_mapping.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/scan_mapping.py
+@@ -71,16 +71,22 @@ def clear_robot_footprints(grid, robot_positions, arena, resolution,
+ 
+ def update_grid_from_scan(grid, robot_xy, robot_yaw, ranges, angle_min,
+                           angle_increment, range_min, range_max, arena,
+-                          resolution, ray_stride=1, inflation_cells=1):
++                          resolution, ray_stride=1, inflation_cells=1,
++                          observed_free=None):
+     """Update ``grid`` in place and return the number of processed rays.
+ 
+     Ground-truth pose may be supplied by Gazebo, but obstacle knowledge comes
+     only from the scan. Finite returns shorter than ``range_max`` mark an
+     occupied endpoint. Infinite or maximum-range returns only clear free
+     space. Existing occupied cells are never cleared by later rays.
++    If supplied, `observed_free` records the unique cells cleared by accepted
++    rays. Pose-cell and footprint overrides do not write to this mask.
+     """
+     if grid.ndim != 2:
+         raise ValueError('grid must be two-dimensional')
++    if observed_free is not None and (
++            observed_free.shape != grid.shape or observed_free.dtype != np.bool_):
++        raise ValueError('observed_free must be a boolean mask with the grid shape')
+     if resolution <= 0.0 or range_max <= 0.0:
+         raise ValueError('resolution and range_max must be positive')
+     stride = max(1, int(ray_stride))
+@@ -117,6 +123,8 @@ def update_grid_from_scan(grid, robot_xy, robot_yaw, ranges, angle_min,
+         for ix, iy in free_cells:
+             if grid[iy, ix] != OCCUPIED:
+                 grid[iy, ix] = FREE
++                if observed_free is not None:
++                    observed_free[iy, ix] = True
+         if hit:
+             _mark_occupied(grid, cells[-1], inflation_cells)
+         processed += 1
+diff --git a/turtlebot_ddpg/tests/test_observed_exploration_progress.py b/turtlebot_ddpg/tests/test_observed_exploration_progress.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..249028f103dd24baa26add45871ded22bcdb3a8e
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_observed_exploration_progress.py
+@@ -0,0 +1,71 @@
++import os
++import sys
++import unittest
++
++import numpy as np
++
++
++sys.path.insert(0, os.path.join(
++    os.path.dirname(os.path.dirname(__file__)), 'scripts', 'voronoi_exploration'))
++
++from hybrid_fallback import (
++    CoverageStallFallback, OBSERVED_FREE_AREA, REFERENCE_COVERAGE,
++    validate_progress_mode)
++from scan_mapping import clear_robot_footprints, update_grid_from_scan
++
++
++class ObservedExplorationProgressTests(unittest.TestCase):
++    def setUp(self):
++        self.grid = np.zeros((10, 10), dtype=np.uint8)
++        self.observed_free = np.zeros_like(self.grid, dtype=bool)
++        self.arena = (-5.0, -5.0, 5.0, 5.0)
++
++    def observe(self, rays, yaw=0.0):
++        return update_grid_from_scan(
++            self.grid, (0.0, 0.0), yaw, rays, 0.0, 1.0, 0.1, 4.0,
++            self.arena, 1.0, inflation_cells=0, observed_free=self.observed_free)
++
++    def test_counts_unique_ray_cells_and_excludes_hit_endpoint(self):
++        self.assertEqual(self.observe([2.0]), 1)
++        self.assertEqual(int(self.observed_free.sum()), 2)
++        self.assertFalse(self.observed_free[5, 7])
++        self.observe([2.0])
++        self.assertEqual(int(self.observed_free.sum()), 2)
++        self.observe([2.0], yaw=np.pi / 2)
++        self.assertEqual(int(self.observed_free.sum()), 3)
++
++    def test_bad_scan_and_forced_footprint_do_not_add_progress(self):
++        self.assertEqual(self.observe([float('nan'), -1.0]), 0)
++        clear_robot_footprints(self.grid, [(1.0, 1.0)], self.arena, 1.0)
++        self.assertGreater(int(self.grid.sum()), 0)
++        self.assertEqual(int(self.observed_free.sum()), 0)
++
++    def test_accepts_only_frozen_laser_audit_with_positive_horizon(self):
++        validate_progress_mode(OBSERVED_FREE_AREA, 'laser_scan', 300, False, False)
++        validate_progress_mode(REFERENCE_COVERAGE, 'ground_truth_radius', 0, True, True)
++        bad_options = (
++            ('ground_truth_radius', 300, False, False),
++            ('laser_scan', 0, False, False),
++            ('laser_scan', float('inf'), False, False),
++            ('laser_scan', 300, True, False),
++            ('laser_scan', 300, False, True),
++        )
++        for options in bad_options:
++            with self.subTest(options=options), self.assertRaises(ValueError):
++                validate_progress_mode(OBSERVED_FREE_AREA, *options)
++
++    def test_area_progress_resets_stall_and_opens_bounded_fallback(self):
++        fallback = CoverageStallFallback(
++            stall_seconds=60, active_seconds=30, progress_epsilon=0.5,
++            minimum_coverage=0.0)
++        self.observe([2.0])
++        self.assertEqual(fallback.update(self.observed_free.sum(), 0), (False, False))
++        self.observe([2.0], yaw=np.pi / 2)
++        self.assertEqual(fallback.update(self.observed_free.sum(), 59), (False, False))
++        self.assertEqual(fallback.update(self.observed_free.sum(), 118), (False, False))
++        self.assertEqual(fallback.update(self.observed_free.sum(), 119), (True, True))
++        self.assertEqual(fallback.update(self.observed_free.sum(), 149), (False, False))
++
++
++if __name__ == '__main__':
++    unittest.main()
