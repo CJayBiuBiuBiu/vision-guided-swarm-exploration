@@ -1,0 +1,313 @@
+diff --git a/docs/PUBLICATION_MILESTONES.md b/docs/PUBLICATION_MILESTONES.md
+index 9b9f66948bc9756c7d0c4eaa2ab62b3e879fb13b..4fc49c2fb957059cb43b134729e20532f4e3746e 100644
+--- a/docs/PUBLICATION_MILESTONES.md
++++ b/docs/PUBLICATION_MILESTONES.md
+@@ -53,3 +53,16 @@ logging and the Gazebo comparison follow separately.
+ 
+ GitHub checkpoint: keep S2 separate from S1. Suggested commit title:
+ `Separate actor and rule-based frontier vision`.
++
++## S3. Trace frontier decisions — 2026-11-21
++
++Pass a new `frontier_trace_path` in observed-area simulation runs to record
++the selected frontier, the contemporaneous candidates and their owners,
++whether the actor or a rule assigned it, and the terminal outcome. Join
++assignments and outcomes by `attempt_id`. Open attempts at the horizon or
++shutdown are censored, rather than counted as failures. The listed candidates
++describe the coordinator's state at assignment time; an actor message may
++come from an earlier observation. The area gain is a team-wide change
++over each attempt and must not be summed across overlapping attempts.
++
++GitHub checkpoint title: `S3: Record frontier assignments and outcomes`.
+diff --git a/turtlebot_ddpg/CMakeLists.txt b/turtlebot_ddpg/CMakeLists.txt
+index 62677a334426faef8c1fd298d15d5ec3efa3ebe0..3a0a1497a40089966c6e3a015da43e66e60a95bb 100644
+--- a/turtlebot_ddpg/CMakeLists.txt
++++ b/turtlebot_ddpg/CMakeLists.txt
+@@ -220,6 +220,7 @@ install(PROGRAMS
+ 
+ install(FILES
+   scripts/voronoi_exploration/frontier_scoring.py
++  scripts/voronoi_exploration/frontier_decision_trace.py
+   scripts/voronoi_exploration/communication_model.py
+   scripts/voronoi_exploration/hybrid_fallback.py
+   scripts/voronoi_exploration/recovery_memory.py
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index de11245d9ea65d4b2e30c6cd5d1572318d09262d..74333a685a62f592320736ebdec17bbead617fee 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -123,6 +123,9 @@
+   <arg name="metrics_path"
+        default="$(find turtlebot_ddpg)/../outputs/gazebo_$(arg selection_mode).csv"/>
+ 
++  <arg name="frontier_trace_path" default=""
++       doc="Optional JSONL output for per-goal decisions in observed_free_area mode"/>
++
+   <include file="$(find turtlebot_ddpg)/launch/voronoi_multi_robot.launch">
+     <arg name="model" value="$(arg model)"/>
+     <arg name="gui" value="$(arg gui)"/>
+@@ -233,6 +236,7 @@
+            value="$(arg near_collision_clear_range)"/>
+     <param name="experiment_seed" value="$(arg experiment_seed)"/>
+     <param name="metrics_path" value="$(arg metrics_path)"/>
++    <param name="frontier_trace_path" value="$(arg frontier_trace_path)"/>
+   </node>
+ 
+   <node pkg="turtlebot_ddpg"
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index e86e3bf870bed53911c46e173327caf87fdfce21..58c145754c72857a88b76d6c3b1c6dc3b0611283 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -45,6 +45,7 @@ from scipy.spatial import Voronoi
+ from frontier_scoring import (
+     SELECTION_MODES, assign_by_cost, blend_phase_costs, line_risk_path_cost,
+     normalize_rows, score_frontier_roles, vision_role_flags)
++from frontier_decision_trace import FrontierDecisionTrace
+ from hybrid_fallback import (
+     CoverageStallFallback, OBSERVED_FREE_AREA, REFERENCE_COVERAGE,
+     validate_progress_mode)
+@@ -511,6 +512,13 @@ class Coordinator(object):
+                 'near_collision_clear_range must exceed near_collision_range')
+         default_metrics = str(PROJECT_ROOT / 'outputs' / 'gazebo_metrics.csv')
+         self.metrics_path = os.path.expanduser(rospy.get_param('~metrics_path', default_metrics))
++        self.frontier_trace = None
++        trace_path = os.path.expanduser(rospy.get_param('~frontier_trace_path', ''))
++        if trace_path and (
++                not self.use_sim_time or self.control_progress_mode != OBSERVED_FREE_AREA):
++            raise ValueError('frontier_trace_path requires observed_free_area and simulation time')
++        if trace_path and Path(trace_path).resolve() == Path(self.metrics_path).resolve():
++            raise ValueError('frontier_trace_path must differ from metrics_path')
+         self.status_html_path = os.path.expanduser(rospy.get_param(
+             '~status_html_path', str(PROJECT_ROOT / 'outputs' /
+                                      'exploration_status.html')))
+@@ -711,6 +719,14 @@ class Coordinator(object):
+         self.no_frontier_since = None
+         self._open_metrics_file()
+         rospy.on_shutdown(self._close_metrics_file)
++        if trace_path:
++            self.frontier_trace = FrontierDecisionTrace(
++                trace_path, experiment_seed=self.experiment_seed,
++                world_profile=self.world_profile, selection_mode=self.selection_mode,
++                vision_scoring_mode=self.vision_scoring_mode, vision_role=self.vision_role,
++                actor_uses_vision=self.actor_uses_vision, rules_use_vision=self.rules_use_vision,
++                horizon_s=self.max_simulation_seconds)
++            rospy.on_shutdown(self._close_frontier_trace)
+         rospy.loginfo('[coordinator] robots=%s, selection_mode=%s, mapping_mode=%s, pose_source=%s, world_profile=%s, clustered_frontiers=%s, metrics=%s',
+                       ','.join(self.robot_names),
+                       self.selection_mode, self.mapping_mode, self.pose_source,
+@@ -844,6 +860,7 @@ class Coordinator(object):
+         for name in self.robot_names:
+             goal = self.current_goal.get(name)
+             if goal is not None and math.hypot(goal[0] - msg.x, goal[1] - msg.y) < STUCK_BLACKLIST_RADIUS:
++                self._finish_frontier_attempt(name, 'stuck')
+                 self.current_goal[name] = None
+                 self.current_goal_id[name] = None
+                 self.current_path[name] = None
+@@ -1300,6 +1317,23 @@ class Coordinator(object):
+             self._metrics_writer.writeheader()
+             self._metrics_file.flush()
+ 
++    def _frontier_trace_snapshot(self):
++        with self._observed_progress_lock:
++            area = np.count_nonzero(self.observed_free) * GRID_RES ** 2
++        return max(0.0, self._control_now() - self.start_control_time), float(area)
++
++    def _finish_frontier_attempt(self, name, outcome):
++        if self.frontier_trace is not None:
++            elapsed, area = self._frontier_trace_snapshot()
++            self.frontier_trace.finish(name, outcome, elapsed, area)
++
++    def _close_frontier_trace(self):
++        if self.frontier_trace is not None:
++            elapsed, area = self._frontier_trace_snapshot()
++            outcome = ('simulation_horizon' if self.evaluation_horizon_reached
++                       else 'run_shutdown')
++            self.frontier_trace.close(outcome, elapsed, area)
++
+     def _close_metrics_file(self):
+         with self._metrics_lock:
+             if self._metrics_file is not None:
+@@ -1645,6 +1679,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     # goals; otherwise fallback has no effect until the low-level
+                     # controller independently reports a failure.
+                     for name in self.robot_names:
++                        self._finish_frontier_attempt(name, 'stall_fallback_reset')
+                         self.current_goal[name] = None
+                         self.current_goal_id[name] = None
+                         self.current_path[name] = None
+@@ -1739,6 +1774,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 self._write_metrics(
+                     coverage, all_frontiers, np.empty((0, 2)), force=True,
+                     observed_free_area=observed_free_area)
++                self._close_frontier_trace()
+                 if self.shutdown_on_done:
+                     shutdown_reason = (
+                         'exploration mission complete'
+@@ -1761,6 +1797,12 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             self._write_metrics(coverage, all_frontiers, frontiers,
+                                 observed_free_area=observed_free_area)
+             if len(frontiers) == 0:
++                if self.frontier_trace is not None:
++                    for name in self.robot_names:
++                        goal = self.current_goal.get(name)
++                        if (goal is not None and
++                                np.linalg.norm(np.subtract(self.positions[name], goal)) < ARRIVE_THRESH):
++                            self._finish_frontier_attempt(name, 'reached')
+                 rate = self._safe_sleep(rate)
+                 continue
+             frontier_ids = self.track_frontiers(frontiers)
+@@ -1801,6 +1843,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 reached = goal is not None and np.linalg.norm(pos - np.array(goal)) < ARRIVE_THRESH
+                 if reached:
+                     self.goals_reached += 1
++                    self._finish_frontier_attempt(name, 'reached')
+ 
+                 held_long_enough = (
+                     self._control_now() - self.goal_set_time.get(name, 0.0)
+@@ -1847,6 +1890,9 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+ 
+                 invalid_goal = reached or not still_owned or blocked
+                 if invalid_goal:
++                    if not reached:
++                        self._finish_frontier_attempt(
++                            name, 'blocked' if blocked else 'ownership_changed')
+                     if not still_owned:
+                         self.goals_dropped_owner += 1
+                     if blocked:
+@@ -1866,6 +1912,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     if action_kind == 'wait':
+                         if goal is not None:
+                             self.goals_cleared_wait += 1
++                            self._finish_frontier_attempt(name, 'wait')
+                         goal = None
+                         self.current_goal[name] = None
+                         self.current_goal_id[name] = None
+@@ -1958,6 +2005,16 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                         self.current_goal_id[name] = frontier_ids[best_index]
+                         self.goal_set_time[name] = self._control_now()
+                         self.goal_assignments += 1
++                        if self.frontier_trace is not None:
++                            elapsed, area = self._frontier_trace_snapshot()
++                            self.frontier_trace.assign(
++                                name, elapsed, area,
++                                selection_source=('actor' if policy_controls_selection else
++                                                  'stall_fallback' if fallback_active else 'rule'),
++                                selected_frontier_id=int(frontier_ids[best_index]),
++                                selected_xy=best.tolist(),
++                                candidate_frontier_ids=[int(fid) for fid in frontier_ids],
++                                candidate_owners=[self.robot_names[int(index)] for index in owner])
+                         if (self.selection_mode in HYBRID_SELECTION_MODES and
+                                 fallback_active):
+                             self.hybrid_fallback_goal_assignments += 1
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/frontier_decision_trace.py b/turtlebot_ddpg/scripts/voronoi_exploration/frontier_decision_trace.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..96ff8f3b9e876d15a579e2e0104d4e6f7580cace
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/frontier_decision_trace.py
+@@ -0,0 +1,54 @@
++"""Record frontier assignments and outcomes for one simulation run."""
++
++import json
++import threading
++from pathlib import Path
++
++
++class FrontierDecisionTrace:
++    def __init__(self, path, **metadata):
++        path = Path(path)
++        path.parent.mkdir(parents=True, exist_ok=True)
++        self._file = path.open('x', encoding='utf-8', buffering=1)
++        self._lock = threading.Lock()
++        self._pending = {}
++        self._next_id = 1
++        self._write(dict(event='run', schema_version=1, **metadata))
++
++    def _write(self, row):
++        self._file.write(json.dumps(row, allow_nan=False) + '\n')
++
++    def assign(self, robot, elapsed, area, **selection):
++        with self._lock:
++            if self._file.closed:
++                return
++            self._finish(robot, 'replaced', elapsed, area)
++            attempt = self._next_id
++            self._next_id += 1
++            self._pending[robot] = attempt, area
++            self._write(dict(event='assigned', attempt_id=attempt, robot=robot,
++                             elapsed_sim_s=elapsed, team_area_m2=area, **selection))
++
++    def _finish(self, robot, outcome, elapsed, area):
++        pending = self._pending.pop(robot, None)
++        if pending is None:
++            return
++        attempt, start_area = pending
++        self._write(dict(event='outcome', attempt_id=attempt, robot=robot,
++                         outcome=outcome, elapsed_sim_s=elapsed,
++                         team_area_m2=area, team_area_gain_m2=area - start_area))
++
++    def finish(self, robot, outcome, elapsed, area):
++        with self._lock:
++            if not self._file.closed:
++                self._finish(robot, outcome, elapsed, area)
++
++    def close(self, outcome, elapsed, area):
++        with self._lock:
++            if self._file.closed:
++                return
++            for robot in list(self._pending):
++                self._finish(robot, outcome, elapsed, area)
++            self._write(dict(event='run_end', reason=outcome,
++                             elapsed_sim_s=elapsed, team_area_m2=area))
++            self._file.close()
+diff --git a/turtlebot_ddpg/tests/test_frontier_decision_trace.py b/turtlebot_ddpg/tests/test_frontier_decision_trace.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8c120a8173d0ac20d2ebd148589647faced5149b
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_frontier_decision_trace.py
+@@ -0,0 +1,47 @@
++import json
++import os
++import sys
++import unittest
++from pathlib import Path
++from tempfile import TemporaryDirectory
++
++
++sys.path.insert(0, os.path.join(
++    os.path.dirname(os.path.dirname(__file__)), 'scripts', 'voronoi_exploration'))
++
++from frontier_decision_trace import FrontierDecisionTrace
++
++
++class FrontierDecisionTraceTests(unittest.TestCase):
++    def test_assignments_have_exactly_one_outcome_and_keep_censored_attempts(self):
++        with TemporaryDirectory() as directory:
++            path = Path(directory) / 'run.jsonl'
++            trace = FrontierDecisionTrace(path, experiment_seed=501)
++            trace.assign('robot1', 1.0, 2.0, selected_frontier_id=6)
++            trace.assign('robot2', 2.0, 2.5, selected_frontier_id=9)
++            trace.finish('robot1', 'reached', 4.0, 3.0)
++            trace.finish('robot1', 'reached', 4.2, 3.0)
++            trace.assign('robot2', 5.0, 3.5, selected_frontier_id=10)
++            trace.close('simulation_horizon', 300.0, 4.0)
++            trace.close('run_shutdown', 301.0, 4.0)
++            records = [json.loads(line) for line in path.read_text().splitlines()]
++        self.assertEqual(records[0]['experiment_seed'], 501)
++        self.assertEqual(records[-1]['reason'], 'simulation_horizon')
++        outcomes = [row for row in records if row['event'] == 'outcome']
++        self.assertEqual([(row['attempt_id'], row['outcome']) for row in outcomes],
++                         [(1, 'reached'), (2, 'replaced'), (3, 'simulation_horizon')])
++        self.assertEqual([row['team_area_gain_m2'] for row in outcomes], [1.0, 1.0, 0.5])
++
++    def test_existing_trace_is_preserved(self):
++        with TemporaryDirectory() as directory:
++            path = Path(directory) / 'run.jsonl'
++            trace = FrontierDecisionTrace(path, experiment_seed=501)
++            trace.close('run_shutdown', 1.0, 0.0)
++            original = path.read_bytes()
++            with self.assertRaises(FileExistsError):
++                FrontierDecisionTrace(path, experiment_seed=502)
++            self.assertEqual(path.read_bytes(), original)
++
++
++if __name__ == '__main__':
++    unittest.main()
