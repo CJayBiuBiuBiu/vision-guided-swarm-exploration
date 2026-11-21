@@ -1,0 +1,294 @@
+diff --git a/docs/PUBLICATION_MILESTONES.md b/docs/PUBLICATION_MILESTONES.md
+index 9a0e337ac32954f794389eb696c24548350c321b..9b9f66948bc9756c7d0c4eaa2ab62b3e879fb13b 100644
+--- a/docs/PUBLICATION_MILESTONES.md
++++ b/docs/PUBLICATION_MILESTONES.md
+@@ -32,3 +32,24 @@ Calculate 90% and 97% threshold times from the evaluation CSV.
+ GitHub checkpoint: review and publish the S1 changes as a separate commit
+ after reviewing the pre-existing changes in the working tree. Suggested
+ commit title: `Separate observed exploration progress from reference coverage`.
++
++## S2. Separate vision roles — 2026-11-21
++
++Status: score routing and focused local tests complete. Decision-event
++logging and the Gazebo comparison follow separately.
++
++- Use `vision_role:=off|actor_only|rules_only|both` with the same fixed policy
++  and environment. The default `both` reproduces the previous scores.
++- The rules channel affects ownership and analytic fallback. In
++  `rules_only`, both the explicit vision feature and the vision contribution
++  to the actor's analytic-cost feature are disabled. The actor can still
++  receive a different candidate mask because the rules can change ownership.
++  In `actor_only`, vision leaves rule costs and ownership unchanged at the
++  same decision state.
++- These are interventions on a frozen controller. Changes in performance
++  include the effect of changing the input distribution for that controller.
++- Local verification: 37 focused tests pass, including numeric equivalence
++  to the legacy routing and tests for cross-channel leakage.
++
++GitHub checkpoint: keep S2 separate from S1. Suggested commit title:
++`Separate actor and rule-based frontier vision`.
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index a3547ddf90158a673f9e3560067593f46f39295b..de11245d9ea65d4b2e30c6cd5d1572318d09262d 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -75,6 +75,8 @@
+        doc="thirds (checkpoint-compatible baseline) or interpolated"/>
+   <arg name="vision_feature_scale" default="1.0"
+        doc="Scale applied to camera openness before it enters frontier costs and MAPPO tokens"/>
++  <arg name="vision_role" default="both"
++       doc="Use visual scores in both, actor_only, rules_only, or off"/>
+   <arg name="mapping_mode" default="laser_scan"
+        doc="laser_scan (unknown-map default) or ground_truth_radius (legacy baseline)"/>
+   <arg name="pose_source" default="gazebo_truth"
+@@ -164,6 +166,7 @@
+     <param name="vision_scoring_mode" value="$(arg vision_scoring_mode)"/>
+     <param name="vision_projection_mode" value="$(arg vision_projection_mode)"/>
+     <param name="vision_feature_scale" value="$(arg vision_feature_scale)"/>
++    <param name="vision_role" value="$(arg vision_role)"/>
+     <param name="mapping_mode" value="$(arg mapping_mode)"/>
+     <param name="pose_source" value="$(arg pose_source)"/>
+     <param name="communication_delay_s" value="$(arg communication_delay_s)"/>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index f5a424713954ca0171b96d0c7156283232554c81..e86e3bf870bed53911c46e173327caf87fdfce21 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -43,8 +43,8 @@ from turtlebot_ddpg.msg import (
+ from scipy.spatial import Voronoi
+ 
+ from frontier_scoring import (
+-    assign_by_cost, blend_phase_costs, combine_assignment_cost_terms,
+-    combine_cost_terms, line_risk_path_cost, normalize_rows, SELECTION_MODES)
++    SELECTION_MODES, assign_by_cost, blend_phase_costs, line_risk_path_cost,
++    normalize_rows, score_frontier_roles, vision_role_flags)
+ from hybrid_fallback import (
+     CoverageStallFallback, OBSERVED_FREE_AREA, REFERENCE_COVERAGE,
+     validate_progress_mode)
+@@ -384,7 +384,10 @@ class Coordinator(object):
+         if self.selection_mode not in COORDINATOR_SELECTION_MODES:
+             raise ValueError('selection_mode must be one of %s' %
+                              (COORDINATOR_SELECTION_MODES,))
+-        self.vision_enabled = bool(rospy.get_param('~vision_enabled', True))
++        self.vision_role = rospy.get_param('~vision_role', 'both')
++        self.actor_uses_vision, self.rules_use_vision = vision_role_flags(
++            self.vision_role, bool(rospy.get_param('~vision_enabled', True)))
++        self.vision_enabled = self.actor_uses_vision or self.rules_use_vision
+         self.vision_scoring_mode = rospy.get_param(
+             '~vision_scoring_mode', 'projected_obstacle')
+         if self.vision_scoring_mode not in VISION_SCORING_MODES:
+@@ -477,13 +480,16 @@ class Coordinator(object):
+             '~tail_completion_enabled', False))
+         self.tail_completion_coverage = float(rospy.get_param(
+             '~tail_completion_coverage', 90.0))
++        starts_training = bool(rospy.get_param('~starts_policy_training', False))
++        if self.vision_role != 'both' and starts_training:
++            raise ValueError('vision_role ablations require frozen-policy evaluation')
+         validate_progress_mode(
+             self.control_progress_mode, self.mapping_mode,
+             self.max_simulation_seconds,
+             uses_coverage_phase=(
+                 self.complete_on_coverage or self.tail_completion_enabled or
+                 self.selection_mode in ADAPTIVE_SELECTION_MODES),
+-            starts_training=bool(rospy.get_param('~starts_policy_training', False)))
++            starts_training=starts_training)
+         self.stuck_blacklist_ttl = float(rospy.get_param(
+             '~stuck_blacklist_ttl', 90.0))
+         self.recovery_direction_mode = rospy.get_param(
+@@ -1171,15 +1177,11 @@ class Coordinator(object):
+         self.vision_token_nonzero_count += int(np.count_nonzero(vision > 1e-6))
+         self.vision_token_openness_sum += float(np.sum(vision))
+ 
+-        costs = combine_cost_terms(
+-            'execution_aware', distance=distance, path=path_cost,
+-            obstacle=obstacle, collision=collision, overlap=overlap,
+-            communication=communication, information=information, vision=vision)
+-        ownership_costs = combine_assignment_cost_terms(
++        costs, ownership_costs, actor_costs, actor_vision = score_frontier_roles(
++            'execution_aware', vision, self.actor_uses_vision, self.rules_use_vision,
+             distance=distance, path=path_cost, obstacle=obstacle,
+             collision=collision, overlap=overlap,
+-            communication=communication, information=information,
+-            vision=vision)
++            communication=communication, information=information)
+         features = {
+             'distance': distance,
+             'path': path_cost,
+@@ -1188,12 +1190,13 @@ class Coordinator(object):
+             'overlap': overlap,
+             'communication': communication,
+             'information': information,
+-            'vision': vision,
++            'vision': actor_vision,
++            'actor_cost': actor_costs,
+         }
+         return costs, ownership_costs, features
+ 
+     def _publish_policy_observations(self, coverage, frontiers, frontier_ids, owner,
+-                                     execution_costs, features):
++                                     features):
+         stamp = rospy.Time.now()
+         for i, name in enumerate(self.robot_names):
+             x, y = self.positions[name]
+@@ -1213,7 +1216,7 @@ class Coordinator(object):
+                 token = FrontierToken()
+                 token.id = frontier_ids[j]
+                 token.position = Point(x=float(frontier[0]), y=float(frontier[1]), z=0.0)
+-                token.analytic_cost = float(execution_costs[i, j])
++                token.analytic_cost = float(features['actor_cost'][i, j])
+                 token.distance = float(features['distance'][i, j])
+                 token.path_cost = float(features['path'][i, j])
+                 token.obstacle_risk = float(features['obstacle'][i, j])
+@@ -1226,7 +1229,7 @@ class Coordinator(object):
+                 # Keep the initial action mask finite and permissive. Exact A*
+                 # reachability is checked after SELECT, avoiding the previous
+                 # prototype failure where every frontier became masked by inf.
+-                token.reachable = bool(np.isfinite(execution_costs[i, j]))
++                token.reachable = bool(np.isfinite(features['actor_cost'][i, j]))
+                 token.selectable = bool(
+                     token.assigned and token.reachable and
+                     (active_goal_id is None or token.id == active_goal_id))
+@@ -1285,6 +1288,8 @@ class Coordinator(object):
+         fields = METRIC_FIELDS
+         if self.observed_free is not None:
+             fields = fields + ['control_progress_mode', 'observed_free_area_m2']
++        if self.observed_free is not None or self.vision_role != 'both':
++            fields = fields + ['vision_role', 'actor_uses_vision', 'rules_use_vision']
+         if not new_file:
+             with open(self.metrics_path, newline='') as existing:
+                 if next(csv.reader(existing), None) != fields:
+@@ -1475,6 +1480,10 @@ class Coordinator(object):
+         if observed_free_area is not None:
+             row.update(control_progress_mode=self.control_progress_mode,
+                        observed_free_area_m2='%.4f' % observed_free_area)
++        if self.observed_free is not None or self.vision_role != 'both':
++            row.update(vision_role=self.vision_role,
++                       actor_uses_vision=int(self.actor_uses_vision),
++                       rules_use_vision=int(self.rules_use_vision))
+         with self._metrics_lock:
+             if self._metrics_writer is None or self._metrics_file is None:
+                 return
+@@ -1783,7 +1792,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             self._publish_policy_observations(
+                 control_coverage if reference_control else 0.0,
+                 frontiers, frontier_ids, owner,
+-                execution_costs, execution_features)
++                execution_features)
+ 
+             for i, name in enumerate(self.robot_names):
+                 pos = np.array(self.positions[name])
+@@ -1935,7 +1944,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                             first_pos = np.array(self.first_node_pos[name])
+                             delta = np.linalg.norm(own_frontiers - first_pos, axis=1)
+                             utility = ALPHA * d + (1 - ALPHA) * delta
+-                            if self.selection_mode == 'vision':
++                            if self.selection_mode == 'vision' and self.rules_use_vision:
+                                 yaw = self.yaws.get(name, 0.0)
+                                 vision = np.array([
+                                     self.vision_bias(pos, yaw, f, name) for f in own_frontiers])
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/frontier_scoring.py b/turtlebot_ddpg/scripts/voronoi_exploration/frontier_scoring.py
+index 0469a35e8beaf5f572bb0063e51c00113eafbbe4..52ba9cce505ef225d0c971113677482bee6cdb20 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/frontier_scoring.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/frontier_scoring.py
+@@ -7,6 +7,15 @@ import numpy as np
+ 
+ 
+ SELECTION_MODES = ("geometric", "vision", "execution_aware")
++VISION_ROLES = ("both", "actor_only", "rules_only", "off")
++
++
++def vision_role_flags(role, enabled=True):
++    """Return whether the actor input and rule decisions may each use vision."""
++    if role not in VISION_ROLES:
++        raise ValueError("vision_role must be one of %s" % (VISION_ROLES,))
++    return (enabled and role in ("both", "actor_only"),
++            enabled and role in ("both", "rules_only"))
+ 
+ 
+ DEFAULT_WEIGHTS = {
+@@ -242,6 +251,19 @@ def combine_assignment_cost_terms(distance, path=None, obstacle=None,
+     return np.nan_to_num(cost, nan=1.0, posinf=1.0, neginf=-1.0)
+ 
+ 
++def score_frontier_roles(mode, vision, actor_uses_vision, rules_use_vision,
++                         **terms):
++    """Separate rule ranking and ownership from what the actor directly sees."""
++    actor_vision = vision if actor_uses_vision else np.zeros_like(vision)
++    rule_vision = vision if rules_use_vision else None
++    rule_cost = combine_cost_terms(mode, vision=rule_vision, **terms)
++    ownership_cost = combine_assignment_cost_terms(vision=rule_vision, **terms)
++    actor_cost = rule_cost
++    if actor_uses_vision != rules_use_vision:
++        actor_cost = combine_cost_terms(mode, vision=actor_vision, **terms)
++    return rule_cost, ownership_cost, actor_cost, actor_vision
++
++
+ def finite_fallback_value(distance):
+     """Choose a finite path fallback larger than the observed distances."""
+     finite = np.asarray(distance, dtype=np.float64)
+diff --git a/turtlebot_ddpg/tests/test_frontier_vision_roles.py b/turtlebot_ddpg/tests/test_frontier_vision_roles.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..bcef6c0f1bc61f87d13e4172d26fcdbf34d23a8d
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_frontier_vision_roles.py
+@@ -0,0 +1,62 @@
++import os
++import sys
++import unittest
++
++import numpy as np
++
++
++sys.path.insert(0, os.path.join(
++    os.path.dirname(os.path.dirname(__file__)), 'scripts', 'voronoi_exploration'))
++
++from frontier_scoring import (
++    assign_by_cost, combine_assignment_cost_terms, combine_cost_terms,
++    score_frontier_roles, vision_role_flags)
++
++
++class FrontierVisionRoleTests(unittest.TestCase):
++    def setUp(self):
++        self.distance = np.array([[2.0, 3.0], [2.0, 4.0]])
++        self.vision = np.array([[0.0, 0.6], [1.0, 0.0]])
++
++    def score(self, role, enabled=True):
++        actor, rules = vision_role_flags(role, enabled)
++        return score_frontier_roles(
++            'execution_aware', self.vision, actor, rules, distance=self.distance)
++
++    def test_both_matches_legacy_scores(self):
++        rule_cost, owner_cost, actor_cost, actor_vision = self.score('both')
++        expected = combine_cost_terms(
++            'execution_aware', distance=self.distance, vision=self.vision)
++        np.testing.assert_array_equal(rule_cost, expected)
++        np.testing.assert_array_equal(actor_cost, expected)
++        np.testing.assert_array_equal(owner_cost, combine_assignment_cost_terms(
++            self.distance, vision=self.vision))
++        np.testing.assert_array_equal(actor_vision, self.vision)
++
++    def test_actor_only_preserves_the_visual_free_owner_mask_and_rule_cost(self):
++        rule_cost, owner_cost, actor_cost, actor_vision = self.score('actor_only')
++        no_rule, no_owner, no_actor, _ = self.score('off')
++        np.testing.assert_array_equal(rule_cost, no_rule)
++        np.testing.assert_array_equal(owner_cost, no_owner)
++        self.assertFalse(np.array_equal(actor_cost, no_actor))
++        np.testing.assert_array_equal(actor_vision, self.vision)
++
++    def test_rules_only_changes_ownership_without_visual_leak_in_actor_cost(self):
++        rule_cost, owner_cost, actor_cost, actor_vision = self.score('rules_only')
++        no_rule, no_owner, no_actor, _ = self.score('off')
++        self.assertFalse(np.array_equal(rule_cost, no_rule))
++        self.assertEqual(assign_by_cost(no_owner)[0], 0)
++        self.assertEqual(assign_by_cost(owner_cost)[0], 1)
++        np.testing.assert_array_equal(actor_cost, no_actor)
++        np.testing.assert_array_equal(actor_vision, np.zeros_like(self.vision))
++
++    def test_disabled_camera_matches_off_and_invalid_role_is_rejected(self):
++        for role in ('both', 'actor_only', 'rules_only'):
++            for actual, expected in zip(self.score(role, enabled=False), self.score('off')):
++                np.testing.assert_array_equal(actual, expected)
++        with self.assertRaises(ValueError):
++            self.score('invalid')
++
++
++if __name__ == '__main__':
++    unittest.main()
