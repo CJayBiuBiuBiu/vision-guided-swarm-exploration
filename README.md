@@ -1,15 +1,15 @@
 # Vision-Guided Swarm Exploration
 
-Residual Execution-Aware Voronoi MAPPO for multi-robot exploration in unknown
+Research project by **Yujie Cao** on multi-robot exploration in unknown
 environments.
 
-This repository implements a simulation-based research prototype for swarm
-robotic exploration. The system combines classical frontier exploration,
-execution-aware Voronoi assignment, and multi-agent reinforcement learning. A
-residual actor learns to adjust an analytical frontier-assignment baseline,
-while a centralized critic is used during MAPPO training.
+This is the project home for two implementations. The Python prototype below
+studies residual MAPPO for execution-aware frontier assignment in a grid
+simulator. The [ROS/Gazebo implementation and experiment guide](docs/ros-gazebo.md)
+describes the TurtleBot3 dissertation experiments and the follow-up changes.
+The ROS/Gazebo hierarchy builds on the credited TurtleBot3 DDPG baseline.
 
-## Core Idea
+## Python prototype
 
 The project is built around a hierarchical exploration loop:
 
