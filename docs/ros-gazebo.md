@@ -34,3 +34,7 @@ from the base snapshot. The command above performs the checkout step.
 The prepared project's
 [`REPRODUCIBILITY.md`](https://github.com/CJayBiuBiuBiu/turtlebot3_ddpg_collision_avoidance/blob/39ee535f99ba6e061b1d7db4658a03d009a61dcc/REPRODUCIBILITY.md)
 lists experiment commands and artifacts.
+
+The [matched control-progress pilot](control-progress-pilot-2026-11-21.md)
+records the first 300-second Gazebo check of the reference-coverage and
+observed-area modes.
