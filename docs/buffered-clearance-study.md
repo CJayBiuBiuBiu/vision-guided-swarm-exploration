@@ -57,6 +57,59 @@ near-collision notifications, stuck recovery, input availability and traced
 arrivals. Threshold summaries report how many runs reach 90% and 97%
 coverage. Time differences use only pairs that both reach the threshold.
 
+## Expanded study results
+
+All 20 runs completed the 300-second simulation horizon. The audit recomputed
+each result from its metrics CSV and frontier trace. It confirmed the recorded
+schedule, source tree, map and checkpoint fingerprints.
+
+Coverage values are mean ± sample standard deviation. The differences
+use buffered fusion minus direct LiDAR within each seed and layout.
+
+| Layout | Direct LiDAR final | Buffered fusion final | Mean paired difference | Range of paired differences | Fusion ahead | Mean time-averaged difference |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Hu-aligned | 87.22 ± 7.08% | 92.88 ± 6.63% | +5.66 pp | -5.13 to +15.66 pp | 4/5 | +1.99 pp |
+| Layout C | 96.19 ± 2.78% | 83.48 ± 6.38% | -12.71 pp | -25.87 to -4.07 pp | 0/5 | -9.03 pp |
+
+| Layout | Mean path difference | Mean stuck-event difference | Mean near-collision notification difference | Mean arrival difference |
+| --- | ---: | ---: | ---: | ---: |
+| Hu-aligned | +3.96 m | -3.4 | +7.4 | +6.0 |
+| Layout C | -15.63 m | +2.8 | -5.4 | -11.2 |
+
+The clearance detector counts near-collision notifications using a laser
+range threshold and a separate reset threshold.
+
+| Layout | Coverage threshold | Direct LiDAR reached | Fusion reached | Both reached | Mean time difference when both reached |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Hu-aligned | 90% | 1/5 | 4/5 | 1 | +6.25 s |
+| Hu-aligned | 97% | 0/5 | 2/5 | 0 | — |
+| Layout C | 90% | 5/5 | 0/5 | 0 | — |
+| Layout C | 97% | 2/5 | 0/5 | 0 | — |
+
+Threshold counts use all five matched seeds per layout. The conditional
+time differences use the subset in which both runs reach the target.
+
+### Interpretation
+
+Buffered fusion raised final coverage in four of five Hu-aligned pairs.
+In Layout C, direct LiDAR finished ahead in all five pairs. Buffered fusion
+provided a complete team cue on 99.00–100.00% of control ticks. Layout C
+also recorded 11.2 fewer traced arrivals per fusion run on average. The
+trace identifies an execution difference alongside the coverage deficit.
+The experiment changes the cue for both policy observations and rule
+decisions, so it leaves the contribution of each pathway unresolved.
+
+The estimates describe three robots in two layouts, five matched seeds per
+layout, and a single frozen MAPPO and DDPG checkpoint pair. The 300-second
+horizon describes fixed-budget performance. A single Hu-aligned pair
+reached 90% in both conditions, which gives the only paired threshold-time
+difference in this batch.
+
+[Experiment manifest](../ros_gazebo/experiments/2026-11-22-buffered-clearance/expanded_results/experiment_manifest.json)
+· [Per-run results](../ros_gazebo/experiments/2026-11-22-buffered-clearance/expanded_results/paired_runs.csv)
+· [Paired differences](../ros_gazebo/experiments/2026-11-22-buffered-clearance/expanded_results/paired_differences.csv)
+· [Coverage figure](../ros_gazebo/experiments/2026-11-22-buffered-clearance/expanded_results/paired_coverage.png)
+
 ## Run and resume
 
 Build and source the prepared ROS workspace and activate its Python environment.

@@ -1,0 +1,136 @@
+{
+  "horizon_s": 300,
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44",
+    "launch": "ceea160acf814432a499c20326b3809ca3755741faa1fff87c224da169ce58b5",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "c489507cd795ebac852339c349f1a0e5ea9570dbf0ee150f90a4bc46c5e05c45",
+    "schedule": "d60b7129e0efb5b1199f7b4c82baeb688794ee269b33ab8533d8df404fc8ef53"
+  },
+  "schedule": [
+    [
+      "hu_aligned",
+      61200,
+      1,
+      "lidar"
+    ],
+    [
+      "hu_aligned",
+      61200,
+      2,
+      "buffered_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61205,
+      1,
+      "buffered_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61205,
+      2,
+      "lidar"
+    ],
+    [
+      "hu_aligned",
+      61201,
+      1,
+      "buffered_fusion"
+    ],
+    [
+      "hu_aligned",
+      61201,
+      2,
+      "lidar"
+    ],
+    [
+      "hu_layout_c",
+      61206,
+      1,
+      "lidar"
+    ],
+    [
+      "hu_layout_c",
+      61206,
+      2,
+      "buffered_fusion"
+    ],
+    [
+      "hu_aligned",
+      61202,
+      1,
+      "lidar"
+    ],
+    [
+      "hu_aligned",
+      61202,
+      2,
+      "buffered_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61207,
+      1,
+      "buffered_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61207,
+      2,
+      "lidar"
+    ],
+    [
+      "hu_aligned",
+      61203,
+      1,
+      "buffered_fusion"
+    ],
+    [
+      "hu_aligned",
+      61203,
+      2,
+      "lidar"
+    ],
+    [
+      "hu_layout_c",
+      61208,
+      1,
+      "lidar"
+    ],
+    [
+      "hu_layout_c",
+      61208,
+      2,
+      "buffered_fusion"
+    ],
+    [
+      "hu_aligned",
+      61204,
+      1,
+      "lidar"
+    ],
+    [
+      "hu_aligned",
+      61204,
+      2,
+      "buffered_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61209,
+      1,
+      "buffered_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61209,
+      2,
+      "lidar"
+    ]
+  ],
+  "source_tree": "edc55eecffe5be1267fa27aa987bb4a6146e73f3"
+}

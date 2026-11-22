@@ -1,0 +1,5 @@
+layout,coverage_threshold_pct,pairs,reference,treatment,reference_reached,buffered_reached,both_reached,buffered_minus_reference_mean_s_when_both_reached
+hu_aligned,90,5,lidar,buffered_fusion,1,4,1,6.25
+hu_aligned,97,5,lidar,buffered_fusion,0,2,0,
+hu_layout_c,90,5,lidar,buffered_fusion,5,0,0,
+hu_layout_c,97,5,lidar,buffered_fusion,2,0,0,
