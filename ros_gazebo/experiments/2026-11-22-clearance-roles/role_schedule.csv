@@ -1,0 +1,17 @@
+layout,seed,order,condition
+hu_aligned,61300,1,matched_lidar_lidar
+hu_aligned,61300,2,matched_fusion_lidar
+hu_aligned,61300,3,matched_fusion_fusion
+hu_aligned,61300,4,matched_lidar_fusion
+hu_layout_c,61301,1,matched_fusion_lidar
+hu_layout_c,61301,2,matched_lidar_fusion
+hu_layout_c,61301,3,matched_lidar_lidar
+hu_layout_c,61301,4,matched_fusion_fusion
+hu_aligned,61302,1,matched_lidar_fusion
+hu_aligned,61302,2,matched_fusion_fusion
+hu_aligned,61302,3,matched_fusion_lidar
+hu_aligned,61302,4,matched_lidar_lidar
+hu_layout_c,61303,1,matched_fusion_fusion
+hu_layout_c,61303,2,matched_lidar_lidar
+hu_layout_c,61303,3,matched_lidar_fusion
+hu_layout_c,61303,4,matched_fusion_lidar

@@ -112,6 +112,10 @@ difference in this batch.
 
 ## Run and resume
 
+Use repository revision `a0725cdff9bd2a9c21b32a827e53048280ae11a8` and its
+prepared ROS source tree to reproduce or audit the archived runs in this
+report. The archive fingerprints the runner at that revision.
+
 Build and source the prepared ROS workspace and activate its Python environment.
 The following command assumes a working X display. On a headless machine,
 prefix the Python command with `xvfb-run -a`. Set `ROS_PROJECT` to the

@@ -63,6 +63,10 @@ that control tick.
 
 See the [buffered clearance study](buffered-clearance-study.md) for the
 synchronization pilot, matched schedules and result checks.
+Use `vision_scoring_mode:=matched_directional_clearance` to assign LiDAR or
+RGB–LiDAR fusion independently to MAPPO and the frontier rules. The
+[clearance role study](clearance-role-study.md) describes the independent
+settings and common scan.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)

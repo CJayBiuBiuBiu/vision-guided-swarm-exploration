@@ -1,0 +1,5 @@
+layout,seed,order,condition
+hu_aligned,61390,1,matched_lidar_lidar
+hu_aligned,61390,2,matched_fusion_lidar
+hu_aligned,61390,3,matched_fusion_fusion
+hu_aligned,61390,4,matched_lidar_fusion

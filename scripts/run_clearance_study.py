@@ -11,14 +11,22 @@ import re
 import subprocess
 import sys
 import tempfile
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 
+MATCHED_MODE = "matched_directional_clearance"
+ROLE_CONDITIONS = {
+    "matched_lidar_lidar": ("lidar", "lidar"),
+    "matched_fusion_lidar": ("fusion", "lidar"),
+    "matched_lidar_fusion": ("lidar", "fusion"),
+    "matched_fusion_fusion": ("fusion", "fusion"),
+}
 CONDITIONS = {
     "lidar": ("lidar_openness", "buffered"),
     "latest_fusion": ("rgb_lidar_openness", "latest"),
     "buffered_fusion": ("rgb_lidar_openness", "buffered"),
+    **{condition: (MATCHED_MODE, "buffered") for condition in ROLE_CONDITIONS},
 }
 WORLDS = ("hu_aligned", "hu_layout_c")
 
@@ -53,11 +61,33 @@ def read_schedule(path):
     if not blocks:
         raise ValueError("The study schedule is empty")
     expected = {run[3] for run in runs}
+    if expected.intersection(ROLE_CONDITIONS) and expected != ROLE_CONDITIONS.keys():
+        raise ValueError("A matched role study requires all four conditions")
     for block in blocks.values():
         if ([order for order, _ in block] != list(range(1, len(expected) + 1))
                 or {condition for _, condition in block} != expected):
             raise ValueError("Each seed and layout must run each condition in the study once")
     return runs
+
+
+def verify_matched_cues(assignment, actor, rules, weight, directory):
+    pair = assignment["fusion_pair"]
+    lidar = pair["cue_lidar_scores"]
+    rgb = pair["paired_rgb_scores"]
+    paired = pair["status"] in ("latest", "buffered")
+    stamp = pair["cue_lidar_stamp_s"]
+    if (paired != (rgb is not None) or (stamp is None) != (lidar is None)
+            or pair["lidar_fallback"] != (lidar is not None and not paired)
+            or (paired and not (lidar is not None and 0.0 <= pair["paired_skew_s"] <= 0.25))):
+        raise ValueError(f"Inconsistent matched sensor diagnostics in {directory}")
+    if (lidar is not None and len(lidar) != 3) or (rgb is not None and len(rgb) != 3):
+        raise ValueError(f"Invalid directional scores in {directory}")
+    fused = ([weight * image + (1.0 - weight) * scan for image, scan in zip(rgb, lidar)]
+             if paired else lidar)
+    vectors = {"lidar": lidar, "fusion": fused}
+    if (assignment["actor_directional_clearance"] != vectors[actor]
+            or assignment["directional_clearance"] != vectors[rules]):
+        raise ValueError(f"Recorded cue does not match its pathway or common LiDAR sample in {directory}")
 
 
 def verify_run(directory, world, seed, condition, horizon, package):
@@ -79,6 +109,10 @@ def verify_run(directory, world, seed, condition, horizon, package):
         "control_progress_mode": "observed_free_area", "vision_role": "both",
         "robot_count": "3",
     }
+    if condition in ROLE_CONDITIONS:
+        actor, rules = ROLE_CONDITIONS[condition]
+        expected.update(clearance_actor_cue=actor, clearance_rules_cue=rules,
+                        fusion_pairing_mode=pairing, clearance_rgb_weight="0.5")
     if any({row[key] for row in rows} != {value} for key, value in expected.items()):
         raise ValueError(f"Logged configuration does not match the schedule in {directory}")
     elapsed = float(last["elapsed_sim_s"])
@@ -99,17 +133,34 @@ def verify_run(directory, world, seed, condition, horizon, package):
                              float(row["coverage_pct"]), abs_tol=0.02) for row in rows):
         raise ValueError(f"Coverage percentages do not reproduce the logged counts in {directory}")
     events = [json.loads(line) for line in (directory / "decisions.jsonl").read_text().splitlines()]
-    assigned = [event["attempt_id"] for event in events if event["event"] == "assigned"]
+    assignments = [event for event in events if event["event"] == "assigned"]
+    assigned = [event["attempt_id"] for event in assignments]
     outcomes = [event for event in events if event["event"] == "outcome"]
     if (not events or events[-1].get("reason") != "simulation_horizon" or
             not assigned or sorted(assigned) != sorted(event["attempt_id"] for event in outcomes)
             or len(assigned) != len(set(assigned))):
         raise ValueError(f"Incomplete frontier trace in {directory}")
     pair_counts = {}
-    if mode == "rgb_lidar_openness":
+    if mode in ("rgb_lidar_openness", MATCHED_MODE):
         pair_counts = json.loads(last["fusion_pair_outcomes_json"])
         if last["fusion_pairing_mode"] != pairing or sum(pair_counts.values()) != 3 * ticks:
             raise ValueError(f"Invalid fusion timing telemetry in {directory}")
+    role_details = {}
+    if condition in ROLE_CONDITIONS:
+        if events[0]["event"] != "run" or (events[0]["clearance_actor_cue"],
+                                          events[0]["clearance_rules_cue"]) != (actor, rules):
+            raise ValueError(f"Trace header does not match the experiment in {directory}")
+        for assignment in assignments:
+            verify_matched_cues(assignment, actor, rules, 0.5, directory)
+        paired_ticks = pair_counts.get("latest", 0) + pair_counts.get("buffered", 0)
+        fallback = int(last["matched_lidar_fallback_ticks"])
+        if paired_ticks <= 0 or not 0 <= fallback <= 3 * ticks - paired_ticks:
+            raise ValueError(f"Missing matched samples or invalid fallback counts in {directory}")
+        role_details = {
+            "actor_cue": actor, "rules_cue": rules,
+            "matched_lidar_fallback_ticks": fallback,
+            "trace_outcome_counts": dict(Counter(event["outcome"] for event in outcomes)),
+        }
     sys.path.insert(0, str(package / "scripts"))
     from summarize_evaluation import time_weighted_coverage
 
@@ -129,6 +180,7 @@ def verify_run(directory, world, seed, condition, horizon, package):
         "trace_horizon_censored": sum(event["outcome"] == "simulation_horizon" for event in outcomes),
         "time_to_90_s": threshold_time(rows, 90),
         "time_to_97_s": threshold_time(rows, 97),
+        **role_details,
     }
 
 
@@ -175,6 +227,9 @@ def run_condition(run, args, package, rgb, mappo):
         f"metrics_path:={directory / 'metrics.csv'}",
         f"frontier_trace_path:={directory / 'decisions.jsonl'}",
     ]
+    if condition in ROLE_CONDITIONS:
+        actor, rules = ROLE_CONDITIONS[condition]
+        launch_args += [f"clearance_actor_cue:={actor}", f"clearance_rules_cue:={rules}"]
     (directory / "launch_arguments.txt").write_text("\n".join(launch_args) + "\n")
     print(f"START {name} order={order} {directory}", flush=True)
     with (directory / "launch.log").open("x") as stream:
