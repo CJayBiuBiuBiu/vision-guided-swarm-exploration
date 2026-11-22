@@ -61,6 +61,9 @@ still meets both limits. Set `fusion_pairing_mode:=latest` for the earlier
 pairing rule. An unavailable required cue contributes zero openness for
 that control tick.
 
+See the [buffered clearance study](buffered-clearance-study.md) for the
+synchronization pilot, matched schedules and result checks.
+
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)
 to reproduce the original encoder. This file retains its model weights and

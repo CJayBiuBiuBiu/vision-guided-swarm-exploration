@@ -1,0 +1,27 @@
+{
+  "horizon_s": 300,
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "launch": "ceea160acf814432a499c20326b3809ca3755741faa1fff87c224da169ce58b5",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "c489507cd795ebac852339c349f1a0e5ea9570dbf0ee150f90a4bc46c5e05c45",
+    "schedule": "471aa0ff60ad428582d1e1fc6c7227aeb304661dd7a471c09bfcd08447862b3e"
+  },
+  "schedule": [
+    [
+      "hu_aligned",
+      61124,
+      1,
+      "latest_fusion"
+    ],
+    [
+      "hu_aligned",
+      61124,
+      2,
+      "buffered_fusion"
+    ]
+  ],
+  "source_tree": "edc55eecffe5be1267fa27aa987bb4a6146e73f3"
+}
