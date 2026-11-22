@@ -1,0 +1,34 @@
+{
+  "capture_runs": [
+    {
+      "frames": 120,
+      "horizon_s": 70,
+      "layout": "hu_aligned",
+      "run_id": "calibration_62011",
+      "seed": 62011
+    },
+    {
+      "frames": 120,
+      "horizon_s": 70,
+      "layout": "hu_layout_c",
+      "run_id": "held_out_62012",
+      "seed": 62012
+    }
+  ],
+  "cross_run_conflicting_label_paths": 0,
+  "cross_run_paths": 0,
+  "duplicate_paths": 0,
+  "held_out_rows": 120,
+  "held_out_rows_at_shared_paths": 0,
+  "held_out_runs": [
+    "held_out_62012"
+  ],
+  "image_hashes_shared_across_split": 0,
+  "layout_seed_groups_shared_across_split": 0,
+  "manifest_sha256": {
+    "calibration_62011/manifest.csv": "a334db93521e52b48d8dbefb1ca402facd95aa803a0618239ca61c825940d991",
+    "held_out_62012/manifest.csv": "ac32d4a576a13bfa6780a2a8191da573d35c256d88f9beef91b18700fbeed6ed"
+  },
+  "paths_shared_across_split": 0,
+  "rows": 240
+}

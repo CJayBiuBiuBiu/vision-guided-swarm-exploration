@@ -42,3 +42,12 @@ python3 scripts/audit_clearance_calibration.py \
 
 Run the audit before choosing any camera-quality threshold. Split by
 whole runs and keep a separate evaluation set for the final gate.
+
+## Live collection check
+
+Two 70-second Gazebo runs collected 120 camera frames apiece. The
+calibration run used Hu-aligned and seed `62011`. The held-out run used
+Layout C and seed `62012`. The audit found zero shared image paths, image
+hashes or layout–seed groups across the split. This sample verifies the
+collection and audit workflow. The [capture audit](../ros_gazebo/experiments/2026-11-22-clearance-roles/calibration_capture_smoke_audit.json)
+records the two manifest fingerprints.
