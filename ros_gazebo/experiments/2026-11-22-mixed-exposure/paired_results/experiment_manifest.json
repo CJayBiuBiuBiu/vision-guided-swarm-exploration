@@ -1,0 +1,89 @@
+{
+  "horizon_s": 300,
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44",
+    "launch": "df303ac43c1d31f830d9d6988f8009ba3b581066737019cfcb706232e2197025",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "quality_profile": "9bf900cfca4eb0c7d3b47e1ebb052d2aceeefa0a0b634242b7df0fae486023f1",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "schedule": "99c01c4300109c5267c1566b0644b0acb4155af2a27253ed0ce84284926bceb8"
+  },
+  "schedule": [
+    [
+      "hu_aligned",
+      62300,
+      1,
+      "mixed_lidar"
+    ],
+    [
+      "hu_aligned",
+      62300,
+      2,
+      "mixed_fusion"
+    ],
+    [
+      "hu_aligned",
+      62300,
+      3,
+      "mixed_adaptive"
+    ],
+    [
+      "hu_layout_c",
+      62301,
+      1,
+      "mixed_fusion"
+    ],
+    [
+      "hu_layout_c",
+      62301,
+      2,
+      "mixed_adaptive"
+    ],
+    [
+      "hu_layout_c",
+      62301,
+      3,
+      "mixed_lidar"
+    ],
+    [
+      "hu_aligned",
+      62302,
+      1,
+      "mixed_adaptive"
+    ],
+    [
+      "hu_aligned",
+      62302,
+      2,
+      "mixed_lidar"
+    ],
+    [
+      "hu_aligned",
+      62302,
+      3,
+      "mixed_fusion"
+    ],
+    [
+      "hu_layout_c",
+      62303,
+      1,
+      "mixed_lidar"
+    ],
+    [
+      "hu_layout_c",
+      62303,
+      2,
+      "mixed_adaptive"
+    ],
+    [
+      "hu_layout_c",
+      62303,
+      3,
+      "mixed_fusion"
+    ]
+  ],
+  "source_tree": "e796e1dec5736ca8a0bb1accd4cc07feb88f489b"
+}
