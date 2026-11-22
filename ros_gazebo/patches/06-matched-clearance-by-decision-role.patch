@@ -1,0 +1,376 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 876ae6103bae13f04b2900c4dd763bcacfc658e9..98d09552b9eebaa0be7ff4afe01bdb3c59244f78 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -70,13 +70,17 @@
+   <arg name="vision_enabled" default="true"
+        doc="Enable camera openness in assignment costs and policy tokens"/>
+   <arg name="vision_scoring_mode" default="projected_obstacle"
+-       doc="projected_obstacle, projected_obstacle_gated, canny, learned_openness, lidar_openness, or rgb_lidar_openness"/>
++       doc="projected_obstacle, projected_obstacle_gated, canny, learned_openness, lidar_openness, rgb_lidar_openness, or matched_directional_clearance"/>
+   <arg name="learned_vision_checkpoint" default=""
+        doc="Frozen RGB checkpoint required when the directional cue uses learned RGB"/>
+   <arg name="clearance_rgb_weight" default="0.5"
+        doc="RGB contribution in rgb_lidar_openness, between zero and one"/>
+   <arg name="fusion_pairing_mode" default="buffered"
+        doc="Use bounded sample histories or latest-only fusion for comparison"/>
++  <arg name="clearance_actor_cue" default="lidar"
++       doc="MAPPO cue in matched_directional_clearance, lidar or fusion"/>
++  <arg name="clearance_rules_cue" default="lidar"
++       doc="Ownership and rule cue in matched_directional_clearance, lidar or fusion"/>
+   <arg name="vision_projection_mode" default="thirds"
+        doc="thirds (checkpoint-compatible baseline) or interpolated"/>
+   <arg name="vision_feature_scale" default="1.0"
+@@ -176,6 +180,8 @@
+     <param name="learned_vision_checkpoint" value="$(arg learned_vision_checkpoint)" type="str"/>
+     <param name="clearance_rgb_weight" value="$(arg clearance_rgb_weight)"/>
+     <param name="fusion_pairing_mode" value="$(arg fusion_pairing_mode)"/>
++    <param name="clearance_actor_cue" value="$(arg clearance_actor_cue)"/>
++    <param name="clearance_rules_cue" value="$(arg clearance_rules_cue)"/>
+     <param name="vision_projection_mode" value="$(arg vision_projection_mode)"/>
+     <param name="vision_feature_scale" value="$(arg vision_feature_scale)"/>
+     <param name="vision_role" value="$(arg vision_role)"/>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+index ead92f154eb870c159cf79a5af351f5d90f4377c..d450a699dda33e28edc138536ab33f8b2eb157cc 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+@@ -9,7 +9,9 @@ import numpy as np
+ RGB_OPENNESS = 'learned_openness'
+ LIDAR_OPENNESS = 'lidar_openness'
+ RGB_LIDAR_OPENNESS = 'rgb_lidar_openness'
+-CLEARANCE_MODES = (RGB_OPENNESS, LIDAR_OPENNESS, RGB_LIDAR_OPENNESS)
++MATCHED_CLEARANCE = 'matched_directional_clearance'
++CLEARANCE_MODES = (RGB_OPENNESS, LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, MATCHED_CLEARANCE)
++MATCHED_CUES = ('lidar', 'fusion')
+ SCORE_MAX_AGE = 0.75
+ FUSION_MAX_SKEW = 0.25
+ FUSION_PAIRING_MODES = ('latest', 'buffered')
+@@ -105,3 +107,14 @@ def clearance_scores(mode, rgb, lidar, now, rgb_weight):
+         return None
+     return tuple(rgb_weight * r + (1.0 - rgb_weight) * l
+                  for r, l in zip(rgb[1], lidar[1]))
++
++
++def matched_clearance_cues(match, latest_lidar, now, rgb_weight):
++    """Build both cues from one scan and return that scan's source stamp."""
++    if match.lidar is not None:
++        lidar, rgb = match.lidar, match.rgb
++        fusion = clearance_scores(RGB_LIDAR_OPENNESS, rgb, lidar, now, rgb_weight)
++        return {'lidar': lidar[1], 'fusion': fusion}, lidar[0]
++    if _fresh(latest_lidar, now):
++        return dict.fromkeys(MATCHED_CUES, latest_lidar[1]), latest_lidar[0]
++    return dict.fromkeys(MATCHED_CUES), None
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index dba8533de08e58fe7871cfe57c0f3f3ed246942e..dd8b172531689b02aca8286d3564af88d049f6aa 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -49,8 +49,9 @@ from frontier_scoring import (
+ from frontier_decision_trace import FrontierDecisionTrace
+ from directional_clearance import (
+     CLEARANCE_MODES, FUSION_HISTORY_SIZE, FUSION_PAIRING_MODES,
+-    LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, RGB_OPENNESS, clearance_scores,
+-    lidar_openness, match_fusion_samples)
++    LIDAR_OPENNESS, MATCHED_CLEARANCE, MATCHED_CUES, RGB_LIDAR_OPENNESS,
++    RGB_OPENNESS, clearance_scores, lidar_openness, match_fusion_samples,
++    matched_clearance_cues)
+ from hybrid_fallback import (
+     CoverageStallFallback, OBSERVED_FREE_AREA, REFERENCE_COVERAGE,
+     validate_progress_mode)
+@@ -400,15 +401,25 @@ class Coordinator(object):
+             raise ValueError('vision_scoring_mode must be one of %s' %
+                              (VISION_SCORING_MODES + CLEARANCE_MODES,))
+         self.clearance_mode = self.vision_scoring_mode in CLEARANCE_MODES
++        self.matched_clearance = self.vision_scoring_mode == MATCHED_CLEARANCE
++        self.uses_fusion_pairing = self.vision_scoring_mode in (RGB_LIDAR_OPENNESS, MATCHED_CLEARANCE)
++        self.clearance_actor_cue = rospy.get_param('~clearance_actor_cue', 'lidar')
++        self.clearance_rules_cue = rospy.get_param('~clearance_rules_cue', 'lidar')
+         self.fusion_pairing_mode = rospy.get_param('~fusion_pairing_mode', 'buffered')
+         if self.fusion_pairing_mode not in FUSION_PAIRING_MODES:
+             raise ValueError('fusion_pairing_mode must be latest or buffered')
++        if self.matched_clearance:
++            if (self.clearance_actor_cue not in MATCHED_CUES
++                    or self.clearance_rules_cue not in MATCHED_CUES):
++                raise ValueError('Matched clearance cues must be lidar or fusion')
++            if not (self.actor_uses_vision and self.rules_use_vision):
++                raise ValueError('Matched clearance requires both clearance pathways enabled')
+         self.clearance_rgb_weight = float(rospy.get_param('~clearance_rgb_weight', 0.5))
+         if not 0.0 < self.clearance_rgb_weight < 1.0:
+             raise ValueError('clearance_rgb_weight must be in (0, 1)')
+         self.learned_vision_scorer = None
+         if self.vision_enabled and self.vision_scoring_mode in (
+-                RGB_OPENNESS, RGB_LIDAR_OPENNESS):
++                RGB_OPENNESS, RGB_LIDAR_OPENNESS, MATCHED_CLEARANCE):
+             checkpoint = rospy.get_param('~learned_vision_checkpoint', '')
+             if not checkpoint:
+                 raise ValueError('learned_vision_checkpoint is required for RGB clearance')
+@@ -614,6 +625,7 @@ class Coordinator(object):
+             self.yaws = {}            # name -> heading (rad)
+         self.last_wheel_positions = {}
+         self.vision_scores = {}   # name -> (left, centre, right) openness in [0,1]
++        self.actor_clearance_scores = {}
+         self.clearance_lock = threading.Lock()
+         self.rgb_clearance = {name: deque(maxlen=FUSION_HISTORY_SIZE)
+                               for name in self.robot_names}
+@@ -623,6 +635,7 @@ class Coordinator(object):
+         self.fusion_pair_outcomes = Counter()
+         self.fusion_pair_skew_sum = 0.0
+         self.fusion_pair_diagnostics = {}
++        self.matched_lidar_fallback_ticks = 0
+         self.clearance_team_ticks = 0
+         self.clearance_ready_team_ticks = 0
+         self.vision_token_count = 0
+@@ -751,12 +764,16 @@ class Coordinator(object):
+         self._open_metrics_file()
+         rospy.on_shutdown(self._close_metrics_file)
+         if trace_path:
++            cue_metadata = {}
++            if self.matched_clearance:
++                cue_metadata.update(clearance_actor_cue=self.clearance_actor_cue,
++                                    clearance_rules_cue=self.clearance_rules_cue)
+             self.frontier_trace = FrontierDecisionTrace(
+                 trace_path, experiment_seed=self.experiment_seed,
+                 world_profile=self.world_profile, selection_mode=self.selection_mode,
+                 vision_scoring_mode=self.vision_scoring_mode, vision_role=self.vision_role,
+                 actor_uses_vision=self.actor_uses_vision, rules_use_vision=self.rules_use_vision,
+-                horizon_s=self.max_simulation_seconds)
++                horizon_s=self.max_simulation_seconds, **cue_metadata)
+             rospy.on_shutdown(self._close_frontier_trace)
+         rospy.loginfo('[coordinator] robots=%s, selection_mode=%s, mapping_mode=%s, pose_source=%s, world_profile=%s, clustered_frontiers=%s, metrics=%s',
+                       ','.join(self.robot_names),
+@@ -795,7 +812,7 @@ class Coordinator(object):
+ 
+     def _scan_cb(self, msg, name):
+         if self.vision_enabled and self.vision_scoring_mode in (
+-                LIDAR_OPENNESS, RGB_LIDAR_OPENNESS):
++                LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, MATCHED_CLEARANCE):
+             scores = lidar_openness(
+                 msg.ranges, msg.angle_min, msg.angle_increment,
+                 msg.range_min, msg.range_max, CAMERA_FOV)
+@@ -834,10 +851,11 @@ class Coordinator(object):
+             samples = [(name, tuple(self.rgb_clearance[name]), tuple(self.lidar_clearance[name]))
+                        for name in self.robot_names]
+         ready = {}
++        actor_ready = {}
+         for name, rgb_history, lidar_history in samples:
+             rgb = rgb_history[-1] if rgb_history else None
+             lidar = lidar_history[-1] if lidar_history else None
+-            if self.vision_scoring_mode == RGB_LIDAR_OPENNESS:
++            if self.uses_fusion_pairing:
+                 match = match_fusion_samples(
+                     rgb_history, lidar_history, now, self.fusion_pairing_mode)
+                 skew = abs(match.rgb[0] - match.lidar[0]) if match.rgb is not None else None
+@@ -851,6 +869,20 @@ class Coordinator(object):
+                     paired_rgb_age_s=now - match.rgb[0] if match.rgb is not None else None,
+                     paired_lidar_age_s=now - match.lidar[0] if match.lidar is not None else None,
+                     paired_skew_s=skew)
++                if self.matched_clearance:
++                    cues, stamp = matched_clearance_cues(match, lidar, now, self.clearance_rgb_weight)
++                    fallback = stamp is not None and match.lidar is None
++                    self.matched_lidar_fallback_ticks += int(fallback)
++                    self.fusion_pair_diagnostics[name].update(
++                        cue_lidar_stamp_s=stamp,
++                        cue_lidar_scores=cues['lidar'],
++                        paired_rgb_scores=match.rgb[1] if match.rgb is not None else None,
++                        lidar_fallback=fallback)
++                    if stamp is not None:
++                        ready[name] = cues[self.clearance_rules_cue]
++                        actor_ready[name] = cues[self.clearance_actor_cue]
++                        self._record_vision_scores(ready[name])
++                    continue
+                 rgb, lidar = match.rgb, match.lidar
+             scores = clearance_scores(
+                 self.vision_scoring_mode, rgb, lidar, now, self.clearance_rgb_weight)
+@@ -858,6 +890,7 @@ class Coordinator(object):
+                 ready[name] = scores
+                 self._record_vision_scores(scores)
+         self.vision_scores = ready
++        self.actor_clearance_scores = actor_ready
+         self.clearance_team_ticks += 1
+         self.clearance_ready_team_ticks += int(len(ready) == len(self.robot_names))
+ 
+@@ -1007,11 +1040,11 @@ class Coordinator(object):
+                 self.path_length[name] += step
+         self.previous_positions[name] = (x, y)
+ 
+-    def vision_bias(self, robot_pos, robot_yaw, candidate_pos, name):
++    def vision_bias(self, robot_pos, robot_yaw, candidate_pos, name, scores_by_robot=None):
+         """Openness bonus for a candidate frontier that falls within the
+         robot's current camera view, based on which third of the frame its
+         bearing lands in. 0 if outside the FOV or no image received yet."""
+-        scores = self.vision_scores.get(name)
++        scores = (self.vision_scores if scores_by_robot is None else scores_by_robot).get(name)
+         if scores is None:
+             return 0.0
+         bearing = math.atan2(candidate_pos[1] - robot_pos[1], candidate_pos[0] - robot_pos[0])
+@@ -1235,6 +1268,7 @@ class Coordinator(object):
+         overlap = np.zeros_like(path_cost)
+         communication = np.zeros_like(path_cost)
+         vision = np.zeros_like(path_cost)
++        actor_override = np.zeros_like(path_cost) if self.matched_clearance else None
+ 
+         obstacle = np.broadcast_to(
+             np.asarray([self.obstacle_risk(f) for f in frontiers])[None, :],
+@@ -1272,13 +1306,18 @@ class Coordinator(object):
+                 if self.vision_enabled:
+                     vision[i, j] = self.vision_feature_scale * self.vision_bias(
+                         robot_positions[i], yaw, frontier, name)
++                if actor_override is not None:
++                    actor_override[i, j] = self.vision_feature_scale * self.vision_bias(
++                        robot_positions[i], yaw, frontier, name, self.actor_clearance_scores)
+ 
+-        self.vision_token_count += int(vision.size)
+-        self.vision_token_nonzero_count += int(np.count_nonzero(vision > 1e-6))
+-        self.vision_token_openness_sum += float(np.sum(vision))
++        token_vision = vision if actor_override is None else actor_override
++        self.vision_token_count += int(token_vision.size)
++        self.vision_token_nonzero_count += int(np.count_nonzero(token_vision > 1e-6))
++        self.vision_token_openness_sum += float(np.sum(token_vision))
+ 
+         costs, ownership_costs, actor_costs, actor_vision = score_frontier_roles(
+             'execution_aware', vision, self.actor_uses_vision, self.rules_use_vision,
++            actor_vision_override=actor_override,
+             distance=distance, path=path_cost, obstacle=obstacle,
+             collision=collision, overlap=overlap,
+             communication=communication, information=information)
+@@ -1394,9 +1433,12 @@ class Coordinator(object):
+             fields = fields + ['clearance_rgb_weight', 'directional_clearance_mean',
+                                'clearance_team_ticks', 'clearance_ready_team_ticks',
+                                'invalid_clearance_scans']
+-        if self.vision_scoring_mode == RGB_LIDAR_OPENNESS:
++        if self.uses_fusion_pairing:
+             fields += ['fusion_pairing_mode', 'fusion_pair_outcomes_json',
+                        'fusion_pair_skew_mean_s', 'fusion_diagnostics_json']
++        if self.matched_clearance:
++            fields += ['clearance_actor_cue', 'clearance_rules_cue',
++                       'matched_lidar_fallback_ticks']
+         if not new_file:
+             with open(self.metrics_path, newline='') as existing:
+                 if next(csv.reader(existing), None) != fields:
+@@ -1612,19 +1654,23 @@ class Coordinator(object):
+         if self.clearance_mode:
+             row.update(
+                 clearance_rgb_weight=(self.clearance_rgb_weight
+-                                      if self.vision_scoring_mode == RGB_LIDAR_OPENNESS else ''),
++                                      if self.uses_fusion_pairing else ''),
+                 directional_clearance_mean='%.6f' % float(np.mean(image_scores))
+                 if image_scores else '',
+                 clearance_team_ticks=self.clearance_team_ticks,
+                 clearance_ready_team_ticks=self.clearance_ready_team_ticks,
+                 invalid_clearance_scans=self.invalid_clearance_scans)
+-        if self.vision_scoring_mode == RGB_LIDAR_OPENNESS:
++        if self.uses_fusion_pairing:
+             pairs = self.fusion_pair_outcomes['latest'] + self.fusion_pair_outcomes['buffered']
+             row.update(
+                 fusion_pairing_mode=self.fusion_pairing_mode,
+                 fusion_pair_outcomes_json=json.dumps(self.fusion_pair_outcomes, sort_keys=True),
+                 fusion_pair_skew_mean_s='%.6f' % (self.fusion_pair_skew_sum / pairs) if pairs else '',
+                 fusion_diagnostics_json=json.dumps(self.fusion_pair_diagnostics, sort_keys=True))
++        if self.matched_clearance:
++            row.update(clearance_actor_cue=self.clearance_actor_cue,
++                       clearance_rules_cue=self.clearance_rules_cue,
++                       matched_lidar_fallback_ticks=self.matched_lidar_fallback_ticks)
+         with self._metrics_lock:
+             if self._metrics_writer is None or self._metrics_file is None:
+                 return
+@@ -2122,8 +2168,14 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                     directional_clearance=self.vision_scores.get(name),
+                                     selected_clearance_bonus=self.vision_bias(
+                                         pos, self.yaws.get(name, 0.0), best, name))
+-                            if self.vision_scoring_mode == RGB_LIDAR_OPENNESS:
++                            if self.uses_fusion_pairing:
+                                 clearance_details['fusion_pair'] = self.fusion_pair_diagnostics.get(name)
++                            if self.matched_clearance:
++                                clearance_details.update(
++                                    actor_directional_clearance=self.actor_clearance_scores.get(name),
++                                    selected_actor_clearance_bonus=self.vision_bias(
++                                        pos, self.yaws.get(name, 0.0), best, name,
++                                        self.actor_clearance_scores))
+                             self.frontier_trace.assign(
+                                 name, elapsed, area,
+                                 selection_source=('actor' if policy_controls_selection else
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/frontier_scoring.py b/turtlebot_ddpg/scripts/voronoi_exploration/frontier_scoring.py
+index 52ba9cce505ef225d0c971113677482bee6cdb20..44a5cd7ae71d6d70f419b60f003901ed1295855d 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/frontier_scoring.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/frontier_scoring.py
+@@ -252,14 +252,17 @@ def combine_assignment_cost_terms(distance, path=None, obstacle=None,
+ 
+ 
+ def score_frontier_roles(mode, vision, actor_uses_vision, rules_use_vision,
++                         actor_vision_override=None,
+                          **terms):
+     """Separate rule ranking and ownership from what the actor directly sees."""
+     actor_vision = vision if actor_uses_vision else np.zeros_like(vision)
++    if actor_uses_vision and actor_vision_override is not None:
++        actor_vision = actor_vision_override
+     rule_vision = vision if rules_use_vision else None
+     rule_cost = combine_cost_terms(mode, vision=rule_vision, **terms)
+     ownership_cost = combine_assignment_cost_terms(vision=rule_vision, **terms)
+     actor_cost = rule_cost
+-    if actor_uses_vision != rules_use_vision:
++    if actor_uses_vision != rules_use_vision or actor_vision is actor_vision_override:
+         actor_cost = combine_cost_terms(mode, vision=actor_vision, **terms)
+     return rule_cost, ownership_cost, actor_cost, actor_vision
+ 
+diff --git a/turtlebot_ddpg/tests/test_directional_clearance.py b/turtlebot_ddpg/tests/test_directional_clearance.py
+index 20a6ddaf41809297987ecd0b4d3e6a447a1c109d..255b09481e2c349cbeeccdfb508dfe112aa0e8c6 100644
+--- a/turtlebot_ddpg/tests/test_directional_clearance.py
++++ b/turtlebot_ddpg/tests/test_directional_clearance.py
+@@ -12,7 +12,7 @@ sys.path.insert(0, SCRIPT_DIR)
+ 
+ from directional_clearance import (
+     LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, RGB_OPENNESS, clearance_scores,
+-    lidar_openness, match_fusion_samples)
++    lidar_openness, match_fusion_samples, matched_clearance_cues)
+ 
+ 
+ class LidarOpennessTests(unittest.TestCase):
+@@ -80,3 +80,25 @@ class ClearanceSourceTests(unittest.TestCase):
+         future = match_fusion_samples(rgb, lidar, 10.0625, 'buffered')
+         self.assertIsNone(future.lidar)
+         self.assertEqual(future.latest_rejection, 'rgb_future')
++
++    def test_both_matched_cues_use_the_same_buffered_scan(self):
++        camera = ((9.75, (1.0, 1.0, 1.0)), (10.0, (0.9, 0.9, 0.9)))
++        laser = ((9.625, (0.0, 0.25, 0.5)), (10.125, (0.75, 0.75, 0.75)))
++        match = match_fusion_samples(camera, laser, 10.0, 'buffered')
++        cues, stamp = matched_clearance_cues(match, laser[-1], 10.0, 0.5)
++        self.assertEqual(match.status, 'buffered')
++        self.assertEqual(stamp, laser[0][0])
++        self.assertEqual(cues['lidar'], laser[0][1])
++        self.assertEqual(cues['fusion'], (0.5, 0.625, 0.75))
++
++    def test_matched_cues_share_fresh_lidar_fallback(self):
++        laser = (10.0, (0.0, 0.25, 0.5))
++        match = match_fusion_samples((), (laser,), 10.1, 'buffered')
++        cues, stamp = matched_clearance_cues(match, laser, 10.1, 0.5)
++        self.assertEqual(stamp, laser[0])
++        self.assertEqual(cues, {'lidar': laser[1], 'fusion': laser[1]})
++        for invalid in (None, (9.0, laser[1]), (10.2, laser[1])):
++            with self.subTest(sample=invalid):
++                cues, stamp = matched_clearance_cues(match, invalid, 10.1, 0.5)
++                self.assertIsNone(stamp)
++                self.assertEqual(cues, {'lidar': None, 'fusion': None})
+diff --git a/turtlebot_ddpg/tests/test_frontier_vision_roles.py b/turtlebot_ddpg/tests/test_frontier_vision_roles.py
+index bcef6c0f1bc61f87d13e4172d26fcdbf34d23a8d..8162cb8a787f761f4616f927c92de13fae379ec9 100644
+--- a/turtlebot_ddpg/tests/test_frontier_vision_roles.py
++++ b/turtlebot_ddpg/tests/test_frontier_vision_roles.py
+@@ -57,6 +57,19 @@ class FrontierVisionRoleTests(unittest.TestCase):
+         with self.assertRaises(ValueError):
+             self.score('invalid')
+ 
++    def test_matched_cue_override_changes_actor_features_and_preserves_rule_inputs(self):
++        lidar = np.zeros_like(self.vision)
++        rule_cost, owner_cost, actor_cost, actor_vision = score_frontier_roles(
++            'execution_aware', lidar, True, True,
++            actor_vision_override=self.vision, distance=self.distance)
++        np.testing.assert_array_equal(rule_cost, combine_cost_terms(
++            'execution_aware', distance=self.distance, vision=lidar))
++        np.testing.assert_array_equal(owner_cost, combine_assignment_cost_terms(
++            self.distance, vision=lidar))
++        np.testing.assert_array_equal(actor_cost, combine_cost_terms(
++            'execution_aware', distance=self.distance, vision=self.vision))
++        np.testing.assert_array_equal(actor_vision, self.vision)
++
+ 
+ if __name__ == '__main__':
+     unittest.main()
