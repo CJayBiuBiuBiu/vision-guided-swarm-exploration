@@ -1,0 +1,168 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 05f246e4ed24d1d097db358e4c91c4e15efb30a1..b5660750f3139d5c90000d71b88fe9ea0c1ce824 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -84,7 +84,7 @@
+   <arg name="clearance_quality_profile" default=""
+        doc="Calibrated camera-quality JSON for adaptive clearance"/>
+   <arg name="clearance_camera_profile" default="clean"
+-       doc="Matched-clearance stress control, clean, dark or blur"/>
++       doc="Matched-clearance stress control, clean, dark, blur or mixed"/>
+   <arg name="vision_projection_mode" default="thirds"
+        doc="thirds (checkpoint-compatible baseline) or interpolated"/>
+   <arg name="vision_feature_scale" default="1.0"
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/camera_quality.py b/turtlebot_ddpg/scripts/voronoi_exploration/camera_quality.py
+index 3a3376960882f981c777b8581ba39e7b0b8de75c..1f0bcd797acedfe5cfeda17efe2bba2a8a2b2ebf 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/camera_quality.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/camera_quality.py
+@@ -9,6 +9,16 @@ import numpy as np
+ 
+ 
+ CAMERA_PROFILES = ('clean', 'dark', 'blur')
++CAMERA_RUN_PROFILES = CAMERA_PROFILES + ('mixed',)
++MIXED_WINDOWS = ('clean', 'dark', 'clean', 'dark', 'clean')
++MIXED_WINDOW_SECONDS = 60.0
++
++
++def mixed_window(stamp_s):
++    """Return the exposure window on the Gazebo clock."""
++    if not math.isfinite(stamp_s) or stamp_s < 0:
++        raise ValueError('Invalid simulation stamp for mixed camera exposure')
++    return min(int(stamp_s // MIXED_WINDOW_SECONDS), len(MIXED_WINDOWS) - 1)
+ 
+ 
+ def camera_input(image, profile):
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 20f5c5e82d4d23b071af5566505109b9d513c1e6..cb4a9070cca4b0b2c6aa07d7a13e9f961fcd8324 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -47,7 +47,9 @@ from frontier_scoring import (
+     SELECTION_MODES, assign_by_cost, blend_phase_costs, line_risk_path_cost,
+     normalize_rows, score_frontier_roles, vision_role_flags)
+ from frontier_decision_trace import FrontierDecisionTrace
+-from camera_quality import CAMERA_PROFILES, CameraQualityGate, camera_features, camera_input
++from camera_quality import (
++    CAMERA_RUN_PROFILES, MIXED_WINDOWS, CameraQualityGate, camera_features,
++    camera_input, mixed_window)
+ from directional_clearance import (
+     CLEARANCE_MODES, FUSION_HISTORY_SIZE, FUSION_PAIRING_MODES,
+     LIDAR_OPENNESS, MATCHED_CLEARANCE, MATCHED_CUES, RGB_LIDAR_OPENNESS,
+@@ -408,8 +410,11 @@ class Coordinator(object):
+         self.clearance_rules_cue = rospy.get_param('~clearance_rules_cue', 'lidar')
+         self.clearance_camera_profile = rospy.get_param('~clearance_camera_profile', 'clean')
+         quality_profile = rospy.get_param('~clearance_quality_profile', '')
+-        if self.clearance_camera_profile not in CAMERA_PROFILES:
++        if self.clearance_camera_profile not in CAMERA_RUN_PROFILES:
+             raise ValueError('Invalid clearance camera profile')
++        self.mixed_camera = self.clearance_camera_profile == 'mixed'
++        if self.mixed_camera and not self.use_sim_time:
++            raise ValueError('Mixed camera exposure requires the Gazebo clock')
+         if quality_profile and not self.matched_clearance:
+             raise ValueError('A camera-quality profile requires matched directional clearance')
+         if ('adaptive' in (self.clearance_actor_cue, self.clearance_rules_cue)
+@@ -648,6 +653,7 @@ class Coordinator(object):
+         self.fusion_pair_diagnostics = {}
+         self.matched_lidar_fallback_ticks = 0
+         self.camera_pair_quality = Counter()
++        self.mixed_camera_counts = [Counter() for _ in MIXED_WINDOWS] if self.mixed_camera else None
+         self.clearance_team_ticks = 0
+         self.clearance_ready_team_ticks = 0
+         self.vision_token_count = 0
+@@ -807,15 +813,18 @@ class Coordinator(object):
+         if msg.encoding == 'bgr8':
+             img = img[:, :, ::-1]
+         if self.learned_vision_scorer is not None:
++            stamp = msg.header.stamp.to_sec()
+             quality = ()
+             if self.camera_quality_gate is not None:
+-                img = camera_input(img, self.clearance_camera_profile)
++                profile = (MIXED_WINDOWS[mixed_window(stamp)] if self.mixed_camera
++                           else self.clearance_camera_profile)
++                img = camera_input(img, profile)
+                 luma, sharpness = camera_features(img)
+                 quality = ((luma, sharpness, self.camera_quality_gate.reason(luma, sharpness)),)
+             scores = self.learned_vision_scorer.score(img)
+             if all(math.isfinite(score) for score in scores):
+                 with self.clearance_lock:
+-                    self.rgb_clearance[name].append((msg.header.stamp.to_sec(), scores) + quality)
++                    self.rgb_clearance[name].append((stamp, scores) + quality)
+             return
+         scores = openness_from_image(img, mode=self.vision_scoring_mode)
+         self.vision_scores[name] = scores
+@@ -895,6 +904,8 @@ class Coordinator(object):
+                         self.camera_pair_quality[quality[2] if quality else 'unpaired'] += 1
+                         self.fusion_pair_diagnostics[name]['camera_quality'] = quality
+                         trusted = quality is not None and quality[2] == 'accepted'
++                    if self.mixed_camera:
++                        self._record_mixed_camera(name, now, match.rgb, trusted)
+                     cues, stamp = matched_clearance_cues(
+                         match, lidar, now, self.clearance_rgb_weight, trusted_rgb=trusted)
+                     fallback = stamp is not None and match.lidar is None
+@@ -920,6 +931,21 @@ class Coordinator(object):
+         self.clearance_team_ticks += 1
+         self.clearance_ready_team_ticks += int(len(ready) == len(self.robot_names))
+ 
++    def _record_mixed_camera(self, name, control_stamp, rgb, trusted):
++        control_window = mixed_window(control_stamp)
++        rgb_stamp = rgb[0] if rgb is not None else None
++        rgb_window = mixed_window(rgb_stamp) if rgb_stamp is not None else None
++        cross_window = rgb_window is not None and rgb_window != control_window
++        counts = self.mixed_camera_counts[control_window]
++        counts['robot_ticks'] += 1
++        counts['paired'] += int(rgb is not None)
++        counts['accepted'] += int(trusted)
++        counts['cross_window'] += int(cross_window)
++        counts['accepted_cross_window'] += int(cross_window and trusted)
++        self.fusion_pair_diagnostics[name].update(
++            mixed_control_stamp_s=control_stamp, mixed_control_window=control_window,
++            mixed_rgb_stamp_s=rgb_stamp, mixed_rgb_window=rgb_window)
++
+     def _policy_action_cb(self, msg, name):
+         if msg.robot_name and msg.robot_name != name:
+             rospy.logwarn_throttle(
+@@ -1467,6 +1493,8 @@ class Coordinator(object):
+                        'matched_lidar_fallback_ticks']
+         if self.camera_quality_gate is not None:
+             fields += ['clearance_camera_profile', 'camera_pair_quality_json']
++        if self.mixed_camera:
++            fields += ['mixed_camera_windows_json']
+         if not new_file:
+             with open(self.metrics_path, newline='') as existing:
+                 if next(csv.reader(existing), None) != fields:
+@@ -1702,6 +1730,8 @@ class Coordinator(object):
+         if self.camera_quality_gate is not None:
+             row.update(clearance_camera_profile=self.clearance_camera_profile,
+                        camera_pair_quality_json=json.dumps(self.camera_pair_quality, sort_keys=True))
++        if self.mixed_camera:
++            row['mixed_camera_windows_json'] = json.dumps(self.mixed_camera_counts, sort_keys=True)
+         with self._metrics_lock:
+             if self._metrics_writer is None or self._metrics_file is None:
+                 return
+diff --git a/turtlebot_ddpg/tests/test_camera_quality.py b/turtlebot_ddpg/tests/test_camera_quality.py
+index 41538191d894fb73d8a1a595417e92c068767bfc..767af9fda42969328337426f5ec1b967527e9aa3 100644
+--- a/turtlebot_ddpg/tests/test_camera_quality.py
++++ b/turtlebot_ddpg/tests/test_camera_quality.py
+@@ -8,7 +8,7 @@ import numpy as np
+ sys.path.insert(0, os.path.join(
+     os.path.dirname(os.path.dirname(__file__)), 'scripts', 'voronoi_exploration'))
+ 
+-from camera_quality import CameraQualityGate, camera_features, camera_input
++from camera_quality import MIXED_WINDOWS, CameraQualityGate, camera_features, camera_input, mixed_window
+ 
+ 
+ class CameraQualityTests(unittest.TestCase):
+@@ -30,6 +30,14 @@ class CameraQualityTests(unittest.TestCase):
+                 CameraQualityGate(20, value)
+         self.assertEqual(CameraQualityGate(20, 0.1).reason(50, float('nan')), 'invalid')
+ 
++    def test_mixed_camera_boundaries_use_the_image_stamp(self):
++        self.assertEqual(
++            [MIXED_WINDOWS[mixed_window(stamp)] for stamp in (0, 59.99, 60, 120, 180, 240, 301)],
++            ['clean', 'clean', 'dark', 'clean', 'dark', 'clean', 'clean'])
++        for bad_stamp in (-1, float('inf'), float('nan')):
++            with self.subTest(stamp=bad_stamp), self.assertRaises(ValueError):
++                mixed_window(bad_stamp)
++
+ 
+ if __name__ == '__main__':
+     unittest.main()
