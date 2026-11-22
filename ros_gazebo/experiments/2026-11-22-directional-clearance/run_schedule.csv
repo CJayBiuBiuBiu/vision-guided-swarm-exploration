@@ -1,0 +1,10 @@
+seed,order,mode
+61123,1,lidar_openness
+61123,2,learned_openness
+61123,3,rgb_lidar_openness
+61124,1,learned_openness
+61124,2,rgb_lidar_openness
+61124,3,lidar_openness
+61125,1,rgb_lidar_openness
+61125,2,lidar_openness
+61125,3,learned_openness

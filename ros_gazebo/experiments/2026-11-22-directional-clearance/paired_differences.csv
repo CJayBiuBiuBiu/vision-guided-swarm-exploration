@@ -1,0 +1,17 @@
+mode,reference,metric,delta_seed_61123,delta_seed_61124,delta_seed_61125,mean_paired_delta
+learned_openness,lidar_openness,final_coverage_pct,-3.6173,-4.1666000000000025,1.0531000000000006,-2.2436000000000007
+learned_openness,lidar_openness,mean_coverage_0_300_pct,-0.009740000000000748,5.610350000000004,-3.442929999999997,0.7192266666666688
+learned_openness,lidar_openness,path_length_total_m,7.49430000000001,-6.599400000000003,5.985600000000005,2.293500000000004
+learned_openness,lidar_openness,near_collision_events,91,-83,-30,-7.333333333333333
+learned_openness,lidar_openness,stuck_events,-17,10,11,1.3333333333333333
+learned_openness,lidar_openness,recovery_successes,-19,2,8,-3
+learned_openness,lidar_openness,hybrid_fallback_activations,1,0,0,0.3333333333333333
+learned_openness,lidar_openness,trace_arrival_rate_closed,0.013392857142857095,-0.06072106261859589,0.1858823529411765,0.04618471582181257
+rgb_lidar_openness,lidar_openness,final_coverage_pct,7.096999999999994,6.043999999999997,-13.873599999999996,-0.24420000000000167
+rgb_lidar_openness,lidar_openness,mean_coverage_0_300_pct,5.300129999999996,2.613910000000004,-8.441119999999998,-0.17569333333333267
+rgb_lidar_openness,lidar_openness,path_length_total_m,25.177999999999997,1.7836999999999819,10.694799999999987,12.552166666666656
+rgb_lidar_openness,lidar_openness,near_collision_events,54,68,-75,15.666666666666666
+rgb_lidar_openness,lidar_openness,stuck_events,-14,-5,0,-6.333333333333333
+rgb_lidar_openness,lidar_openness,recovery_successes,-9,-6,-6,-7
+rgb_lidar_openness,lidar_openness,hybrid_fallback_activations,0,0,0,0
+rgb_lidar_openness,lidar_openness,trace_arrival_rate_closed,-0.17774086378737547,-0.005882352941176561,0.04249999999999998,-0.04704107224285068

@@ -96,3 +96,6 @@ test with seed 61122. The runs confirmed three-robot input availability,
 policy actions and matched assignment/outcome records. These checks establish
 that the modes run through the same navigation stack. The 300-second
 comparisons will measure exploration performance.
+
+The [three-seed directional-clearance comparison](directional-clearance-2026-11-22.md)
+records the matched 300-second runs and the fusion input availability issue.
