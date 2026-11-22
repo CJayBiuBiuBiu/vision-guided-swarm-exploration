@@ -90,3 +90,60 @@ python3 scripts/summarize_clearance_quality_study.py "$ROS_PROJECT" "$STUDY_OUTP
 Build and source the prepared workspace first. On headless hosts, prefix
 the run commands with `xvfb-run -a`. Repeating a run command with identical
 inputs resumes the schedule and preserves existing attempts.
+
+## Verified results
+
+All twelve scheduled runs completed 300 simulation seconds. The audit
+reconstructed each traced assignment and verified the exact inputs.
+Gazebo failed during the first launch. The next attempt used the same
+condition and seed. The archive retains the failed launch logs.
+
+| Layout | RGB state | LiDAR | Fixed fusion | Adaptive fusion | Adaptive − LiDAR | Adaptive − fixed | RGB used by adaptive |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Hu-aligned | clean | 80.77% | 86.17% | 82.33% | +1.56 pp | -3.85 pp | 96.75% |
+| Hu-aligned | dark | 89.74% | 90.38% | 79.62% | -10.12 pp | -10.76 pp | 0.00% |
+| Layout C | clean | 90.43% | 89.06% | 84.12% | -6.31 pp | -4.94 pp | 97.91% |
+| Layout C | dark | 89.40% | 83.13% | 92.74% | +3.34 pp | +9.61 pp | 0.00% |
+
+Coverage is measured at the end of the run. RGB use is the fraction of robot
+control ticks that applied the camera contribution in the adaptive arm.
+The six-run smoke test recorded 99.6% RGB use with clean images and 0.0%
+with darkened images in its adaptive conditions.
+
+## Held-out encoder diagnostic
+
+After freezing the gate, the diagnostic compared the RGB model's
+three scores with the matched LiDAR-derived labels on the 715
+held-out frames. The table gives mean absolute error by layout.
+Each value gives both held-out runs equal weight.
+
+| Layout | Clean | Darkened | Blurred |
+| --- | ---: | ---: | ---: |
+| Hu-aligned | 0.2391 | 0.2933 | 0.2391 |
+| Layout C | 0.2197 | 0.2766 | 0.2197 |
+
+The tested darkening increased RGB prediction error in both layouts.
+Blur changed the rounded error by less than 0.0001. The matched LiDAR
+labels measure directional agreement with the scanner. The diagnostic
+uses the frozen encoder throughout.
+
+In both dark adaptive runs, the gate applied LiDAR at every control tick.
+The observed coverage change relative to fixed fusion was negative in
+Hu-aligned and positive in Layout C. The dark LiDAR and dark adaptive
+conditions both use the LiDAR cue. Their coverage differences show that
+the individual trajectories vary even when the cue is the same. The
+closed-loop pilot estimates one seed per layout and uses synthetic
+underexposure. The evidence supports the measured fallback behavior
+and gives a reason to replicate coverage across more seeds.
+
+[Formal manifest](../ros_gazebo/experiments/2026-11-22-camera-quality/paired_results/experiment_manifest.json)
+· [Per-run results](../ros_gazebo/experiments/2026-11-22-camera-quality/paired_results/quality_runs.csv)
+· [Offline prediction error](../ros_gazebo/experiments/2026-11-22-camera-quality/paired_results/camera_prediction_error.csv)
+· [Coverage figure](../ros_gazebo/experiments/2026-11-22-camera-quality/paired_results/adaptive_clearance.png)
+
+```sh
+python3 scripts/diagnose_clearance_camera.py "$ROS_PROJECT" "$DATA_ROOT" "$profile" \
+  ros_gazebo/checkpoints/rgb_clearance_inference.pt "$DIAGNOSTIC_OUTPUT"
+python3 scripts/plot_clearance_quality_study.py "$SUMMARY_OUTPUT/paired_camera_differences.csv" \
+  "$SUMMARY_OUTPUT/adaptive_clearance.pdf"
+```

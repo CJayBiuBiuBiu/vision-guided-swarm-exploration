@@ -1,0 +1,11 @@
+{
+  "diagnostic_script_sha256": "026fa2c24e642556a38c25f4df907364b22f01cd0b0eafab8ad41fb798d61bf2",
+  "held_out_runs": [
+    "held_out_62102",
+    "held_out_62103",
+    "held_out_62106",
+    "held_out_62107"
+  ],
+  "profile_sha256": "9bf900cfca4eb0c7d3b47e1ebb052d2aceeefa0a0b634242b7df0fae486023f1",
+  "rgb_checkpoint_sha256": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5"
+}

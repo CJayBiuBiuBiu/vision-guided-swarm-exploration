@@ -1,0 +1,52 @@
+{
+  "horizon_s": 20,
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "launch": "ada4e6a7453431f7f23f2a6b813d526f56276827fb7d77b5f196a187944ddab3",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "quality_profile": "9bf900cfca4eb0c7d3b47e1ebb052d2aceeefa0a0b634242b7df0fae486023f1",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "b40f005ee63825adc9e45c591327511818a863f5ee5070e87a2105b058360f19",
+    "schedule": "a8e55143589f82578a74a44e0759e9890e660fddd7d839384ddca01b787a881d"
+  },
+  "schedule": [
+    [
+      "hu_aligned",
+      62290,
+      1,
+      "quality_clean_lidar"
+    ],
+    [
+      "hu_aligned",
+      62290,
+      2,
+      "quality_dark_fusion"
+    ],
+    [
+      "hu_aligned",
+      62290,
+      3,
+      "quality_clean_adaptive"
+    ],
+    [
+      "hu_aligned",
+      62290,
+      4,
+      "quality_dark_adaptive"
+    ],
+    [
+      "hu_aligned",
+      62290,
+      5,
+      "quality_clean_fusion"
+    ],
+    [
+      "hu_aligned",
+      62290,
+      6,
+      "quality_dark_lidar"
+    ]
+  ],
+  "source_tree": "a828a138f27cc480cd3c615e4b71f96e1165b495"
+}
