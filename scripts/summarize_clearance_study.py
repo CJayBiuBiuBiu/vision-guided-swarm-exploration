@@ -4,8 +4,11 @@ import argparse
 import csv
 import json
 import statistics
+import subprocess
 from collections import defaultdict
 from pathlib import Path
+
+from run_clearance_study import digest, verify_run
 
 
 METRICS = ("coverage_pct", "mean_coverage_pct", "path_m", "near_collision_events",
@@ -25,23 +28,53 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("study", type=Path)
     parser.add_argument("summary_directory", type=Path)
+    parser.add_argument("--require-complete", action="store_true",
+                        help="Require a completed run for every scheduled condition")
+    parser.add_argument("--verify-raw", type=Path, metavar="ROS_PROJECT",
+                        help="Recompute results from raw files using the original ROS source tree")
     args = parser.parse_args()
-    schedule = json.loads((args.study / "experiment_manifest.json").read_text())["schedule"]
+    manifest = json.loads((args.study / "experiment_manifest.json").read_text())
+    schedule = manifest["schedule"]
     conditions = {condition for _, _, _, condition in schedule}
     reference = "lidar" if "lidar" in conditions else "latest_fusion"
     treatment = "buffered_fusion"
     if conditions != {reference, treatment}:
         raise ValueError("Expected one reference and one buffered fusion condition")
 
+    if args.verify_raw is not None:
+        project = args.verify_raw.resolve()
+        tree = subprocess.check_output(
+            ["git", "-C", str(project), "rev-parse", "HEAD^{tree}"], text=True).strip()
+        if tree != manifest["source_tree"]:
+            raise ValueError(f"The ROS project tree does not match the study: {tree}")
+        subprocess.run(["git", "-C", str(project), "diff", "--quiet", "HEAD", "--",
+                        "turtlebot_ddpg", "laser_filters", "turtlebot3_description"], check=True)
+        runner = Path(__file__).with_name("run_clearance_study.py")
+        if digest(runner) != manifest["input_sha256"]["runner"]:
+            raise ValueError("The original experiment runner is required for raw verification")
+
     by_block = defaultdict(dict)
-    for layout, seed, _, condition in schedule:
-        marker = args.study / f"{layout}_{seed}_{condition}.complete.json"
+    for layout, seed, order, condition in schedule:
+        run_name = f"{layout}_{seed}_{condition}"
+        marker = args.study / f"{run_name}.complete.json"
         if not marker.is_file():
+            if args.require_complete:
+                raise ValueError(f"Scheduled condition has no completion marker: {marker.name}")
             continue
-        directory = args.study / json.loads(marker.read_text())["attempt"]
+        completed = json.loads(marker.read_text())
+        attempt = completed["attempt"]
+        if (completed["order"] != order or Path(attempt).name != attempt
+                or not attempt.startswith(run_name + ".")
+                or condition in by_block[layout, seed]):
+            raise ValueError(f"Invalid completion marker or duplicate run: {marker}")
+        directory = args.study / attempt
         row = json.loads((directory / "result.json").read_text())
-        if (row["layout"], row["seed"], row["condition"]) != (layout, seed, condition):
+        if ((row["layout"], row["seed"], row["condition"]) != (layout, seed, condition)
+                or row["coverage_mask_sha256"] != completed["coverage_mask_sha256"]):
             raise ValueError(f"Run marker does not match the schedule: {marker}")
+        if args.verify_raw is not None and row != verify_run(
+                directory, layout, seed, condition, manifest["horizon_s"], project / "turtlebot_ddpg"):
+            raise ValueError(f"Raw metrics do not match the recorded result: {directory}")
         by_block[layout, seed][condition] = row
 
     output_runs = []
@@ -68,6 +101,7 @@ def main():
         raise ValueError("The study contains no completed pairs")
 
     summaries = []
+    condition_summaries = []
     for layout in sorted({row["layout"] for row in paired}):
         pairs = [row for row in paired if row["layout"] == layout]
         for metric in METRICS:
@@ -77,7 +111,20 @@ def main():
                 "buffered_minus_reference_mean": statistics.mean(differences),
                 "sample_sd": statistics.stdev(differences) if len(pairs) > 1 else None,
                 "minimum": min(differences), "maximum": max(differences),
+                "median": statistics.median(differences),
+                "positive_pairs": sum(value > 0 for value in differences),
+                "negative_pairs": sum(value < 0 for value in differences),
+                "tied_pairs": sum(value == 0 for value in differences),
             })
+            for condition in (reference, treatment):
+                values = [row[metric] for row in output_runs
+                          if row["layout"] == layout and row["condition"] == condition]
+                condition_summaries.append({
+                    "layout": layout, "condition": condition, "metric": metric, "runs": len(values),
+                    "mean": statistics.mean(values),
+                    "sample_sd": statistics.stdev(values) if len(values) > 1 else None,
+                    "minimum": min(values), "maximum": max(values),
+                })
     threshold_summary = []
     for (layout, threshold), times in sorted(threshold_times.items()):
         matched_differences = [buffered - baseline for baseline, buffered in times
@@ -96,6 +143,7 @@ def main():
     save_csv(args.summary_directory / "paired_runs.csv", output_runs)
     save_csv(args.summary_directory / "paired_differences.csv", paired)
     save_csv(args.summary_directory / "layout_summary.csv", summaries)
+    save_csv(args.summary_directory / "layout_conditions.csv", condition_summaries)
     save_csv(args.summary_directory / "coverage_thresholds.csv", threshold_summary)
     print(f"{len(paired)} completed pairs summarized in {args.summary_directory}")
 

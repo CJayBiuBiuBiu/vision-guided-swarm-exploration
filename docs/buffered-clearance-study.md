@@ -75,8 +75,18 @@ It audits completed runs again and writes every new attempt to a separate
 directory. A shared lock enforces sequential Gazebo execution. The runner
 records availability even when it is low. Its completion checks cover
 simulation time, input evidence, metric consistency and assignment outcomes.
-The summary accepts completed seed pairs only. Supply a new summary directory.
+The summary uses completed seed pairs and reports condition statistics,
+paired differences, and threshold counts. Use `--require-complete` for the
+final report. Add `--verify-raw "$ROS_PROJECT"` to recompute each result from
+the archived CSV and assignment trace with the original source tree and
+runner. Supply a new summary directory.
 
 ```sh
-python3 scripts/summarize_clearance_study.py "$STUDY_OUTPUT" "$SUMMARY_OUTPUT"
+python3 scripts/summarize_clearance_study.py "$STUDY_OUTPUT" "$SUMMARY_OUTPUT" \
+  --require-complete --verify-raw "$ROS_PROJECT"
+python3 scripts/plot_clearance_study.py "$SUMMARY_OUTPUT/paired_differences.csv" \
+  "$SUMMARY_OUTPUT/paired_coverage.pdf"
 ```
+
+Each dot in the figure represents one seed and layout. Positive differences
+indicate higher coverage with buffered fusion.
