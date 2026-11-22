@@ -69,6 +69,8 @@ RGB–LiDAR fusion independently to MAPPO and the frontier rules. The
 settings and common scan.
 The [adaptive clearance study](adaptive-clearance-study.md) adds a quality
 profile and a LiDAR fallback for underexposed camera frames.
+The [mixed-exposure study](mixed-exposure-study.md) checks how that gate
+switches as the camera exposure changes within a run.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)

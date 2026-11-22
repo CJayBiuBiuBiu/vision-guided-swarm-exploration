@@ -1,4 +1,4 @@
-"""Audit and report all six conditions in each camera-quality block."""
+"""Audit and report complete camera-quality seed blocks."""
 
 import argparse
 import json
@@ -6,7 +6,7 @@ import subprocess
 from collections import defaultdict
 from pathlib import Path
 
-from run_clearance_study import QUALITY_CONDITIONS, digest, verify_run
+from run_clearance_study import CAMERA_CONDITIONS, MIXED_CONDITIONS, QUALITY_CONDITIONS, digest, verify_run
 from summarize_clearance_study import save_csv
 
 
@@ -22,6 +22,9 @@ def main():
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
     manifest = json.loads((args.study / "experiment_manifest.json").read_text())
+    conditions = {row[3] for row in manifest["schedule"]}
+    if conditions not in (MIXED_CONDITIONS.keys(), QUALITY_CONDITIONS.keys()):
+        raise ValueError("The manifest must contain one complete camera protocol")
     source_tree = subprocess.check_output(
         ["git", "-C", str(args.ros_project), "rev-parse", "HEAD^{tree}"], text=True).strip()
     runner = Path(__file__).with_name("run_clearance_study.py")
@@ -33,8 +36,9 @@ def main():
 
     blocks = defaultdict(dict)
     results = []
+    exposure_windows = []
     for layout, seed, order, condition in manifest["schedule"]:
-        profile, cue = QUALITY_CONDITIONS[condition]
+        profile, cue = CAMERA_CONDITIONS[condition]
         name = f"{layout}_{seed}_{condition}"
         marker = json.loads((args.study / (name + ".complete.json")).read_text())
         attempt = marker["attempt"]
@@ -50,19 +54,40 @@ def main():
         if (profile, cue) in block:
             raise ValueError(f"Duplicate condition in {layout}/{seed}")
         block[profile, cue] = output
-        results.append({**output, "order": order, **{
-            key: json.dumps(output[key], sort_keys=True) for key in
-            ("trace_outcome_counts", "robot_tick_pair_outcomes", "camera_quality_outcomes")
-        }})
+        result = {**output, "order": order}
+        for key in ("trace_outcome_counts", "robot_tick_pair_outcomes",
+                    "camera_quality_outcomes", "mixed_camera_windows"):
+            if key in result:
+                result[key] = json.dumps(output[key], sort_keys=True)
+        results.append(result)
+        for index, window in enumerate(output.get("mixed_camera_windows", [])):
+            ticks = window.get("robot_ticks", 0)
+            if not ticks:
+                continue
+            paired = window.get("paired", 0)
+            accepted = window.get("accepted", 0)
+            cross = window.get("cross_window", 0)
+            accepted_cross = window.get("accepted_cross_window", 0)
+            used = {"lidar": 0, "fusion": paired, "adaptive": accepted}[cue]
+            exposure_windows.append({
+                "layout": layout, "seed": seed, "cue": cue, "window": index,
+                "lighting": "dark" if index % 2 else "clean", "robot_ticks": ticks,
+                "rgb_used_ticks": used, "rgb_robot_tick_fraction": used / ticks,
+                "paired": paired, "cross_window": cross,
+                "accepted_cross_window": accepted_cross,
+                "same_window_gate_acceptance": ((accepted - accepted_cross) / (paired - cross)
+                                                if paired > cross else None),
+            })
     if not results:
         raise ValueError("The manifest contains no runs")
 
     differences = []
+    expected = {CAMERA_CONDITIONS[condition] for condition in conditions}
     for (layout, seed), block in sorted(blocks.items()):
-        if set(block) != set(QUALITY_CONDITIONS.values()) or len({
+        if set(block) != expected or len({
                 row["coverage_mask_sha256"] for row in block.values()}) != 1:
             raise ValueError(f"Incomplete or mismatched six-condition block for {layout}/{seed}")
-        for profile in ("clean", "dark"):
+        for profile in sorted({profile for profile, _ in expected}):
             for metric in METRICS:
                 lidar = block[profile, "lidar"][metric]
                 fixed = block[profile, "fusion"][metric]
@@ -75,6 +100,8 @@ def main():
     args.output.mkdir()
     save_csv(args.output / "quality_runs.csv", results)
     save_csv(args.output / "paired_camera_differences.csv", differences)
+    if exposure_windows:
+        save_csv(args.output / "exposure_windows.csv", exposure_windows)
     print(f"Audited {len(results)} runs in {len(blocks)} seed blocks")
 
 

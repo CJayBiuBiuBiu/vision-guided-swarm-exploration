@@ -8,6 +8,7 @@ import json
 import math
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -27,9 +28,13 @@ QUALITY_CONDITIONS = {
     for profile in ("clean", "dark")
     for cue in ("lidar", "fusion", "adaptive")
 }
+MIXED_CONDITIONS = {
+    f"mixed_{cue}": ("mixed", cue) for cue in ("lidar", "fusion", "adaptive")
+}
+CAMERA_CONDITIONS = {**QUALITY_CONDITIONS, **MIXED_CONDITIONS}
 MATCHED_CONDITIONS = {
     **ROLE_CONDITIONS,
-    **{name: (cue, cue) for name, (_, cue) in QUALITY_CONDITIONS.items()},
+    **{name: (cue, cue) for name, (_, cue) in CAMERA_CONDITIONS.items()},
 }
 CONDITIONS = {
     "lidar": ("lidar_openness", "buffered"),
@@ -74,6 +79,8 @@ def read_schedule(path):
         raise ValueError("A matched role study requires all four conditions")
     if expected.intersection(QUALITY_CONDITIONS) and expected != QUALITY_CONDITIONS.keys():
         raise ValueError("A camera-quality study requires all six conditions")
+    if expected.intersection(MIXED_CONDITIONS) and expected != MIXED_CONDITIONS.keys():
+        raise ValueError("A mixed-exposure study requires all three conditions")
     for block in blocks.values():
         if ([order for order, _ in block] != list(range(1, len(expected) + 1))
                 or {condition for _, condition in block} != expected):
@@ -119,6 +126,43 @@ def verify_matched_cues(assignment, actor, rules, weight, directory, thresholds=
         raise ValueError(f"Recorded cue does not match its pathway or common LiDAR sample in {directory}")
 
 
+def verify_mixed_window_stats(assignments, last, horizon, ticks, paired_ticks, accepted, directory):
+    windows = json.loads(last["mixed_camera_windows_json"])
+    if not isinstance(windows, list) or len(windows) != 5:
+        raise ValueError(f"Missing mixed camera windows in {directory}")
+    totals = Counter()
+    for index, window in enumerate(windows):
+        total = window.get("robot_ticks", 0)
+        paired = window.get("paired", 0)
+        allowed = window.get("accepted", 0)
+        cross = window.get("cross_window", 0)
+        allowed_cross = window.get("accepted_cross_window", 0)
+        if (not 0 <= allowed <= paired <= total or not 0 <= cross <= paired
+                or not 0 <= allowed_cross <= min(cross, allowed)
+                or allowed - allowed_cross > paired - cross
+                or (horizon > 60 * index and total <= 0)):
+            raise ValueError(f"Invalid exposure-window telemetry in {directory}")
+        totals.update(window)
+    if (totals["robot_ticks"], totals["paired"], totals["accepted"]) != (
+            3 * ticks, paired_ticks, accepted):
+        raise ValueError(f"Exposure windows do not reconcile with timing telemetry in {directory}")
+    for assignment in assignments:
+        pair = assignment["fusion_pair"]
+        control_stamp = pair["mixed_control_stamp_s"]
+        image_stamp = pair["mixed_rgb_stamp_s"]
+        if (not math.isfinite(control_stamp) or control_stamp < 0
+                or pair["mixed_control_window"] != min(4, int(control_stamp // 60))
+                or (pair["camera_quality"] is None) != (image_stamp is None)):
+            raise ValueError(f"Invalid exposure clock in {directory}")
+        if image_stamp is None:
+            if pair["mixed_rgb_window"] is not None:
+                raise ValueError(f"Unpaired input has a camera window in {directory}")
+        elif (not math.isfinite(image_stamp) or not 0 <= control_stamp - image_stamp <= 0.75
+              or pair["mixed_rgb_window"] != min(4, int(image_stamp // 60))):
+            raise ValueError(f"Image exposure does not match its timestamp in {directory}")
+    return windows
+
+
 def verify_run(directory, world, seed, condition, horizon, package, quality_profile=None):
     mode, pairing = CONDITIONS[condition]
     if (directory / "exit_status.txt").read_text().strip() != "0":
@@ -143,8 +187,8 @@ def verify_run(directory, world, seed, condition, horizon, package, quality_prof
         expected.update(clearance_actor_cue=actor, clearance_rules_cue=rules,
                         fusion_pairing_mode=pairing, clearance_rgb_weight="0.5")
     thresholds = None
-    if condition in QUALITY_CONDITIONS:
-        camera_profile, cue = QUALITY_CONDITIONS[condition]
+    if condition in CAMERA_CONDITIONS:
+        camera_profile, cue = CAMERA_CONDITIONS[condition]
         expected["clearance_camera_profile"] = camera_profile
         if quality_profile is None:
             raise ValueError("The original camera-quality file is required")
@@ -210,6 +254,9 @@ def verify_run(directory, world, seed, condition, horizon, package, quality_prof
                             camera_quality_outcomes=quality_counts,
                             gate_acceptance_fraction=gate_acceptance / paired_ticks,
                             rgb_robot_tick_fraction=rgb_used_ticks / (3 * ticks))
+        if condition in MIXED_CONDITIONS:
+            role_details["mixed_camera_windows"] = verify_mixed_window_stats(
+                assignments, last, horizon, ticks, paired_ticks, gate_acceptance, directory)
     sys.path.insert(0, str(package / "scripts"))
     from summarize_evaluation import time_weighted_coverage
 
@@ -238,19 +285,53 @@ def threshold_time(rows, threshold):
                  if float(row["coverage_pct"]) >= threshold), None)
 
 
-def run_condition(run, args, package, rgb, mappo):
+def stop_launch(process):
+    try:
+        os.killpg(process.pid, signal.SIGINT)
+    except ProcessLookupError:
+        pass
+    try:
+        return process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        return process.wait()
+
+
+def run_launch(command, path, environment):
+    with path.open("xb") as output, path.open("rb") as monitor:
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=output,
+                                   stderr=subprocess.STDOUT, env=environment, start_new_session=True)
+        tail = b""
+        try:
+            while True:
+                try:
+                    return process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    report = tail + monitor.read()
+                    if b"Segmentation fault" in report:
+                        return stop_launch(process)
+                    tail = report[-32:]
+        finally:
+            if process.poll() is None:
+                stop_launch(process)
+
+
+def startup_segfault(directory):
+    if b"Segmentation fault" not in (directory / "launch.log").read_bytes():
+        return False
+    metrics = directory / "metrics.csv"
+    if not metrics.exists():
+        return True
+    with metrics.open(newline="") as stream:
+        return all(float(row["elapsed_sim_s"]) <= 5.0 for row in csv.DictReader(stream))
+
+
+def launch_condition(run, args, package, rgb, mappo, name):
     world, seed, order, condition = run
     mode, pairing = CONDITIONS[condition]
-    name = f"{world}_{seed}_{condition}"
-    marker = args.output / (name + ".complete.json")
-    if marker.exists():
-        previous = json.loads(marker.read_text())
-        preserve_json(args.output / previous["attempt"] / "result.json",
-                      verify_run(args.output / previous["attempt"], world, seed, condition,
-                                 args.horizon, package, args.quality_profile))
-        print(f"SKIP {name}", flush=True)
-        return previous["coverage_mask_sha256"]
-
     for process in ("gzserver", "gzclient", "rosmaster", "roslaunch"):
         if subprocess.run(["pgrep", "-x", process], stdout=subprocess.DEVNULL).returncode == 0:
             raise RuntimeError(f"Another ROS or Gazebo process is running: {process}")
@@ -279,19 +360,36 @@ def run_condition(run, args, package, rgb, mappo):
     if condition in MATCHED_CONDITIONS:
         actor, rules = MATCHED_CONDITIONS[condition]
         launch_args += [f"clearance_actor_cue:={actor}", f"clearance_rules_cue:={rules}"]
-    if condition in QUALITY_CONDITIONS:
-        camera_profile, _ = QUALITY_CONDITIONS[condition]
+    if condition in CAMERA_CONDITIONS:
+        camera_profile, _ = CAMERA_CONDITIONS[condition]
         launch_args += [f"clearance_camera_profile:={camera_profile}",
                         f"clearance_quality_profile:={args.quality_profile}"]
     (directory / "launch_arguments.txt").write_text("\n".join(launch_args) + "\n")
     print(f"START {name} order={order} {directory}", flush=True)
-    with (directory / "launch.log").open("x") as stream:
-        result = subprocess.run(
-            ["timeout", "--signal=INT", "--kill-after=25s", f"{6 * args.horizon}s",
-             "roslaunch", "turtlebot_ddpg", "gazebo_research_experiment.launch", *launch_args],
-            stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT,
-            env={**os.environ, "ROS_LOG_DIR": str(log_directory)}, check=False)
-    (directory / "exit_status.txt").write_text(f"{result.returncode}\n")
+    status = run_launch(
+        ["timeout", "--signal=INT", "--kill-after=25s", f"{6 * args.horizon}s",
+         "roslaunch", "turtlebot_ddpg", "gazebo_research_experiment.launch", *launch_args],
+        directory / "launch.log", {**os.environ, "ROS_LOG_DIR": str(log_directory)})
+    (directory / "exit_status.txt").write_text(f"{status}\n")
+    return directory
+
+
+def run_condition(run, args, package, rgb, mappo):
+    world, seed, order, condition = run
+    name = f"{world}_{seed}_{condition}"
+    marker = args.output / (name + ".complete.json")
+    if marker.exists():
+        previous = json.loads(marker.read_text())
+        preserve_json(args.output / previous["attempt"] / "result.json",
+                      verify_run(args.output / previous["attempt"], world, seed, condition,
+                                 args.horizon, package, args.quality_profile))
+        print(f"SKIP {name}", flush=True)
+        return previous["coverage_mask_sha256"]
+
+    directory = launch_condition(run, args, package, rgb, mappo, name)
+    if startup_segfault(directory):
+        print(f"RETRY {name} after early segmentation fault; retained {directory}", flush=True)
+        directory = launch_condition(run, args, package, rgb, mappo, name)
     record = verify_run(directory, world, seed, condition, args.horizon, package, args.quality_profile)
     preserve_json(directory / "result.json", record)
     preserve_json(marker, {"attempt": directory.name, "order": order,
@@ -325,7 +423,7 @@ def main():
     mappo = args.ros_project / "research_artifacts/dissertation_v1/checkpoint/mappo_selected_validation_v1.pt"
     ddpg = package / "scripts/fd_replay/play_human_data/actormodel-450-500.h5"
     schedule = read_schedule(args.schedule)
-    quality_study = any(condition in QUALITY_CONDITIONS for _, _, _, condition in schedule)
+    quality_study = any(condition in CAMERA_CONDITIONS for _, _, _, condition in schedule)
     if quality_study != (args.quality_profile is not None):
         parser.error("Supply --quality-profile for a camera-quality schedule")
     files = {"rgb": rgb, "mappo": mappo, "ddpg": ddpg, "runner": Path(__file__),

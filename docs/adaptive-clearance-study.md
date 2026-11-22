@@ -60,6 +60,10 @@ describe the tested corruptions and camera scale.
 
 ## Paired Gazebo test
 
+Use revision `95bdb31ab9c3cc775cd4f564295833a077369241` and its prepared
+ROS tree to audit the archived constant-exposure study. Its manifest
+fingerprints that runner.
+
 The smoke test exercises six settings. The pilot uses two layouts and
 one new seed per layout for 12 runs of 300 simulation seconds. Each seed
 uses common-scan LiDAR, fixed fusion and adaptive fusion under clean

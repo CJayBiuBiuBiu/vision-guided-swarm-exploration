@@ -1,0 +1,34 @@
+{
+  "horizon_s": 85,
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "launch": "df303ac43c1d31f830d9d6988f8009ba3b581066737019cfcb706232e2197025",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "quality_profile": "9bf900cfca4eb0c7d3b47e1ebb052d2aceeefa0a0b634242b7df0fae486023f1",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "schedule": "10a4779852a4db15372b7c910ab1950d3530965bf76819e1416a7fe921d5c429"
+  },
+  "schedule": [
+    [
+      "hu_aligned",
+      62390,
+      1,
+      "mixed_lidar"
+    ],
+    [
+      "hu_aligned",
+      62390,
+      2,
+      "mixed_fusion"
+    ],
+    [
+      "hu_aligned",
+      62390,
+      3,
+      "mixed_adaptive"
+    ]
+  ],
+  "source_tree": "e796e1dec5736ca8a0bb1accd4cc07feb88f489b"
+}

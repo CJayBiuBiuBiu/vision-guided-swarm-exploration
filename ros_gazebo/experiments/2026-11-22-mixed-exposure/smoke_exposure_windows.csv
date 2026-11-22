@@ -1,0 +1,7 @@
+layout,seed,cue,window,lighting,robot_ticks,rgb_used_ticks,rgb_robot_tick_fraction,paired,cross_window,accepted_cross_window,same_window_gate_acceptance
+hu_aligned,62390,lidar,0,clean,711,0,0.0,711,0,0,0.9943741209563994
+hu_aligned,62390,lidar,1,dark,303,0,0.0,303,3,3,0.0
+hu_aligned,62390,fusion,0,clean,711,710,0.9985935302390999,710,0,0,1.0
+hu_aligned,62390,fusion,1,dark,303,303,1.0,303,3,3,0.0
+hu_aligned,62390,adaptive,0,clean,711,710,0.9985935302390999,710,0,0,1.0
+hu_aligned,62390,adaptive,1,dark,303,3,0.009900990099009901,303,3,3,0.0

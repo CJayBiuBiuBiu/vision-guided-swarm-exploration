@@ -1,0 +1,4 @@
+layout,seed,order,condition
+hu_aligned,62390,1,mixed_lidar
+hu_aligned,62390,2,mixed_fusion
+hu_aligned,62390,3,mixed_adaptive

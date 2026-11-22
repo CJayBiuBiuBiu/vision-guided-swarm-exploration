@@ -1,0 +1,13 @@
+layout,seed,order,condition
+hu_aligned,62300,1,mixed_lidar
+hu_aligned,62300,2,mixed_fusion
+hu_aligned,62300,3,mixed_adaptive
+hu_layout_c,62301,1,mixed_fusion
+hu_layout_c,62301,2,mixed_adaptive
+hu_layout_c,62301,3,mixed_lidar
+hu_aligned,62302,1,mixed_adaptive
+hu_aligned,62302,2,mixed_lidar
+hu_aligned,62302,3,mixed_fusion
+hu_layout_c,62303,1,mixed_lidar
+hu_layout_c,62303,2,mixed_adaptive
+hu_layout_c,62303,3,mixed_fusion
