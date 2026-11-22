@@ -1,0 +1,277 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 8c0e65ba09a4e0ed6c2c2ee38e40aa3597b35e6c..876ae6103bae13f04b2900c4dd763bcacfc658e9 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -75,6 +75,8 @@
+        doc="Frozen RGB checkpoint required when the directional cue uses learned RGB"/>
+   <arg name="clearance_rgb_weight" default="0.5"
+        doc="RGB contribution in rgb_lidar_openness, between zero and one"/>
++  <arg name="fusion_pairing_mode" default="buffered"
++       doc="Use bounded sample histories or latest-only fusion for comparison"/>
+   <arg name="vision_projection_mode" default="thirds"
+        doc="thirds (checkpoint-compatible baseline) or interpolated"/>
+   <arg name="vision_feature_scale" default="1.0"
+@@ -173,6 +175,7 @@
+     <param name="vision_scoring_mode" value="$(arg vision_scoring_mode)"/>
+     <param name="learned_vision_checkpoint" value="$(arg learned_vision_checkpoint)" type="str"/>
+     <param name="clearance_rgb_weight" value="$(arg clearance_rgb_weight)"/>
++    <param name="fusion_pairing_mode" value="$(arg fusion_pairing_mode)"/>
+     <param name="vision_projection_mode" value="$(arg vision_projection_mode)"/>
+     <param name="vision_feature_scale" value="$(arg vision_feature_scale)"/>
+     <param name="vision_role" value="$(arg vision_role)"/>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+index 96f71f4a435f51da8b2d97130372f24ecbb2b7c3..ead92f154eb870c159cf79a5af351f5d90f4377c 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+@@ -1,6 +1,7 @@
+ """Directional frontier cues using the RGB encoder's clearance convention."""
+ 
+ import math
++from collections import namedtuple
+ 
+ import numpy as np
+ 
+@@ -11,6 +12,9 @@ RGB_LIDAR_OPENNESS = 'rgb_lidar_openness'
+ CLEARANCE_MODES = (RGB_OPENNESS, LIDAR_OPENNESS, RGB_LIDAR_OPENNESS)
+ SCORE_MAX_AGE = 0.75
+ FUSION_MAX_SKEW = 0.25
++FUSION_PAIRING_MODES = ('latest', 'buffered')
++FUSION_HISTORY_SIZE = 32
++FusionMatch = namedtuple('FusionMatch', 'rgb lidar status latest_rejection')
+ 
+ 
+ def lidar_openness(ranges, angle_min, angle_increment, range_min, range_max,
+@@ -51,6 +55,43 @@ def _fresh(sample, now):
+     return sample is not None and 0.0 <= now - sample[0] <= SCORE_MAX_AGE
+ 
+ 
++def _sample_rejection(sample, now, source):
++    if sample is None:
++        return source + '_missing'
++    if sample[0] > now:
++        return source + '_future'
++    if not _fresh(sample, now):
++        return source + '_stale'
++    return ''
++
++
++def match_fusion_samples(rgb_history, lidar_history, now, pairing_mode):
++    """Keep a valid latest pair, or recover a recent pair from the buffers."""
++    if pairing_mode not in FUSION_PAIRING_MODES:
++        raise ValueError('unknown fusion pairing mode: %s' % pairing_mode)
++    rgb = rgb_history[-1] if rgb_history else None
++    lidar = lidar_history[-1] if lidar_history else None
++    rejection = (_sample_rejection(rgb, now, 'rgb') or
++                 _sample_rejection(lidar, now, 'lidar'))
++    if not rejection:
++        if abs(rgb[0] - lidar[0]) <= FUSION_MAX_SKEW:
++            return FusionMatch(rgb, lidar, 'latest', '')
++        rejection = 'timestamp_skew'
++    if pairing_mode == 'latest':
++        return FusionMatch(None, None, rejection, rejection)
++
++    recent_rgb = [sample for sample in rgb_history if _fresh(sample, now)]
++    recent_lidar = [sample for sample in lidar_history if _fresh(sample, now)]
++    candidates = ((r, l) for r in recent_rgb for l in recent_lidar
++                  if abs(r[0] - l[0]) <= FUSION_MAX_SKEW)
++    best = max(candidates, key=lambda pair: (
++        min(pair[0][0], pair[1][0]), -abs(pair[0][0] - pair[1][0])), default=None)
++    if best is not None:
++        return FusionMatch(best[0], best[1], 'buffered', rejection)
++    status = 'timestamp_skew' if recent_rgb and recent_lidar else rejection
++    return FusionMatch(None, None, status, rejection)
++
++
+ def clearance_scores(mode, rgb, lidar, now, rgb_weight):
+     """Resolve timestamped sensor samples into one clearance score per sector."""
+     if mode == RGB_OPENNESS:
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index d8d2924ec72d9b23f561ae3cef0ba4c56b2990f5..dba8533de08e58fe7871cfe57c0f3f3ed246942e 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -27,6 +27,7 @@ import csv
+ import hashlib
+ import json
+ import threading
++from collections import Counter, deque
+ from contextlib import nullcontext
+ from pathlib import Path
+ 
+@@ -47,8 +48,9 @@ from frontier_scoring import (
+     normalize_rows, score_frontier_roles, vision_role_flags)
+ from frontier_decision_trace import FrontierDecisionTrace
+ from directional_clearance import (
+-    CLEARANCE_MODES, LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, RGB_OPENNESS,
+-    clearance_scores, lidar_openness)
++    CLEARANCE_MODES, FUSION_HISTORY_SIZE, FUSION_PAIRING_MODES,
++    LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, RGB_OPENNESS, clearance_scores,
++    lidar_openness, match_fusion_samples)
+ from hybrid_fallback import (
+     CoverageStallFallback, OBSERVED_FREE_AREA, REFERENCE_COVERAGE,
+     validate_progress_mode)
+@@ -398,6 +400,9 @@ class Coordinator(object):
+             raise ValueError('vision_scoring_mode must be one of %s' %
+                              (VISION_SCORING_MODES + CLEARANCE_MODES,))
+         self.clearance_mode = self.vision_scoring_mode in CLEARANCE_MODES
++        self.fusion_pairing_mode = rospy.get_param('~fusion_pairing_mode', 'buffered')
++        if self.fusion_pairing_mode not in FUSION_PAIRING_MODES:
++            raise ValueError('fusion_pairing_mode must be latest or buffered')
+         self.clearance_rgb_weight = float(rospy.get_param('~clearance_rgb_weight', 0.5))
+         if not 0.0 < self.clearance_rgb_weight < 1.0:
+             raise ValueError('clearance_rgb_weight must be in (0, 1)')
+@@ -609,8 +614,15 @@ class Coordinator(object):
+             self.yaws = {}            # name -> heading (rad)
+         self.last_wheel_positions = {}
+         self.vision_scores = {}   # name -> (left, centre, right) openness in [0,1]
+-        self.rgb_clearance = {}
+-        self.lidar_clearance = {}
++        self.clearance_lock = threading.Lock()
++        self.rgb_clearance = {name: deque(maxlen=FUSION_HISTORY_SIZE)
++                              for name in self.robot_names}
++        self.lidar_clearance = {name: deque(maxlen=FUSION_HISTORY_SIZE)
++                                for name in self.robot_names}
++        self.invalid_clearance_scans = 0
++        self.fusion_pair_outcomes = Counter()
++        self.fusion_pair_skew_sum = 0.0
++        self.fusion_pair_diagnostics = {}
+         self.clearance_team_ticks = 0
+         self.clearance_ready_team_ticks = 0
+         self.vision_token_count = 0
+@@ -766,7 +778,8 @@ class Coordinator(object):
+         if self.learned_vision_scorer is not None:
+             scores = self.learned_vision_scorer.score(img)
+             if all(math.isfinite(score) for score in scores):
+-                self.rgb_clearance[name] = (msg.header.stamp.to_sec(), scores)
++                with self.clearance_lock:
++                    self.rgb_clearance[name].append((msg.header.stamp.to_sec(), scores))
+             return
+         scores = openness_from_image(img, mode=self.vision_scoring_mode)
+         self.vision_scores[name] = scores
+@@ -786,8 +799,11 @@ class Coordinator(object):
+             scores = lidar_openness(
+                 msg.ranges, msg.angle_min, msg.angle_increment,
+                 msg.range_min, msg.range_max, CAMERA_FOV)
+-            if scores is not None:
+-                self.lidar_clearance[name] = (msg.header.stamp.to_sec(), scores)
++            with self.clearance_lock:
++                if scores is None:
++                    self.invalid_clearance_scans += 1
++                else:
++                    self.lidar_clearance[name].append((msg.header.stamp.to_sec(), scores))
+         if self.mapping_mode != 'laser_scan':
+             return
+         position = self.positions.get(name)
+@@ -814,11 +830,30 @@ class Coordinator(object):
+ 
+     def _refresh_directional_clearance(self):
+         now = self._control_now()
++        with self.clearance_lock:
++            samples = [(name, tuple(self.rgb_clearance[name]), tuple(self.lidar_clearance[name]))
++                       for name in self.robot_names]
+         ready = {}
+-        for name in self.robot_names:
++        for name, rgb_history, lidar_history in samples:
++            rgb = rgb_history[-1] if rgb_history else None
++            lidar = lidar_history[-1] if lidar_history else None
++            if self.vision_scoring_mode == RGB_LIDAR_OPENNESS:
++                match = match_fusion_samples(
++                    rgb_history, lidar_history, now, self.fusion_pairing_mode)
++                skew = abs(match.rgb[0] - match.lidar[0]) if match.rgb is not None else None
++                if skew is not None:
++                    self.fusion_pair_skew_sum += skew
++                self.fusion_pair_outcomes[match.status] += 1
++                self.fusion_pair_diagnostics[name] = dict(
++                    status=match.status, latest_rejection=match.latest_rejection,
++                    latest_rgb_age_s=now - rgb[0] if rgb is not None else None,
++                    latest_lidar_age_s=now - lidar[0] if lidar is not None else None,
++                    paired_rgb_age_s=now - match.rgb[0] if match.rgb is not None else None,
++                    paired_lidar_age_s=now - match.lidar[0] if match.lidar is not None else None,
++                    paired_skew_s=skew)
++                rgb, lidar = match.rgb, match.lidar
+             scores = clearance_scores(
+-                self.vision_scoring_mode, self.rgb_clearance.get(name),
+-                self.lidar_clearance.get(name), now, self.clearance_rgb_weight)
++                self.vision_scoring_mode, rgb, lidar, now, self.clearance_rgb_weight)
+             if scores is not None:
+                 ready[name] = scores
+                 self._record_vision_scores(scores)
+@@ -1357,7 +1392,11 @@ class Coordinator(object):
+             fields = fields + ['vision_role', 'actor_uses_vision', 'rules_use_vision']
+         if self.clearance_mode:
+             fields = fields + ['clearance_rgb_weight', 'directional_clearance_mean',
+-                               'clearance_team_ticks', 'clearance_ready_team_ticks']
++                               'clearance_team_ticks', 'clearance_ready_team_ticks',
++                               'invalid_clearance_scans']
++        if self.vision_scoring_mode == RGB_LIDAR_OPENNESS:
++            fields += ['fusion_pairing_mode', 'fusion_pair_outcomes_json',
++                       'fusion_pair_skew_mean_s', 'fusion_diagnostics_json']
+         if not new_file:
+             with open(self.metrics_path, newline='') as existing:
+                 if next(csv.reader(existing), None) != fields:
+@@ -1577,7 +1616,15 @@ class Coordinator(object):
+                 directional_clearance_mean='%.6f' % float(np.mean(image_scores))
+                 if image_scores else '',
+                 clearance_team_ticks=self.clearance_team_ticks,
+-                clearance_ready_team_ticks=self.clearance_ready_team_ticks)
++                clearance_ready_team_ticks=self.clearance_ready_team_ticks,
++                invalid_clearance_scans=self.invalid_clearance_scans)
++        if self.vision_scoring_mode == RGB_LIDAR_OPENNESS:
++            pairs = self.fusion_pair_outcomes['latest'] + self.fusion_pair_outcomes['buffered']
++            row.update(
++                fusion_pairing_mode=self.fusion_pairing_mode,
++                fusion_pair_outcomes_json=json.dumps(self.fusion_pair_outcomes, sort_keys=True),
++                fusion_pair_skew_mean_s='%.6f' % (self.fusion_pair_skew_sum / pairs) if pairs else '',
++                fusion_diagnostics_json=json.dumps(self.fusion_pair_diagnostics, sort_keys=True))
+         with self._metrics_lock:
+             if self._metrics_writer is None or self._metrics_file is None:
+                 return
+@@ -2075,6 +2122,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                     directional_clearance=self.vision_scores.get(name),
+                                     selected_clearance_bonus=self.vision_bias(
+                                         pos, self.yaws.get(name, 0.0), best, name))
++                            if self.vision_scoring_mode == RGB_LIDAR_OPENNESS:
++                                clearance_details['fusion_pair'] = self.fusion_pair_diagnostics.get(name)
+                             self.frontier_trace.assign(
+                                 name, elapsed, area,
+                                 selection_source=('actor' if policy_controls_selection else
+diff --git a/turtlebot_ddpg/tests/test_directional_clearance.py b/turtlebot_ddpg/tests/test_directional_clearance.py
+index 1eda11447b1263b128ecdbe26c521bfee0298032..20a6ddaf41809297987ecd0b4d3e6a447a1c109d 100644
+--- a/turtlebot_ddpg/tests/test_directional_clearance.py
++++ b/turtlebot_ddpg/tests/test_directional_clearance.py
+@@ -12,7 +12,7 @@ sys.path.insert(0, SCRIPT_DIR)
+ 
+ from directional_clearance import (
+     LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, RGB_OPENNESS, clearance_scores,
+-    lidar_openness)
++    lidar_openness, match_fusion_samples)
+ 
+ 
+ class LidarOpennessTests(unittest.TestCase):
+@@ -56,3 +56,27 @@ class ClearanceSourceTests(unittest.TestCase):
+         self.assertIsNone(clearance_scores(RGB_LIDAR_OPENNESS, rgb, None, 10.25, 0.5))
+         misaligned = (10.375, lidar[1])
+         self.assertIsNone(clearance_scores(RGB_LIDAR_OPENNESS, rgb, misaligned, 10.5, 0.5))
++
++    def test_buffer_recovers_when_latest_frames_are_skewed(self):
++        values = (0.25, 0.5, 0.75)
++        rgb = ((9.75, values), (10.0, values))
++        lidar = ((9.55, values), (9.625, values))
++        previous = match_fusion_samples(rgb, lidar, 10.0, 'latest')
++        improved = match_fusion_samples(rgb, lidar, 10.0, 'buffered')
++        self.assertEqual(previous.status, 'timestamp_skew')
++        self.assertIsNone(previous.rgb)
++        self.assertEqual(improved.status, 'buffered')
++        self.assertEqual(improved.latest_rejection, 'timestamp_skew')
++        self.assertEqual((improved.rgb, improved.lidar), (rgb[0], lidar[1]))
++
++    def test_latest_pair_is_retained_and_invalid_stamps_are_not_reused(self):
++        values = (0.0, 0.5, 1.0)
++        rgb = ((10.0, values), (10.125, values))
++        lidar = ((10.25, values),)
++        stable = match_fusion_samples(rgb, lidar, 10.25, 'buffered')
++        self.assertEqual((stable.status, stable.rgb, stable.lidar), ('latest', rgb[1], lidar[0]))
++        self.assertEqual(match_fusion_samples(rgb, (), 10.25, 'buffered').status, 'lidar_missing')
++        self.assertEqual(match_fusion_samples(rgb, lidar, 11.0, 'buffered').status, 'rgb_stale')
++        future = match_fusion_samples(rgb, lidar, 10.0625, 'buffered')
++        self.assertIsNone(future.lidar)
++        self.assertEqual(future.latest_rejection, 'rgb_future')

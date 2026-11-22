@@ -55,8 +55,11 @@ The laser score uses the scan's reported range limits and the same sectors,
 quantile and normalisation as the RGB training labels. The mapping range
 cap remains a separate control setting. The live score requires a usable
 reading in each sector. Samples expire after 0.75 s and the fusion pair may
-differ by at most 0.25 s. A missing or stale required cue contributes zero
-openness until it becomes available again.
+differ by at most 0.25 s. Fusion first checks the latest samples. If they
+cannot pair, it checks the last 32 samples from each stream for a pair that
+still meets both limits. Set `fusion_pairing_mode:=latest` for the earlier
+pairing rule. An unavailable required cue contributes zero openness for
+that control tick.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)
