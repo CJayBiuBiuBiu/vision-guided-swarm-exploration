@@ -1,0 +1,112 @@
+{
+  "horizon_s": 300,
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44",
+    "launch": "6b7c7cd6d904831918edeab52ac5644254435b0a16905baf99aad58030ee9829",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "b22ec6411c131fe0a1efde9a4f27bd27a658039e93a667426e0c2d8ae37d832f",
+    "schedule": "3d9f416da9e8fe16d65edc8856d18695057df9a30cfa634a316d68177c45f5c8"
+  },
+  "schedule": [
+    [
+      "hu_aligned",
+      61300,
+      1,
+      "matched_lidar_lidar"
+    ],
+    [
+      "hu_aligned",
+      61300,
+      2,
+      "matched_fusion_lidar"
+    ],
+    [
+      "hu_aligned",
+      61300,
+      3,
+      "matched_fusion_fusion"
+    ],
+    [
+      "hu_aligned",
+      61300,
+      4,
+      "matched_lidar_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61301,
+      1,
+      "matched_fusion_lidar"
+    ],
+    [
+      "hu_layout_c",
+      61301,
+      2,
+      "matched_lidar_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61301,
+      3,
+      "matched_lidar_lidar"
+    ],
+    [
+      "hu_layout_c",
+      61301,
+      4,
+      "matched_fusion_fusion"
+    ],
+    [
+      "hu_aligned",
+      61302,
+      1,
+      "matched_lidar_fusion"
+    ],
+    [
+      "hu_aligned",
+      61302,
+      2,
+      "matched_fusion_fusion"
+    ],
+    [
+      "hu_aligned",
+      61302,
+      3,
+      "matched_fusion_lidar"
+    ],
+    [
+      "hu_aligned",
+      61302,
+      4,
+      "matched_lidar_lidar"
+    ],
+    [
+      "hu_layout_c",
+      61303,
+      1,
+      "matched_fusion_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61303,
+      2,
+      "matched_lidar_lidar"
+    ],
+    [
+      "hu_layout_c",
+      61303,
+      3,
+      "matched_lidar_fusion"
+    ],
+    [
+      "hu_layout_c",
+      61303,
+      4,
+      "matched_fusion_lidar"
+    ]
+  ],
+  "source_tree": "d90c9152d62b2dfdc367002deb1b34448b55cab5"
+}

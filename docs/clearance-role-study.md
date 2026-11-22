@@ -52,6 +52,49 @@ the rule cue changes. Report these contrasts per seed and layout. Two
 seeds per layout provide a mechanism screen for a later independent
 evaluation.
 
+## Formal results
+
+All 16 runs completed the 300-second horizon. The audit reconstructed
+both cue vectors at each traced assignment from the same LiDAR scan.
+It also verified the schedule, source tree, models and maps.
+
+| Layout | Both LiDAR | MAPPO fusion | Rule fusion | Both fusion | Actor effect | Rule effect | Interaction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Hu-aligned | 70.08% | 92.99% | 86.61% | 87.29% | +11.80 pp | +5.41 pp | -22.23 pp |
+| Layout C | 95.84% | 85.20% | 93.52% | 98.31% | -2.93 pp | +5.40 pp | +15.43 pp |
+
+Each layout mean uses two complete seed blocks. Each effect is a paired
+contrast in percentage points. An interaction measures how much the
+effect of MAPPO fusion changes when the rules also use fusion.
+
+| Layout | Seed | Both LiDAR | MAPPO fusion | Rule fusion | Both fusion | Interaction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Hu-aligned | 61300 | 78.30% | 86.26% | 84.98% | 81.64% | -11.31 pp |
+| Hu-aligned | 61302 | 61.86% | 99.73% | 88.23% | 92.95% | -33.15 pp |
+| Layout C | 61301 | 95.44% | 79.52% | 96.16% | 97.19% | +16.95 pp |
+| Layout C | 61303 | 96.24% | 90.88% | 90.88% | 99.43% | +13.91 pp |
+
+### Interpretation
+
+Using fusion only in MAPPO gave the highest final coverage in both
+Hu-aligned seed blocks. Using fusion in both pathways led in both
+Layout C blocks. The MAPPO-only condition trailed common-scan LiDAR by
+15.92 and 5.36 percentage points in Layout C. Switching both pathways
+to fusion raised coverage by 1.75 and 3.19 points in those two blocks.
+
+The interaction had the same sign in each layout's two seed blocks.
+The sign differed across layouts. The rule pathway changes frontier
+ownership and the available actions in MAPPO, which is one mechanism
+the next evaluation can test. The results compare four fixed settings
+under one frozen encoder and policy pair. The earlier two-condition
+study used different seeds and a latest-scan LiDAR baseline. This
+experiment uses its own common-scan baseline.
+
+[Formal manifest](../ros_gazebo/experiments/2026-11-22-clearance-roles/formal_results/experiment_manifest.json)
+· [Per-run results](../ros_gazebo/experiments/2026-11-22-clearance-roles/formal_results/role_runs.csv)
+· [Seed contrasts](../ros_gazebo/experiments/2026-11-22-clearance-roles/formal_results/seed_contrasts.csv)
+· [Interaction figure](../ros_gazebo/experiments/2026-11-22-clearance-roles/formal_results/role_interaction.png)
+
 ## Run and verify
 
 Build and source the prepared ROS workspace and activate its Python
@@ -66,6 +109,8 @@ python3 scripts/run_clearance_study.py "$ROS_PROJECT" \
   "$study/role_schedule.csv" "$STUDY_OUTPUT" --horizon 300
 python3 scripts/summarize_clearance_role_study.py "$STUDY_OUTPUT" "$SUMMARY_OUTPUT" \
   --verify-raw "$ROS_PROJECT"
+python3 scripts/plot_clearance_role_study.py "$SUMMARY_OUTPUT/seed_contrasts.csv" \
+  "$SUMMARY_OUTPUT/role_interaction.pdf"
 ```
 
 Each stage uses a distinct output directory. The runner preserves all
