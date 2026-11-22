@@ -1,0 +1,417 @@
+diff --git a/turtlebot_ddpg/CMakeLists.txt b/turtlebot_ddpg/CMakeLists.txt
+index 3a0a1497a40089966c6e3a015da43e66e60a95bb..d2ee9e68ef1d1307f68c9bc37fbee6f344fe2c89 100644
+--- a/turtlebot_ddpg/CMakeLists.txt
++++ b/turtlebot_ddpg/CMakeLists.txt
+@@ -221,6 +221,8 @@ install(PROGRAMS
+ install(FILES
+   scripts/voronoi_exploration/frontier_scoring.py
+   scripts/voronoi_exploration/frontier_decision_trace.py
++  scripts/voronoi_exploration/directional_clearance.py
++  scripts/voronoi_exploration/learned_clearance.py
+   scripts/voronoi_exploration/communication_model.py
+   scripts/voronoi_exploration/hybrid_fallback.py
+   scripts/voronoi_exploration/recovery_memory.py
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 74333a685a62f592320736ebdec17bbead617fee..8c0e65ba09a4e0ed6c2c2ee38e40aa3597b35e6c 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -70,7 +70,11 @@
+   <arg name="vision_enabled" default="true"
+        doc="Enable camera openness in assignment costs and policy tokens"/>
+   <arg name="vision_scoring_mode" default="projected_obstacle"
+-       doc="projected_obstacle (default), projected_obstacle_gated, or canny (legacy ablation)"/>
++       doc="projected_obstacle, projected_obstacle_gated, canny, learned_openness, lidar_openness, or rgb_lidar_openness"/>
++  <arg name="learned_vision_checkpoint" default=""
++       doc="Frozen RGB checkpoint required when the directional cue uses learned RGB"/>
++  <arg name="clearance_rgb_weight" default="0.5"
++       doc="RGB contribution in rgb_lidar_openness, between zero and one"/>
+   <arg name="vision_projection_mode" default="thirds"
+        doc="thirds (checkpoint-compatible baseline) or interpolated"/>
+   <arg name="vision_feature_scale" default="1.0"
+@@ -167,6 +171,8 @@
+     <param name="selection_mode" value="$(arg selection_mode)"/>
+     <param name="vision_enabled" value="$(arg vision_enabled)"/>
+     <param name="vision_scoring_mode" value="$(arg vision_scoring_mode)"/>
++    <param name="learned_vision_checkpoint" value="$(arg learned_vision_checkpoint)" type="str"/>
++    <param name="clearance_rgb_weight" value="$(arg clearance_rgb_weight)"/>
+     <param name="vision_projection_mode" value="$(arg vision_projection_mode)"/>
+     <param name="vision_feature_scale" value="$(arg vision_feature_scale)"/>
+     <param name="vision_role" value="$(arg vision_role)"/>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..96f71f4a435f51da8b2d97130372f24ecbb2b7c3
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+@@ -0,0 +1,66 @@
++"""Directional frontier cues using the RGB encoder's clearance convention."""
++
++import math
++
++import numpy as np
++
++
++RGB_OPENNESS = 'learned_openness'
++LIDAR_OPENNESS = 'lidar_openness'
++RGB_LIDAR_OPENNESS = 'rgb_lidar_openness'
++CLEARANCE_MODES = (RGB_OPENNESS, LIDAR_OPENNESS, RGB_LIDAR_OPENNESS)
++SCORE_MAX_AGE = 0.75
++FUSION_MAX_SKEW = 0.25
++
++
++def lidar_openness(ranges, angle_min, angle_increment, range_min, range_max,
++                   camera_fov):
++    """Use the historical camera-label quantile and require all three sectors."""
++    values = np.asarray(ranges, dtype=np.float32)
++    scan_parameters = (angle_min, angle_increment, range_min, range_max, camera_fov)
++    if (values.ndim != 1 or not values.size or
++            not all(math.isfinite(value) for value in scan_parameters) or
++            angle_increment == 0.0 or not 0.0 < camera_fov <= 2.0 * math.pi or
++            not 0.0 <= range_min < range_max):
++        return None
++
++    angles = angle_min + np.arange(values.size) * angle_increment
++    if angles.min() < -math.pi or angles.max() > math.pi:
++        angles = (angles + math.pi) % (2.0 * math.pi) - math.pi
++    no_return = np.isposinf(values)
++    valid = (np.isfinite(values) & (values >= range_min)) | no_return
++    clipped = np.clip(np.where(no_return, range_max, values), range_min, range_max)
++    half_fov, third = camera_fov / 2.0, camera_fov / 6.0
++    # Match the camera-label convention in the dissertation model.
++    regions = (
++        (angles >= -half_fov) & (angles <= -third),
++        (angles > -third) & (angles < third),
++        (angles >= third) & (angles <= half_fov),
++    )
++    scores = []
++    for region in regions:
++        samples = clipped[region & valid]
++        if not samples.size:
++            return None
++        clearance = float(np.quantile(samples, 0.25))
++        scores.append((clearance - range_min) / (range_max - range_min))
++    return tuple(float(np.clip(score, 0.0, 1.0)) for score in scores)
++
++
++def _fresh(sample, now):
++    return sample is not None and 0.0 <= now - sample[0] <= SCORE_MAX_AGE
++
++
++def clearance_scores(mode, rgb, lidar, now, rgb_weight):
++    """Resolve timestamped sensor samples into one clearance score per sector."""
++    if mode == RGB_OPENNESS:
++        return rgb[1] if _fresh(rgb, now) else None
++    if mode == LIDAR_OPENNESS:
++        return lidar[1] if _fresh(lidar, now) else None
++    if mode != RGB_LIDAR_OPENNESS:
++        raise ValueError('unknown clearance mode: %s' % mode)
++    if (not _fresh(rgb, now) or not _fresh(lidar, now) or
++            abs(rgb[0] - lidar[0]) > FUSION_MAX_SKEW):
++        return None
++    return tuple(rgb_weight * r + (1.0 - rgb_weight) * l
++                 for r, l in zip(rgb[1], lidar[1]))
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 58c145754c72857a88b76d6c3b1c6dc3b0611283..d8d2924ec72d9b23f561ae3cef0ba4c56b2990f5 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -46,6 +46,9 @@ from frontier_scoring import (
+     SELECTION_MODES, assign_by_cost, blend_phase_costs, line_risk_path_cost,
+     normalize_rows, score_frontier_roles, vision_role_flags)
+ from frontier_decision_trace import FrontierDecisionTrace
++from directional_clearance import (
++    CLEARANCE_MODES, LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, RGB_OPENNESS,
++    clearance_scores, lidar_openness)
+ from hybrid_fallback import (
+     CoverageStallFallback, OBSERVED_FREE_AREA, REFERENCE_COVERAGE,
+     validate_progress_mode)
+@@ -391,9 +394,21 @@ class Coordinator(object):
+         self.vision_enabled = self.actor_uses_vision or self.rules_use_vision
+         self.vision_scoring_mode = rospy.get_param(
+             '~vision_scoring_mode', 'projected_obstacle')
+-        if self.vision_scoring_mode not in VISION_SCORING_MODES:
++        if self.vision_scoring_mode not in VISION_SCORING_MODES + CLEARANCE_MODES:
+             raise ValueError('vision_scoring_mode must be one of %s' %
+-                             (VISION_SCORING_MODES,))
++                             (VISION_SCORING_MODES + CLEARANCE_MODES,))
++        self.clearance_mode = self.vision_scoring_mode in CLEARANCE_MODES
++        self.clearance_rgb_weight = float(rospy.get_param('~clearance_rgb_weight', 0.5))
++        if not 0.0 < self.clearance_rgb_weight < 1.0:
++            raise ValueError('clearance_rgb_weight must be in (0, 1)')
++        self.learned_vision_scorer = None
++        if self.vision_enabled and self.vision_scoring_mode in (
++                RGB_OPENNESS, RGB_LIDAR_OPENNESS):
++            checkpoint = rospy.get_param('~learned_vision_checkpoint', '')
++            if not checkpoint:
++                raise ValueError('learned_vision_checkpoint is required for RGB clearance')
++            from learned_clearance import LearnedVisionScorer
++            self.learned_vision_scorer = LearnedVisionScorer(checkpoint)
+         self.vision_projection_mode = rospy.get_param(
+             '~vision_projection_mode', 'thirds')
+         if self.vision_projection_mode not in VISION_PROJECTION_MODES:
+@@ -594,6 +609,10 @@ class Coordinator(object):
+             self.yaws = {}            # name -> heading (rad)
+         self.last_wheel_positions = {}
+         self.vision_scores = {}   # name -> (left, centre, right) openness in [0,1]
++        self.rgb_clearance = {}
++        self.lidar_clearance = {}
++        self.clearance_team_ticks = 0
++        self.clearance_ready_team_ticks = 0
+         self.vision_token_count = 0
+         self.vision_token_nonzero_count = 0
+         self.vision_token_openness_sum = 0.0
+@@ -734,7 +753,7 @@ class Coordinator(object):
+                       self.metrics_path)
+ 
+     def _camera_cb(self, msg, name):
+-        if not self.vision_enabled:
++        if not self.vision_enabled or self.vision_scoring_mode == LIDAR_OPENNESS:
+             return
+         if msg.encoding not in ('rgb8', 'bgr8') or msg.height == 0 or msg.width == 0:
+             return
+@@ -744,8 +763,16 @@ class Coordinator(object):
+             return
+         if msg.encoding == 'bgr8':
+             img = img[:, :, ::-1]
++        if self.learned_vision_scorer is not None:
++            scores = self.learned_vision_scorer.score(img)
++            if all(math.isfinite(score) for score in scores):
++                self.rgb_clearance[name] = (msg.header.stamp.to_sec(), scores)
++            return
+         scores = openness_from_image(img, mode=self.vision_scoring_mode)
+         self.vision_scores[name] = scores
++        self._record_vision_scores(scores)
++
++    def _record_vision_scores(self, scores):
+         self.vision_observation_count += 1
+         self.vision_observation_value_count += len(scores)
+         self.vision_observation_sum += float(sum(scores))
+@@ -754,6 +781,13 @@ class Coordinator(object):
+         self.vision_direction_contrast_sum += float(max(scores) - min(scores))
+ 
+     def _scan_cb(self, msg, name):
++        if self.vision_enabled and self.vision_scoring_mode in (
++                LIDAR_OPENNESS, RGB_LIDAR_OPENNESS):
++            scores = lidar_openness(
++                msg.ranges, msg.angle_min, msg.angle_increment,
++                msg.range_min, msg.range_max, CAMERA_FOV)
++            if scores is not None:
++                self.lidar_clearance[name] = (msg.header.stamp.to_sec(), scores)
+         if self.mapping_mode != 'laser_scan':
+             return
+         position = self.positions.get(name)
+@@ -778,6 +812,20 @@ class Coordinator(object):
+             if processed or self.observed_free is None:
+                 self.scan_ready.add(name)
+ 
++    def _refresh_directional_clearance(self):
++        now = self._control_now()
++        ready = {}
++        for name in self.robot_names:
++            scores = clearance_scores(
++                self.vision_scoring_mode, self.rgb_clearance.get(name),
++                self.lidar_clearance.get(name), now, self.clearance_rgb_weight)
++            if scores is not None:
++                ready[name] = scores
++                self._record_vision_scores(scores)
++        self.vision_scores = ready
++        self.clearance_team_ticks += 1
++        self.clearance_ready_team_ticks += int(len(ready) == len(self.robot_names))
++
+     def _policy_action_cb(self, msg, name):
+         if msg.robot_name and msg.robot_name != name:
+             rospy.logwarn_throttle(
+@@ -1307,6 +1355,9 @@ class Coordinator(object):
+             fields = fields + ['control_progress_mode', 'observed_free_area_m2']
+         if self.observed_free is not None or self.vision_role != 'both':
+             fields = fields + ['vision_role', 'actor_uses_vision', 'rules_use_vision']
++        if self.clearance_mode:
++            fields = fields + ['clearance_rgb_weight', 'directional_clearance_mean',
++                               'clearance_team_ticks', 'clearance_ready_team_ticks']
+         if not new_file:
+             with open(self.metrics_path, newline='') as existing:
+                 if next(csv.reader(existing), None) != fields:
+@@ -1462,7 +1513,8 @@ class Coordinator(object):
+             'vision_feature_scale': '%.4f' % self.vision_feature_scale,
+             'vision_ready_robots': len(self.vision_scores),
+             'vision_image_mean_openness': (
+-                '%.6f' % float(np.mean(image_scores)) if image_scores else ''),
++                '%.6f' % float(np.mean(image_scores))
++                if image_scores and not self.clearance_mode else ''),
+             'vision_token_mean_openness': (
+                 '%.6f' % (self.vision_token_openness_sum /
+                           self.vision_token_count)
+@@ -1518,6 +1570,14 @@ class Coordinator(object):
+             row.update(vision_role=self.vision_role,
+                        actor_uses_vision=int(self.actor_uses_vision),
+                        rules_use_vision=int(self.rules_use_vision))
++        if self.clearance_mode:
++            row.update(
++                clearance_rgb_weight=(self.clearance_rgb_weight
++                                      if self.vision_scoring_mode == RGB_LIDAR_OPENNESS else ''),
++                directional_clearance_mean='%.6f' % float(np.mean(image_scores))
++                if image_scores else '',
++                clearance_team_ticks=self.clearance_team_ticks,
++                clearance_ready_team_ticks=self.clearance_ready_team_ticks)
+         with self._metrics_lock:
+             if self._metrics_writer is None or self._metrics_file is None:
+                 return
+@@ -1622,6 +1682,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 rate = self._safe_sleep(rate)
+                 continue
+ 
++            if self.vision_enabled and self.clearance_mode:
++                self._refresh_directional_clearance()
+             if (self.vision_enabled and
+                     self.selection_mode in (('vision',) +
+                                             EXECUTION_SELECTION_MODES) and
+@@ -1630,8 +1692,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 missing = [name for name in self.robot_names
+                            if name not in self.vision_scores]
+                 rospy.logerr_throttle(
+-                    10.0, '[coordinator] camera input missing for %s; vision term is zero',
+-                    ', '.join(missing))
++                    10.0, '[coordinator] %s input unavailable for %s; openness term is zero',
++                    self.vision_scoring_mode, ', '.join(missing))
+ 
+             if (self.mapping_mode == 'laser_scan' and
+                     time.time() - self.start_time > 10.0 and
+@@ -2007,6 +2069,12 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                         self.goal_assignments += 1
+                         if self.frontier_trace is not None:
+                             elapsed, area = self._frontier_trace_snapshot()
++                            clearance_details = {}
++                            if self.clearance_mode:
++                                clearance_details = dict(
++                                    directional_clearance=self.vision_scores.get(name),
++                                    selected_clearance_bonus=self.vision_bias(
++                                        pos, self.yaws.get(name, 0.0), best, name))
+                             self.frontier_trace.assign(
+                                 name, elapsed, area,
+                                 selection_source=('actor' if policy_controls_selection else
+@@ -2014,7 +2082,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                 selected_frontier_id=int(frontier_ids[best_index]),
+                                 selected_xy=best.tolist(),
+                                 candidate_frontier_ids=[int(fid) for fid in frontier_ids],
+-                                candidate_owners=[self.robot_names[int(index)] for index in owner])
++                                candidate_owners=[self.robot_names[int(index)] for index in owner],
++                                **clearance_details)
+                         if (self.selection_mode in HYBRID_SELECTION_MODES and
+                                 fallback_active):
+                             self.hybrid_fallback_goal_assignments += 1
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/learned_clearance.py b/turtlebot_ddpg/scripts/voronoi_exploration/learned_clearance.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a43155e02621acf5d017ecdc70eff9e8f8827b80
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/learned_clearance.py
+@@ -0,0 +1,48 @@
++"""Load and run the dissertation's format-2 RGB clearance checkpoint."""
++
++import cv2
++import numpy as np
++import torch
++from torch import nn
++
++
++class TinyOpennessCNN(nn.Module):
++    """Preserve the model architecture and parameter keys in the archive."""
++
++    def __init__(self):
++        super().__init__()
++        self.features = nn.Sequential(
++            nn.Conv2d(3, 16, 5, stride=2, padding=2), nn.ReLU(inplace=True),
++            nn.Conv2d(16, 32, 3, stride=2, padding=1), nn.ReLU(inplace=True),
++            nn.Conv2d(32, 64, 3, stride=2, padding=1), nn.ReLU(inplace=True),
++            nn.Conv2d(64, 64, 3, stride=2, padding=1), nn.ReLU(inplace=True),
++            nn.AdaptiveAvgPool2d((1, 3)))
++        self.head = nn.Linear(64 * 3, 3)
++
++    def forward(self, images):
++        return self.head(self.features(images).flatten(1))
++
++
++class LearnedVisionScorer:
++    """Run deterministic, single-frame inference with the frozen encoder."""
++
++    def __init__(self, checkpoint_path):
++        checkpoint = torch.load(str(checkpoint_path), map_location='cpu', weights_only=True)
++        if checkpoint.get('format_version') != 2:
++            raise ValueError('unsupported learned-vision checkpoint format')
++        if tuple(checkpoint.get('output_names', ())) != ('left', 'centre', 'right'):
++            raise ValueError('checkpoint outputs must be left, centre, right')
++        height, width = (int(value) for value in checkpoint.get('input_size', (96, 160)))
++        if height <= 0 or width <= 0:
++            raise ValueError('checkpoint input dimensions must be positive')
++        self.size = (width, height)
++        self.model = TinyOpennessCNN()
++        self.model.load_state_dict(checkpoint['model_state_dict'])
++        self.model.eval()
++
++    def score(self, image_rgb):
++        resized = cv2.resize(image_rgb, self.size, interpolation=cv2.INTER_AREA)
++        channels = np.transpose(resized.astype(np.float32) / 255.0, (2, 0, 1))
++        with torch.inference_mode():
++            scores = torch.sigmoid(self.model(torch.from_numpy(channels[None])))[0]
++        return tuple(float(score) for score in scores)
+diff --git a/turtlebot_ddpg/tests/test_directional_clearance.py b/turtlebot_ddpg/tests/test_directional_clearance.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1eda11447b1263b128ecdbe26c521bfee0298032
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_directional_clearance.py
+@@ -0,0 +1,58 @@
++import math
++import os
++import sys
++import unittest
++
++import numpy as np
++
++
++SCRIPT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)),
++                          'scripts', 'voronoi_exploration')
++sys.path.insert(0, SCRIPT_DIR)
++
++from directional_clearance import (
++    LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, RGB_OPENNESS, clearance_scores,
++    lidar_openness)
++
++
++class LidarOpennessTests(unittest.TestCase):
++    def test_lower_quartile_and_direction_match_rgb_label_convention(self):
++        scan = [0.2, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, math.inf, math.inf]
++        left, centre, right = lidar_openness(scan, -0.5, 0.1, 0.2, 4.0, 1.1)
++        np.testing.assert_allclose((left, centre, right),
++                                   ((0.8 - 0.2) / 3.8, (2 - 0.2) / 3.8,
++                                    (3 - 0.2) / 3.8))
++
++    def test_scan_angles_wrap_around_the_forward_direction(self):
++        increment = math.pi / 10
++        full_turn = [2.0] * 20
++        full_turn[1] = 3.0
++        full_turn[-1] = 1.0
++        scores = lidar_openness(full_turn, 0.0, increment, 0.1, 4.0, 1.2)
++        self.assertLess(scores[0], scores[1])
++        self.assertLess(scores[1], scores[2])
++
++    def test_no_return_is_open_and_a_missing_sector_invalidates_the_sample(self):
++        self.assertEqual(lidar_openness([math.inf] * 11, -0.5, 0.1, 0.1, 3.5, 1.1),
++                         (1.0, 1.0, 1.0))
++        self.assertIsNone(lidar_openness([math.nan] * 4 + [2.0] * 7,
++                                          -0.5, 0.1, 0.1, 3.5, 1.1))
++        self.assertIsNone(lidar_openness([2.0] * 11, -0.5, 0.1, 3.5, 0.1, 1.1))
++
++
++class ClearanceSourceTests(unittest.TestCase):
++    def test_single_modality_does_not_depend_on_the_other_stream(self):
++        sample = (10.0, (0.25, 0.5, 0.75))
++        self.assertEqual(clearance_scores(RGB_OPENNESS, sample, None, 10.2, 0.5), sample[1])
++        self.assertEqual(clearance_scores(LIDAR_OPENNESS, None, sample, 10.2, 0.5), sample[1])
++        self.assertIsNone(clearance_scores(RGB_OPENNESS, sample, None, 11.0, 0.5))
++        self.assertIsNone(clearance_scores(LIDAR_OPENNESS, None, sample, 9.9, 0.5))
++
++    def test_fusion_aligns_samples_and_does_not_switch_to_a_single_modality(self):
++        rgb = (10.0, (1.0, 0.5, 0.0))
++        lidar = (10.125, (0.0, 0.5, 1.0))
++        self.assertEqual(clearance_scores(RGB_LIDAR_OPENNESS, rgb, lidar, 10.25, 0.25),
++                         (0.25, 0.5, 0.75))
++        self.assertIsNone(clearance_scores(RGB_LIDAR_OPENNESS, rgb, None, 10.25, 0.5))
++        misaligned = (10.375, lidar[1])
++        self.assertIsNone(clearance_scores(RGB_LIDAR_OPENNESS, rgb, misaligned, 10.5, 0.5))

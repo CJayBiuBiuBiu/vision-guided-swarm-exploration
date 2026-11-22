@@ -38,3 +38,61 @@ lists experiment commands and artifacts.
 The [matched control-progress pilot](control-progress-pilot-2026-11-21.md)
 records the first 300-second Gazebo check of the reference-coverage and
 observed-area modes.
+
+## Compare RGB and laser clearance
+
+The three modes put the same left, centre and right clearance cue into the
+existing frontier feature. Laser mapping and the low-level DDPG controller
+operate in all three conditions.
+
+| `vision_scoring_mode` | Directional cue |
+| --- | --- |
+| `lidar_openness` | Lower-quartile clearance from the current raw laser scan in each camera sector. |
+| `learned_openness` | Single-frame prediction from the frozen dissertation RGB encoder. |
+| `rgb_lidar_openness` | Per-sector mean of both cues with `clearance_rgb_weight:=0.5`. |
+
+The laser score uses the scan's reported range limits and the same sectors,
+quantile and normalisation as the RGB training labels. The mapping range
+cap remains a separate control setting. The live score requires a usable
+reading in each sector. Samples expire after 0.75 s and the fusion pair may
+differ by at most 0.25 s. A missing or stale required cue contributes zero
+openness until it becomes available again.
+
+The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
+[`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)
+to reproduce the original encoder. This file retains its model weights and
+input and output format. Its SHA-256 is
+`3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5`.
+The original training checkpoint has SHA-256
+`3caa21c9b79254bda5cc957c90f99c23d6e6a50566a72ebb321fa1a8c6071fab`.
+
+After building and sourcing the ROS workspace, run the following from the
+formal repository root to give a Gazebo launch a specific modality. Set
+`ROS_PROJECT` to the prepared ROS/Gazebo checkout.
+
+```sh
+RUN_DIR=$(mktemp -d)
+roslaunch turtlebot_ddpg gazebo_research_experiment.launch \
+  selection_mode:=mappo_hybrid start_network_policy:=true \
+  mappo_checkpoint:="$ROS_PROJECT/research_artifacts/dissertation_v1/checkpoint/mappo_selected_validation_v1.pt" \
+  vision_scoring_mode:=rgb_lidar_openness \
+  learned_vision_checkpoint:="$PWD/ros_gazebo/checkpoints/rgb_clearance_inference.pt" \
+  max_simulation_seconds:=300 fixed_horizon_only:=true shutdown_on_done:=true \
+  metrics_path:="$RUN_DIR/metrics.csv"
+```
+
+For a frozen-policy comparison, hold the MAPPO and DDPG checkpoints, seed,
+map, initial poses, progress mode and simulation horizon fixed. Use
+`vision_role:=both`, change only the cue source, and save each condition
+to its own CSV. The CSV records the selected mode and the number of
+control ticks with a valid cue for every robot. In observed-area mode, a
+distinct `frontier_trace_path` records the cue and projected bonus for
+each assigned goal along with its eventual outcome. The logged cue describes
+the coordinator state at assignment time. The projected bonus precedes
+feature scaling and role-specific routing.
+
+On 22 November 2026, all three modes completed a 20-second Gazebo smoke
+test with seed 61122. The runs confirmed three-robot input availability,
+policy actions and matched assignment/outcome records. These checks establish
+that the modes run through the same navigation stack. The 300-second
+comparisons will measure exploration performance.
