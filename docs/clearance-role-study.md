@@ -97,6 +97,10 @@ experiment uses its own common-scan baseline.
 
 ## Run and verify
 
+Use revision `03dc9f303d966f959303f4f261054ffba9b2e4ff` and its prepared
+ROS tree to audit the archived role study. Its manifest fingerprints the
+runner at that revision.
+
 Build and source the prepared ROS workspace and activate its Python
 environment. Set `ROS_PROJECT` to the prepared source tree. On a
 headless host, prefix the runner with `xvfb-run -a`.

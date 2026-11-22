@@ -67,6 +67,8 @@ Use `vision_scoring_mode:=matched_directional_clearance` to assign LiDAR or
 RGB–LiDAR fusion independently to MAPPO and the frontier rules. The
 [clearance role study](clearance-role-study.md) describes the independent
 settings and common scan.
+The [adaptive clearance study](adaptive-clearance-study.md) adds a quality
+profile and a LiDAR fallback for underexposed camera frames.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)

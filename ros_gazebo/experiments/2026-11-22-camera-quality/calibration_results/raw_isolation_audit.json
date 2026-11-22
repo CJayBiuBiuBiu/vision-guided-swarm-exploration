@@ -1,0 +1,38 @@
+{
+  "cross_run_conflicting_label_paths": 0,
+  "cross_run_paths": 0,
+  "duplicate_paths": 0,
+  "excluded_rows_by_run": {
+    "fit_62100": 3,
+    "fit_62101": 1,
+    "fit_62104": 0,
+    "fit_62105": 0,
+    "held_out_62102": 1,
+    "held_out_62103": 3,
+    "held_out_62106": 0,
+    "held_out_62107": 1
+  },
+  "held_out_rows": 720,
+  "held_out_rows_at_shared_paths": 0,
+  "held_out_runs": [
+    "held_out_62102",
+    "held_out_62103",
+    "held_out_62106",
+    "held_out_62107"
+  ],
+  "image_hashes_shared_across_split": 3,
+  "layout_seed_groups_shared_across_split": 0,
+  "manifest_sha256": {
+    "fit_62100/manifest.csv": "e90711e1ed725bc82c670146dc4f9464fb0ba205acf6dcf50d3162a90209bbc0",
+    "fit_62101/manifest.csv": "365d4114c2bdeee8919ec88751de2741381af91d2fbf2bfc59027da218565422",
+    "fit_62104/manifest.csv": "1e07867f02bbf458c7dec1c99442ed5dc8e2e99e442f7b43934530cdc220d312",
+    "fit_62105/manifest.csv": "674b4d4fa0c82537dd9e8a874ca54bae2cd1c0be5f2d09d05533ae3a875cb84f",
+    "held_out_62102/manifest.csv": "bf5a8952da6db8b9cfe00e9c66e1fc705946de2253cb3bdb61f6a2b612b5f302",
+    "held_out_62103/manifest.csv": "b039294aca957f70d02b87727115d23effd34be8616103559f3b87a26c6a8f8c",
+    "held_out_62106/manifest.csv": "fd12c7dd23ea6b0c491764bb715a03a19e1247ef6f2806d162603838f83cfca9",
+    "held_out_62107/manifest.csv": "233013e16fa480759f724b1bcef518a6070f81880b2951144a107ae62e115245"
+  },
+  "paths_shared_across_split": 0,
+  "retained_rows": 1431,
+  "rows": 1440
+}

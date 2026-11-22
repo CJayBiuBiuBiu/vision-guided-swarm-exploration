@@ -1,0 +1,9 @@
+layout,seed,split,run_id,frames,horizon_s
+hu_aligned,62100,fit,fit_62100,180,95
+hu_layout_c,62101,fit,fit_62101,180,95
+hu_aligned,62102,held_out,held_out_62102,180,95
+hu_layout_c,62103,held_out,held_out_62103,180,95
+hu_aligned,62104,fit,fit_62104,180,95
+hu_layout_c,62105,fit,fit_62105,180,95
+hu_aligned,62106,held_out,held_out_62106,180,95
+hu_layout_c,62107,held_out,held_out_62107,180,95

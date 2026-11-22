@@ -1,0 +1,7 @@
+layout,seed,order,condition
+hu_aligned,62290,1,quality_clean_lidar
+hu_aligned,62290,2,quality_dark_fusion
+hu_aligned,62290,3,quality_clean_adaptive
+hu_aligned,62290,4,quality_dark_adaptive
+hu_aligned,62290,5,quality_clean_fusion
+hu_aligned,62290,6,quality_dark_lidar

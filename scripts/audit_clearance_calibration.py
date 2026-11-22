@@ -4,6 +4,7 @@ import argparse
 import csv
 import hashlib
 import json
+import shutil
 from collections import defaultdict
 from pathlib import Path
 
@@ -12,12 +13,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifests", nargs="+", type=Path)
     parser.add_argument("--held-out-run", action="append", required=True)
+    parser.add_argument("--isolated-output", type=Path,
+                        help="Create a new hashed dataset view excluding shared image content")
     args = parser.parse_args()
     held_out = set(args.held_out_run)
     paths = defaultdict(list)
     contents = defaultdict(set)
     seed_groups = defaultdict(set)
     sources = {}
+    source_rows = defaultdict(list)
     runs = set()
     validation_rows = 0
     for manifest in args.manifests:
@@ -48,6 +52,12 @@ def main():
                     raise ValueError(f"Image content differs from its manifest: {image}")
                 paths[image].append((run, validation, labels))
                 contents[digest].add(validation)
+                if args.isolated_output is not None:
+                    if "image_sha256" not in row or "camera_stamp_ns" not in row:
+                        raise ValueError("An isolated view requires hashed, timestamped captures")
+                    source_rows[run].append((
+                        {**row, "image_path": image.relative_to(manifest.parent).as_posix()},
+                        image, digest))
     if held_out - runs or not runs - held_out:
         raise ValueError("Each requested held-out run and a separate training or calibration run are required")
 
@@ -70,8 +80,32 @@ def main():
         "image_hashes_shared_across_split": shared_content,
         "layout_seed_groups_shared_across_split": shared_seeds,
     }
+    if args.isolated_output is not None:
+        if duplicate_paths or shared_seeds:
+            raise ValueError("The source capture has repeated paths or shared layout and seed groups")
+        retained = {run: [row for row in rows if len(contents[row[2]]) == 1]
+                    for run, rows in source_rows.items()}
+        if any(not rows or Path(run).name != run or run in (".", "..")
+               for run, rows in retained.items()):
+            raise ValueError("Every run must retain valid capture rows")
+        args.isolated_output.mkdir()
+        for run, rows in sorted(retained.items()):
+            directory = args.isolated_output / run
+            directory.mkdir()
+            with (directory / "manifest.csv").open("x", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=list(rows[0][0]))
+                writer.writeheader()
+                for row, image, _ in rows:
+                    destination = directory / row["image_path"]
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    with image.open("rb") as source, destination.open("xb") as target:
+                        shutil.copyfileobj(source, target)
+                    writer.writerow(row)
+        report["excluded_rows_by_run"] = {run: len(rows) - len(retained[run])
+                                          for run, rows in sorted(source_rows.items())}
+        report["retained_rows"] = sum(map(len, retained.values()))
     print(json.dumps(report, indent=2, sort_keys=True))
-    if duplicate_paths or shared_content or shared_seeds:
+    if args.isolated_output is None and (duplicate_paths or shared_content or shared_seeds):
         raise SystemExit("Calibration audit detected duplicate paths or across-split reuse")
 
 

@@ -51,3 +51,6 @@ Layout C and seed `62012`. The audit found zero shared image paths, image
 hashes or layout–seed groups across the split. This sample verifies the
 collection and audit workflow. The [capture audit](../ros_gazebo/experiments/2026-11-22-clearance-roles/calibration_capture_smoke_audit.json)
 records the two manifest fingerprints.
+
+The [adaptive clearance study](adaptive-clearance-study.md) uses a
+larger independent capture schedule and records the fitted thresholds.

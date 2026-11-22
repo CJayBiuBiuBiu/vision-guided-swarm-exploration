@@ -22,11 +22,20 @@ ROLE_CONDITIONS = {
     "matched_lidar_fusion": ("lidar", "fusion"),
     "matched_fusion_fusion": ("fusion", "fusion"),
 }
+QUALITY_CONDITIONS = {
+    f"quality_{profile}_{cue}": (profile, cue)
+    for profile in ("clean", "dark")
+    for cue in ("lidar", "fusion", "adaptive")
+}
+MATCHED_CONDITIONS = {
+    **ROLE_CONDITIONS,
+    **{name: (cue, cue) for name, (_, cue) in QUALITY_CONDITIONS.items()},
+}
 CONDITIONS = {
     "lidar": ("lidar_openness", "buffered"),
     "latest_fusion": ("rgb_lidar_openness", "latest"),
     "buffered_fusion": ("rgb_lidar_openness", "buffered"),
-    **{condition: (MATCHED_MODE, "buffered") for condition in ROLE_CONDITIONS},
+    **{condition: (MATCHED_MODE, "buffered") for condition in MATCHED_CONDITIONS},
 }
 WORLDS = ("hu_aligned", "hu_layout_c")
 
@@ -63,6 +72,8 @@ def read_schedule(path):
     expected = {run[3] for run in runs}
     if expected.intersection(ROLE_CONDITIONS) and expected != ROLE_CONDITIONS.keys():
         raise ValueError("A matched role study requires all four conditions")
+    if expected.intersection(QUALITY_CONDITIONS) and expected != QUALITY_CONDITIONS.keys():
+        raise ValueError("A camera-quality study requires all six conditions")
     for block in blocks.values():
         if ([order for order, _ in block] != list(range(1, len(expected) + 1))
                 or {condition for _, condition in block} != expected):
@@ -70,7 +81,7 @@ def read_schedule(path):
     return runs
 
 
-def verify_matched_cues(assignment, actor, rules, weight, directory):
+def verify_matched_cues(assignment, actor, rules, weight, directory, thresholds=None):
     pair = assignment["fusion_pair"]
     lidar = pair["cue_lidar_scores"]
     rgb = pair["paired_rgb_scores"]
@@ -85,12 +96,30 @@ def verify_matched_cues(assignment, actor, rules, weight, directory):
     fused = ([weight * image + (1.0 - weight) * scan for image, scan in zip(rgb, lidar)]
              if paired else lidar)
     vectors = {"lidar": lidar, "fusion": fused}
+    if thresholds is not None:
+        quality = pair["camera_quality"]
+        if paired != (quality is not None):
+            raise ValueError(f"Camera-quality evidence does not match paired input in {directory}")
+        accepted = False
+        if quality is not None:
+            luma, sharpness, reason = quality
+            expected = "accepted"
+            if not (math.isfinite(luma) and math.isfinite(sharpness)):
+                expected = "invalid"
+            elif luma < thresholds["minimum_luma"]:
+                expected = "underexposed"
+            elif sharpness < thresholds["minimum_sharpness"]:
+                expected = "low_detail"
+            if reason != expected:
+                raise ValueError(f"Recorded camera quality does not match the profile in {directory}")
+            accepted = reason == "accepted"
+        vectors["adaptive"] = fused if accepted else lidar
     if (assignment["actor_directional_clearance"] != vectors[actor]
             or assignment["directional_clearance"] != vectors[rules]):
         raise ValueError(f"Recorded cue does not match its pathway or common LiDAR sample in {directory}")
 
 
-def verify_run(directory, world, seed, condition, horizon, package):
+def verify_run(directory, world, seed, condition, horizon, package, quality_profile=None):
     mode, pairing = CONDITIONS[condition]
     if (directory / "exit_status.txt").read_text().strip() != "0":
         raise ValueError(f"roslaunch did not exit cleanly in {directory}")
@@ -109,10 +138,17 @@ def verify_run(directory, world, seed, condition, horizon, package):
         "control_progress_mode": "observed_free_area", "vision_role": "both",
         "robot_count": "3",
     }
-    if condition in ROLE_CONDITIONS:
-        actor, rules = ROLE_CONDITIONS[condition]
+    if condition in MATCHED_CONDITIONS:
+        actor, rules = MATCHED_CONDITIONS[condition]
         expected.update(clearance_actor_cue=actor, clearance_rules_cue=rules,
                         fusion_pairing_mode=pairing, clearance_rgb_weight="0.5")
+    thresholds = None
+    if condition in QUALITY_CONDITIONS:
+        camera_profile, cue = QUALITY_CONDITIONS[condition]
+        expected["clearance_camera_profile"] = camera_profile
+        if quality_profile is None:
+            raise ValueError("The original camera-quality file is required")
+        thresholds = json.loads(quality_profile.read_text())["thresholds"]
     if any({row[key] for row in rows} != {value} for key, value in expected.items()):
         raise ValueError(f"Logged configuration does not match the schedule in {directory}")
     elapsed = float(last["elapsed_sim_s"])
@@ -146,12 +182,12 @@ def verify_run(directory, world, seed, condition, horizon, package):
         if last["fusion_pairing_mode"] != pairing or sum(pair_counts.values()) != 3 * ticks:
             raise ValueError(f"Invalid fusion timing telemetry in {directory}")
     role_details = {}
-    if condition in ROLE_CONDITIONS:
+    if condition in MATCHED_CONDITIONS:
         if events[0]["event"] != "run" or (events[0]["clearance_actor_cue"],
                                           events[0]["clearance_rules_cue"]) != (actor, rules):
             raise ValueError(f"Trace header does not match the experiment in {directory}")
         for assignment in assignments:
-            verify_matched_cues(assignment, actor, rules, 0.5, directory)
+            verify_matched_cues(assignment, actor, rules, 0.5, directory, thresholds)
         paired_ticks = pair_counts.get("latest", 0) + pair_counts.get("buffered", 0)
         fallback = int(last["matched_lidar_fallback_ticks"])
         if paired_ticks <= 0 or not 0 <= fallback <= 3 * ticks - paired_ticks:
@@ -161,6 +197,19 @@ def verify_run(directory, world, seed, condition, horizon, package):
             "matched_lidar_fallback_ticks": fallback,
             "trace_outcome_counts": dict(Counter(event["outcome"] for event in outcomes)),
         }
+    if thresholds is not None:
+        if events[0]["clearance_camera_profile"] != camera_profile:
+            raise ValueError(f"Trace camera profile differs from the schedule in {directory}")
+        quality_counts = json.loads(last["camera_pair_quality_json"])
+        if (sum(quality_counts.values()) != 3 * ticks
+                or quality_counts.get("unpaired", 0) != 3 * ticks - paired_ticks):
+            raise ValueError(f"Camera-quality counts do not reconcile in {directory}")
+        gate_acceptance = quality_counts.get("accepted", 0)
+        rgb_used_ticks = {"lidar": 0, "fusion": paired_ticks, "adaptive": gate_acceptance}[cue]
+        role_details.update(camera_profile=camera_profile, cue=cue,
+                            camera_quality_outcomes=quality_counts,
+                            gate_acceptance_fraction=gate_acceptance / paired_ticks,
+                            rgb_robot_tick_fraction=rgb_used_ticks / (3 * ticks))
     sys.path.insert(0, str(package / "scripts"))
     from summarize_evaluation import time_weighted_coverage
 
@@ -198,7 +247,7 @@ def run_condition(run, args, package, rgb, mappo):
         previous = json.loads(marker.read_text())
         preserve_json(args.output / previous["attempt"] / "result.json",
                       verify_run(args.output / previous["attempt"], world, seed, condition,
-                                 args.horizon, package))
+                                 args.horizon, package, args.quality_profile))
         print(f"SKIP {name}", flush=True)
         return previous["coverage_mask_sha256"]
 
@@ -227,9 +276,13 @@ def run_condition(run, args, package, rgb, mappo):
         f"metrics_path:={directory / 'metrics.csv'}",
         f"frontier_trace_path:={directory / 'decisions.jsonl'}",
     ]
-    if condition in ROLE_CONDITIONS:
-        actor, rules = ROLE_CONDITIONS[condition]
+    if condition in MATCHED_CONDITIONS:
+        actor, rules = MATCHED_CONDITIONS[condition]
         launch_args += [f"clearance_actor_cue:={actor}", f"clearance_rules_cue:={rules}"]
+    if condition in QUALITY_CONDITIONS:
+        camera_profile, _ = QUALITY_CONDITIONS[condition]
+        launch_args += [f"clearance_camera_profile:={camera_profile}",
+                        f"clearance_quality_profile:={args.quality_profile}"]
     (directory / "launch_arguments.txt").write_text("\n".join(launch_args) + "\n")
     print(f"START {name} order={order} {directory}", flush=True)
     with (directory / "launch.log").open("x") as stream:
@@ -239,7 +292,7 @@ def run_condition(run, args, package, rgb, mappo):
             stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT,
             env={**os.environ, "ROS_LOG_DIR": str(log_directory)}, check=False)
     (directory / "exit_status.txt").write_text(f"{result.returncode}\n")
-    record = verify_run(directory, world, seed, condition, args.horizon, package)
+    record = verify_run(directory, world, seed, condition, args.horizon, package, args.quality_profile)
     preserve_json(directory / "result.json", record)
     preserve_json(marker, {"attempt": directory.name, "order": order,
                            "coverage_mask_sha256": record["coverage_mask_sha256"]})
@@ -254,6 +307,7 @@ def main():
     parser.add_argument("schedule", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--horizon", type=int, default=300)
+    parser.add_argument("--quality-profile", type=Path)
     args = parser.parse_args()
     if args.horizon <= 0:
         parser.error("horizon must be positive")
@@ -271,10 +325,16 @@ def main():
     mappo = args.ros_project / "research_artifacts/dissertation_v1/checkpoint/mappo_selected_validation_v1.pt"
     ddpg = package / "scripts/fd_replay/play_human_data/actormodel-450-500.h5"
     schedule = read_schedule(args.schedule)
+    quality_study = any(condition in QUALITY_CONDITIONS for _, _, _, condition in schedule)
+    if quality_study != (args.quality_profile is not None):
+        parser.error("Supply --quality-profile for a camera-quality schedule")
     files = {"rgb": rgb, "mappo": mappo, "ddpg": ddpg, "runner": Path(__file__),
              "schedule": args.schedule, "launch": package / "launch/gazebo_research_experiment.launch",
              **{world: package / "worlds" / (world + "_arena.world")
                 for world in sorted({run[0] for run in schedule})}}
+    if quality_study:
+        args.quality_profile = args.quality_profile.resolve()
+        files["quality_profile"] = args.quality_profile
 
     args.output.mkdir(parents=True, exist_ok=True)
     with (Path.home() / ".vision_gazebo_experiment.lock").open("a") as lock:

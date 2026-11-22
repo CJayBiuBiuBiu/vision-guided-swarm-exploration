@@ -1,0 +1,27 @@
+{
+  "cross_run_conflicting_label_paths": 0,
+  "cross_run_paths": 0,
+  "duplicate_paths": 0,
+  "held_out_rows": 715,
+  "held_out_rows_at_shared_paths": 0,
+  "held_out_runs": [
+    "held_out_62102",
+    "held_out_62103",
+    "held_out_62106",
+    "held_out_62107"
+  ],
+  "image_hashes_shared_across_split": 0,
+  "layout_seed_groups_shared_across_split": 0,
+  "manifest_sha256": {
+    "fit_62100/manifest.csv": "67aab9468303f1fb502da5e05d1837f37bcef6927154130c784122d6dae11448",
+    "fit_62101/manifest.csv": "1368f3ceb08aa5c3be66525f3889e381effd17b32ab0c0a77329f29866c57c51",
+    "fit_62104/manifest.csv": "1e07867f02bbf458c7dec1c99442ed5dc8e2e99e442f7b43934530cdc220d312",
+    "fit_62105/manifest.csv": "674b4d4fa0c82537dd9e8a874ca54bae2cd1c0be5f2d09d05533ae3a875cb84f",
+    "held_out_62102/manifest.csv": "3161e08419f226075eeeefc10437746dab6643178d56099563b524664f1525a4",
+    "held_out_62103/manifest.csv": "4876e665bb5b46c5476e95fb3901ccafb9775c3d8d8507e68845dca7edb17eff",
+    "held_out_62106/manifest.csv": "fd12c7dd23ea6b0c491764bb715a03a19e1247ef6f2806d162603838f83cfca9",
+    "held_out_62107/manifest.csv": "9405da9f4f98a3bcd8df2307521df11873f24b91a39e05b0a31189cc6b0989fc"
+  },
+  "paths_shared_across_split": 0,
+  "rows": 1431
+}
