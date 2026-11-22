@@ -41,6 +41,10 @@ settings. The primary outcome is final coverage. Secondary outcomes are
 time-averaged coverage, traced arrivals and outcomes, stuck events,
 near-collision notifications, and distance travelled.
 
+The [calibration data audit](clearance-calibration-data.md) records a
+training–validation image overlap in the historical RGB dataset. The role
+contrasts use that same encoder in all four conditions.
+
 The actor effect averages the actor-only change under each fixed rule
 cue. The rule effect averages the rule-only change under each fixed
 actor cue. Their interaction measures how the actor effect changes when
