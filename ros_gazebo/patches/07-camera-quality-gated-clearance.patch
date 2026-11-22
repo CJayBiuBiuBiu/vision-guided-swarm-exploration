@@ -1,0 +1,289 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 98d09552b9eebaa0be7ff4afe01bdb3c59244f78..05f246e4ed24d1d097db358e4c91c4e15efb30a1 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -78,9 +78,13 @@
+   <arg name="fusion_pairing_mode" default="buffered"
+        doc="Use bounded sample histories or latest-only fusion for comparison"/>
+   <arg name="clearance_actor_cue" default="lidar"
+-       doc="MAPPO cue in matched_directional_clearance, lidar or fusion"/>
++       doc="MAPPO cue in matched_directional_clearance, lidar, fusion or adaptive"/>
+   <arg name="clearance_rules_cue" default="lidar"
+-       doc="Ownership and rule cue in matched_directional_clearance, lidar or fusion"/>
++       doc="Ownership and rule cue in matched_directional_clearance, lidar, fusion or adaptive"/>
++  <arg name="clearance_quality_profile" default=""
++       doc="Calibrated camera-quality JSON for adaptive clearance"/>
++  <arg name="clearance_camera_profile" default="clean"
++       doc="Matched-clearance stress control, clean, dark or blur"/>
+   <arg name="vision_projection_mode" default="thirds"
+        doc="thirds (checkpoint-compatible baseline) or interpolated"/>
+   <arg name="vision_feature_scale" default="1.0"
+@@ -182,6 +186,8 @@
+     <param name="fusion_pairing_mode" value="$(arg fusion_pairing_mode)"/>
+     <param name="clearance_actor_cue" value="$(arg clearance_actor_cue)"/>
+     <param name="clearance_rules_cue" value="$(arg clearance_rules_cue)"/>
++    <param name="clearance_quality_profile" value="$(arg clearance_quality_profile)" type="str"/>
++    <param name="clearance_camera_profile" value="$(arg clearance_camera_profile)"/>
+     <param name="vision_projection_mode" value="$(arg vision_projection_mode)"/>
+     <param name="vision_feature_scale" value="$(arg vision_feature_scale)"/>
+     <param name="vision_role" value="$(arg vision_role)"/>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/camera_quality.py b/turtlebot_ddpg/scripts/voronoi_exploration/camera_quality.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a3376960882f981c777b8581ba39e7b0b8de75c
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/camera_quality.py
+@@ -0,0 +1,53 @@
++"""Measure camera quality at the encoder input scale."""
++
++import json
++import math
++from pathlib import Path
++
++import cv2
++import numpy as np
++
++
++CAMERA_PROFILES = ('clean', 'dark', 'blur')
++
++
++def camera_input(image, profile):
++    """Apply a reproducible stress condition before scoring."""
++    if profile == 'clean':
++        return image
++    if profile == 'dark':
++        return (image.astype(np.float32) * 0.28).astype(np.uint8)
++    if profile == 'blur':
++        return cv2.GaussianBlur(image, (11, 11), 3.0)
++    raise ValueError('Unknown camera profile: %s' % profile)
++
++
++def camera_features(image):
++    reduced = cv2.resize(image, (160, 96), interpolation=cv2.INTER_AREA)
++    gray = cv2.cvtColor(reduced, cv2.COLOR_RGB2GRAY)
++    return float(gray.mean()), float(cv2.Laplacian(gray, cv2.CV_32F).var())
++
++
++class CameraQualityGate:
++    def __init__(self, minimum_luma, minimum_sharpness):
++        self.minimum_luma = float(minimum_luma)
++        self.minimum_sharpness = float(minimum_sharpness)
++        if not (0 <= self.minimum_luma <= 255 and
++                math.isfinite(self.minimum_sharpness) and self.minimum_sharpness >= 0):
++            raise ValueError('Invalid camera-quality thresholds')
++
++    @classmethod
++    def load(cls, path):
++        profile = json.loads(Path(path).read_text())
++        if profile['format_version'] != 1:
++            raise ValueError('Unsupported camera-quality profile')
++        return cls(**profile['thresholds'])
++
++    def reason(self, luma, sharpness):
++        if not (math.isfinite(luma) and math.isfinite(sharpness)):
++            return 'invalid'
++        if luma < self.minimum_luma:
++            return 'underexposed'
++        if sharpness < self.minimum_sharpness:
++            return 'low_detail'
++        return 'accepted'
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+index d450a699dda33e28edc138536ab33f8b2eb157cc..c4b1cce75755d1cbbcc6e128aec21d97faf96d43 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+@@ -11,7 +11,7 @@ LIDAR_OPENNESS = 'lidar_openness'
+ RGB_LIDAR_OPENNESS = 'rgb_lidar_openness'
+ MATCHED_CLEARANCE = 'matched_directional_clearance'
+ CLEARANCE_MODES = (RGB_OPENNESS, LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, MATCHED_CLEARANCE)
+-MATCHED_CUES = ('lidar', 'fusion')
++MATCHED_CUES = ('lidar', 'fusion', 'adaptive')
+ SCORE_MAX_AGE = 0.75
+ FUSION_MAX_SKEW = 0.25
+ FUSION_PAIRING_MODES = ('latest', 'buffered')
+@@ -109,12 +109,13 @@ def clearance_scores(mode, rgb, lidar, now, rgb_weight):
+                  for r, l in zip(rgb[1], lidar[1]))
+ 
+ 
+-def matched_clearance_cues(match, latest_lidar, now, rgb_weight):
++def matched_clearance_cues(match, latest_lidar, now, rgb_weight, trusted_rgb=False):
+     """Build both cues from one scan and return that scan's source stamp."""
+     if match.lidar is not None:
+         lidar, rgb = match.lidar, match.rgb
+         fusion = clearance_scores(RGB_LIDAR_OPENNESS, rgb, lidar, now, rgb_weight)
+-        return {'lidar': lidar[1], 'fusion': fusion}, lidar[0]
++        return {'lidar': lidar[1], 'fusion': fusion,
++                'adaptive': fusion if trusted_rgb else lidar[1]}, lidar[0]
+     if _fresh(latest_lidar, now):
+         return dict.fromkeys(MATCHED_CUES, latest_lidar[1]), latest_lidar[0]
+     return dict.fromkeys(MATCHED_CUES), None
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index dd8b172531689b02aca8286d3564af88d049f6aa..20f5c5e82d4d23b071af5566505109b9d513c1e6 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -47,6 +47,7 @@ from frontier_scoring import (
+     SELECTION_MODES, assign_by_cost, blend_phase_costs, line_risk_path_cost,
+     normalize_rows, score_frontier_roles, vision_role_flags)
+ from frontier_decision_trace import FrontierDecisionTrace
++from camera_quality import CAMERA_PROFILES, CameraQualityGate, camera_features, camera_input
+ from directional_clearance import (
+     CLEARANCE_MODES, FUSION_HISTORY_SIZE, FUSION_PAIRING_MODES,
+     LIDAR_OPENNESS, MATCHED_CLEARANCE, MATCHED_CUES, RGB_LIDAR_OPENNESS,
+@@ -405,13 +406,23 @@ class Coordinator(object):
+         self.uses_fusion_pairing = self.vision_scoring_mode in (RGB_LIDAR_OPENNESS, MATCHED_CLEARANCE)
+         self.clearance_actor_cue = rospy.get_param('~clearance_actor_cue', 'lidar')
+         self.clearance_rules_cue = rospy.get_param('~clearance_rules_cue', 'lidar')
++        self.clearance_camera_profile = rospy.get_param('~clearance_camera_profile', 'clean')
++        quality_profile = rospy.get_param('~clearance_quality_profile', '')
++        if self.clearance_camera_profile not in CAMERA_PROFILES:
++            raise ValueError('Invalid clearance camera profile')
++        if quality_profile and not self.matched_clearance:
++            raise ValueError('A camera-quality profile requires matched directional clearance')
++        if ('adaptive' in (self.clearance_actor_cue, self.clearance_rules_cue)
++                or self.clearance_camera_profile != 'clean') and not quality_profile:
++            raise ValueError('Adaptive clearance and camera stress require a quality profile')
++        self.camera_quality_gate = CameraQualityGate.load(quality_profile) if quality_profile else None
+         self.fusion_pairing_mode = rospy.get_param('~fusion_pairing_mode', 'buffered')
+         if self.fusion_pairing_mode not in FUSION_PAIRING_MODES:
+             raise ValueError('fusion_pairing_mode must be latest or buffered')
+         if self.matched_clearance:
+             if (self.clearance_actor_cue not in MATCHED_CUES
+                     or self.clearance_rules_cue not in MATCHED_CUES):
+-                raise ValueError('Matched clearance cues must be lidar or fusion')
++                raise ValueError('Matched clearance cues must be lidar, fusion or adaptive')
+             if not (self.actor_uses_vision and self.rules_use_vision):
+                 raise ValueError('Matched clearance requires both clearance pathways enabled')
+         self.clearance_rgb_weight = float(rospy.get_param('~clearance_rgb_weight', 0.5))
+@@ -636,6 +647,7 @@ class Coordinator(object):
+         self.fusion_pair_skew_sum = 0.0
+         self.fusion_pair_diagnostics = {}
+         self.matched_lidar_fallback_ticks = 0
++        self.camera_pair_quality = Counter()
+         self.clearance_team_ticks = 0
+         self.clearance_ready_team_ticks = 0
+         self.vision_token_count = 0
+@@ -768,6 +780,8 @@ class Coordinator(object):
+             if self.matched_clearance:
+                 cue_metadata.update(clearance_actor_cue=self.clearance_actor_cue,
+                                     clearance_rules_cue=self.clearance_rules_cue)
++            if self.camera_quality_gate is not None:
++                cue_metadata.update(clearance_camera_profile=self.clearance_camera_profile)
+             self.frontier_trace = FrontierDecisionTrace(
+                 trace_path, experiment_seed=self.experiment_seed,
+                 world_profile=self.world_profile, selection_mode=self.selection_mode,
+@@ -793,10 +807,15 @@ class Coordinator(object):
+         if msg.encoding == 'bgr8':
+             img = img[:, :, ::-1]
+         if self.learned_vision_scorer is not None:
++            quality = ()
++            if self.camera_quality_gate is not None:
++                img = camera_input(img, self.clearance_camera_profile)
++                luma, sharpness = camera_features(img)
++                quality = ((luma, sharpness, self.camera_quality_gate.reason(luma, sharpness)),)
+             scores = self.learned_vision_scorer.score(img)
+             if all(math.isfinite(score) for score in scores):
+                 with self.clearance_lock:
+-                    self.rgb_clearance[name].append((msg.header.stamp.to_sec(), scores))
++                    self.rgb_clearance[name].append((msg.header.stamp.to_sec(), scores) + quality)
+             return
+         scores = openness_from_image(img, mode=self.vision_scoring_mode)
+         self.vision_scores[name] = scores
+@@ -870,7 +889,14 @@ class Coordinator(object):
+                     paired_lidar_age_s=now - match.lidar[0] if match.lidar is not None else None,
+                     paired_skew_s=skew)
+                 if self.matched_clearance:
+-                    cues, stamp = matched_clearance_cues(match, lidar, now, self.clearance_rgb_weight)
++                    trusted = False
++                    if self.camera_quality_gate is not None:
++                        quality = match.rgb[2] if match.rgb is not None else None
++                        self.camera_pair_quality[quality[2] if quality else 'unpaired'] += 1
++                        self.fusion_pair_diagnostics[name]['camera_quality'] = quality
++                        trusted = quality is not None and quality[2] == 'accepted'
++                    cues, stamp = matched_clearance_cues(
++                        match, lidar, now, self.clearance_rgb_weight, trusted_rgb=trusted)
+                     fallback = stamp is not None and match.lidar is None
+                     self.matched_lidar_fallback_ticks += int(fallback)
+                     self.fusion_pair_diagnostics[name].update(
+@@ -1439,6 +1465,8 @@ class Coordinator(object):
+         if self.matched_clearance:
+             fields += ['clearance_actor_cue', 'clearance_rules_cue',
+                        'matched_lidar_fallback_ticks']
++        if self.camera_quality_gate is not None:
++            fields += ['clearance_camera_profile', 'camera_pair_quality_json']
+         if not new_file:
+             with open(self.metrics_path, newline='') as existing:
+                 if next(csv.reader(existing), None) != fields:
+@@ -1671,6 +1699,9 @@ class Coordinator(object):
+             row.update(clearance_actor_cue=self.clearance_actor_cue,
+                        clearance_rules_cue=self.clearance_rules_cue,
+                        matched_lidar_fallback_ticks=self.matched_lidar_fallback_ticks)
++        if self.camera_quality_gate is not None:
++            row.update(clearance_camera_profile=self.clearance_camera_profile,
++                       camera_pair_quality_json=json.dumps(self.camera_pair_quality, sort_keys=True))
+         with self._metrics_lock:
+             if self._metrics_writer is None or self._metrics_file is None:
+                 return
+diff --git a/turtlebot_ddpg/tests/test_camera_quality.py b/turtlebot_ddpg/tests/test_camera_quality.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..41538191d894fb73d8a1a595417e92c068767bfc
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_camera_quality.py
+@@ -0,0 +1,35 @@
++import os
++import sys
++import unittest
++
++import numpy as np
++
++
++sys.path.insert(0, os.path.join(
++    os.path.dirname(os.path.dirname(__file__)), 'scripts', 'voronoi_exploration'))
++
++from camera_quality import CameraQualityGate, camera_features, camera_input
++
++
++class CameraQualityTests(unittest.TestCase):
++    def test_stress_and_gate_use_the_same_features(self):
++        image = np.tile(np.array([208, 52, 208, 52], dtype=np.uint8), (96, 40))
++        image = np.repeat(image[:, :, None], 3, axis=2)
++        clean = camera_features(camera_input(image, 'clean'))
++        dark = camera_features(camera_input(image, 'dark'))
++        blur = camera_features(camera_input(image, 'blur'))
++        gate = CameraQualityGate((dark[0] + clean[0]) / 2, (blur[1] + clean[1]) / 2)
++        self.assertEqual(gate.reason(*clean), 'accepted')
++        self.assertEqual(gate.reason(*dark), 'underexposed')
++        self.assertEqual(gate.reason(*blur), 'low_detail')
++        np.testing.assert_array_equal(image, camera_input(image, 'clean'))
++
++    def test_rejects_invalid_thresholds_and_scores(self):
++        for value in (-1, float('inf'), float('nan')):
++            with self.subTest(value=value), self.assertRaises(ValueError):
++                CameraQualityGate(20, value)
++        self.assertEqual(CameraQualityGate(20, 0.1).reason(50, float('nan')), 'invalid')
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/turtlebot_ddpg/tests/test_directional_clearance.py b/turtlebot_ddpg/tests/test_directional_clearance.py
+index 255b09481e2c349cbeeccdfb508dfe112aa0e8c6..78b18ef6dcb59b019368b9169ba4809277661386 100644
+--- a/turtlebot_ddpg/tests/test_directional_clearance.py
++++ b/turtlebot_ddpg/tests/test_directional_clearance.py
+@@ -90,15 +90,18 @@ class ClearanceSourceTests(unittest.TestCase):
+         self.assertEqual(stamp, laser[0][0])
+         self.assertEqual(cues['lidar'], laser[0][1])
+         self.assertEqual(cues['fusion'], (0.5, 0.625, 0.75))
++        self.assertEqual(cues['adaptive'], cues['lidar'])
++        trusted, _ = matched_clearance_cues(match, laser[-1], 10.0, 0.5, trusted_rgb=True)
++        self.assertEqual(trusted['adaptive'], trusted['fusion'])
+ 
+     def test_matched_cues_share_fresh_lidar_fallback(self):
+         laser = (10.0, (0.0, 0.25, 0.5))
+         match = match_fusion_samples((), (laser,), 10.1, 'buffered')
+         cues, stamp = matched_clearance_cues(match, laser, 10.1, 0.5)
+         self.assertEqual(stamp, laser[0])
+-        self.assertEqual(cues, {'lidar': laser[1], 'fusion': laser[1]})
++        self.assertEqual(cues, {'lidar': laser[1], 'fusion': laser[1], 'adaptive': laser[1]})
+         for invalid in (None, (9.0, laser[1]), (10.2, laser[1])):
+             with self.subTest(sample=invalid):
+                 cues, stamp = matched_clearance_cues(match, invalid, 10.1, 0.5)
+                 self.assertIsNone(stamp)
+-                self.assertEqual(cues, {'lidar': None, 'fusion': None})
++                self.assertEqual(cues, {'lidar': None, 'fusion': None, 'adaptive': None})
