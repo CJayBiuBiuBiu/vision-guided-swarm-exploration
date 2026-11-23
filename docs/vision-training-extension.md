@@ -49,3 +49,25 @@ python3 "$runner" test_32 "$ROS_PROJECT" "$EXTENSION_OUTPUT/update_32" "$EXTENSI
 
 Use `xvfb-run -a` on headless hosts. Run the same command with
 `--audit-only` to verify accepted runs without launching Gazebo.
+
+## 16-update validation
+
+All 24 continuation episodes and 12 validation runs passed. Each
+lineage reached 16 total updates and 192 team transitions. The parent
+checkpoint and the loaded weight fingerprint matched at every step.
+
+| Layout | Updates | LiDAR coverage | RGB–LiDAR coverage | Mean paired difference |
+| --- | ---: | ---: | ---: | ---: |
+| Hu-aligned | 8 | 51.63% | 46.83% | −4.81 pp |
+| Hu-aligned | 16 | 48.84% | 49.48% | +0.64 pp |
+| Layout C | 8 | 41.17% | 38.73% | −2.44 pp |
+| Layout C | 16 | 48.53% | 36.26% | −12.27 pp |
+
+The Hu-aligned gap narrowed and changed direction. The Layout C gap
+grew. Each comparison uses three paired lineages on one fixed
+validation seed per layout. The 32-update stage follows the frozen
+schedule.
+
+[Validation pairs](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_16_validation_pairs.csv)
+· [Checkpoint fingerprints](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_16_lineage_endpoints.csv)
+· [Validation figure](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_16_vision_training_budgets.png).

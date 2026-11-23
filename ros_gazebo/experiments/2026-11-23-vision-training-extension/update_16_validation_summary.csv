@@ -1,0 +1,5 @@
+updates,layout,pairs,lidar_coverage_pct,fusion_coverage_pct,difference_coverage_pct,fusion_ahead
+8,hu_aligned,3,51.6331,46.8254,-4.8077,0
+8,hu_layout_c,3,41.172767,38.7285,-2.444267,2
+16,hu_aligned,3,48.840067,49.4811,0.641033,2
+16,hu_layout_c,3,48.530867,36.2589,-12.271967,1
