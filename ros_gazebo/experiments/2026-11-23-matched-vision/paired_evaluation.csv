@@ -1,0 +1,7 @@
+training_seed,layout,evaluation_seed,lidar_coverage_pct,fusion_coverage_pct,difference_coverage_pct,lidar_path_m,fusion_path_m,difference_path_m,lidar_goals_reached,fusion_goals_reached,difference_goals_reached,lidar_stuck_events,fusion_stuck_events,difference_stuck_events,lidar_near_collision_events,fusion_near_collision_events,difference_near_collision_events,lidar_rgb_pair_availability,fusion_rgb_pair_availability,difference_rgb_pair_availability
+62600,hu_aligned,65000,48.6264,41.5751,-7.0513,32.1967,27.7308,-4.4659,12.0,10.0,-2.0,8.0,5.0,-3.0,195.0,184.0,-11.0,0.9987080103359173,0.9987080103359173,0.0
+62600,hu_layout_c,65001,28.8754,29.6353,0.7599,25.3046,27.752,2.4474,7.0,6.0,-1.0,14.0,6.0,-8.0,159.0,188.0,29.0,0.9987129987129987,0.9987080103359173,-5e-06
+62601,hu_aligned,65000,58.7912,53.4341,-5.3571,41.2131,36.0696,-5.1435,20.0,17.0,-3.0,1.0,1.0,0.0,216.0,204.0,-12.0,0.9987129987129987,0.9987080103359173,-5e-06
+62601,hu_layout_c,65001,49.0502,37.614,-11.4362,42.0744,28.9687,-13.1057,16.0,14.0,-2.0,3.0,9.0,6.0,182.0,193.0,11.0,1.0,0.9987080103359173,-0.001292
+62602,hu_aligned,65000,47.4817,45.467,-2.0147,32.7847,34.9407,2.156,1.0,8.0,7.0,4.0,7.0,3.0,179.0,175.0,-4.0,0.9987080103359173,0.9987129987129987,5e-06
+62602,hu_layout_c,65001,45.5927,48.9362,3.3435,35.338,35.7509,0.4129,1.0,14.0,13.0,7.0,4.0,-3.0,197.0,199.0,2.0,0.9987080103359173,0.9987080103359173,0.0

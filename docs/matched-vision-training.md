@@ -83,3 +83,49 @@ on unseen seed 65800. The coverage values were 40.38% for LiDAR and
 [Smoke manifest](../ros_gazebo/experiments/2026-11-23-matched-vision/smoke_experiment_manifest.json)
 · [Smoke training](../ros_gazebo/experiments/2026-11-23-matched-vision/smoke_training_runs.csv)
 · [Smoke evaluation](../ros_gazebo/experiments/2026-11-23-matched-vision/smoke_evaluation_runs.csv).
+
+## Matched results
+
+All 24 training episodes and 12 frozen-policy evaluations completed.
+Each of the six lineages received eight updates and 96 team transitions.
+An independent audit recalculated the weight fingerprint from each
+predecessor checkpoint and confirmed the recorded input weights at
+the next episode. The evaluation runner verified each lineage's
+endpoint checkpoint.
+
+| Evaluation layout | LiDAR coverage | RGB–LiDAR coverage | Mean paired change | RGB–LiDAR ahead |
+| --- | ---: | ---: | ---: | ---: |
+| Hu-aligned | 51.63% | 46.83% | -4.81 pp | 0/3 |
+| Layout C | 41.17% | 38.73% | -2.44 pp | 2/3 |
+
+| Evaluation layout | Training seed | RGB–LiDAR minus LiDAR |
+| --- | ---: | ---: |
+| Hu-aligned | 62600 | -7.05 pp |
+| Hu-aligned | 62601 | -5.36 pp |
+| Hu-aligned | 62602 | -2.01 pp |
+| Layout C | 62600 | +0.76 pp |
+| Layout C | 62601 | -11.44 pp |
+| Layout C | 62602 | +3.34 pp |
+
+Layout means give the three training seeds equal weight. Each layout
+has one evaluation seed. The fusion arm finished behind LiDAR on all
+three Hu-aligned pairs. On Layout C, it finished ahead twice and
+recorded the largest loss in the remaining pair. The sensor matcher
+had an RGB–LiDAR pair available on over 99% of control ticks in
+each run. The results describe early-policy behavior with one
+frozen encoder, three paired initializations and a 65 s horizon.
+The short reward traces do not establish convergence. The figure
+shows the range across the three training seeds with shaded bands.
+
+[Manifest](../ros_gazebo/experiments/2026-11-23-matched-vision/paired_experiment_manifest.json)
+· [Training runs](../ros_gazebo/experiments/2026-11-23-matched-vision/paired_training_runs.csv)
+· [Evaluation runs](../ros_gazebo/experiments/2026-11-23-matched-vision/paired_evaluation_runs.csv)
+· [Paired differences](../ros_gazebo/experiments/2026-11-23-matched-vision/paired_evaluation.csv)
+· [Checkpoint chain](../ros_gazebo/experiments/2026-11-23-matched-vision/checkpoint_chain_audit.json)
+· [Figure](../ros_gazebo/experiments/2026-11-23-matched-vision/matched_vision_training.png).
+
+Regenerate the tables and figure from the verified study directory.
+
+```sh
+python3 scripts/summarize_matched_vision_training.py "$STUDY_OUTPUT" "$SUMMARY_OUTPUT"
+```
