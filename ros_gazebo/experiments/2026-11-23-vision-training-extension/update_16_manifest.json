@@ -1,0 +1,368 @@
+{
+  "eval_schedule": [
+    {
+      "cue": "lidar",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    }
+  ],
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44",
+    "observation_adapter": "6696578d187ff89c1924b7ce1956f81f683c4ad9730317bd1b2e3df6a5b62f0b",
+    "paired_runner": "140fae859725a530a34cb1b6c04d62b9ae988459d958550e52cb2c8984a1f302",
+    "pilot_catalog": "2c09b4c93336c25332305d9af9f12623224a0e301db94750d9604a4832524470",
+    "pilot_manifest": "a9a8d109c57309f06a50722cac096b6a9b315c686d969c48eba734b6fae0626e",
+    "plan": "04343d063427d049db4948a9a52ac07951672cbc0932abb85cb98b66ed90fa68",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "1956b630ad0e2b23d773c79c9922111a1294078b99ff021ce540bc4fdc60b48b",
+    "shared_runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883"
+  },
+  "parent_checkpoints_sha256": {
+    "62600_fusion": "3bf33704434964e08ebd349194baafd407f6d70f1b3009e4464e1f60e09775b1",
+    "62600_lidar": "9368927e512231d155ee3f6aeb79e8b51d3b36f52715d51a00cf9dfb6f36c62f",
+    "62601_fusion": "c8892583b9a9b2c38c2b922ffbce62eed24188047c23d1545bc5b3550bdacbf8",
+    "62601_lidar": "954ebd0c347f34da454c4bd0493abcbd64909e666cbe55d7d1fd1b8a82456c18",
+    "62602_fusion": "9d5382f367b9df01758a9661a4f58ba99f8161726cc6b4d885075e6c857b4d91",
+    "62602_lidar": "794c61fa83a6c7d51a6900e7f26a6f58afb88e2cb9928290c393d22e22a85751"
+  },
+  "parent_manifest_sha256": "a9a8d109c57309f06a50722cac096b6a9b315c686d969c48eba734b6fae0626e",
+  "parent_updates": 8,
+  "source_tree": "838076ac0c8c025bdbe54e350f4db8c4b208a1d1",
+  "stage": "update_16",
+  "target_updates": 16,
+  "train_schedule": [
+    {
+      "cue": "lidar",
+      "environment_seed": 63100,
+      "episode": 5,
+      "episode_seed": 64100,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63100,
+      "episode": 5,
+      "episode_seed": 64100,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63101,
+      "episode": 6,
+      "episode_seed": 64101,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63101,
+      "episode": 6,
+      "episode_seed": 64101,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63102,
+      "episode": 7,
+      "episode_seed": 64102,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63102,
+      "episode": 7,
+      "episode_seed": 64102,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63103,
+      "episode": 8,
+      "episode_seed": 64103,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63103,
+      "episode": 8,
+      "episode_seed": 64103,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63104,
+      "episode": 5,
+      "episode_seed": 64104,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63104,
+      "episode": 5,
+      "episode_seed": 64104,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63105,
+      "episode": 6,
+      "episode_seed": 64105,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63105,
+      "episode": 6,
+      "episode_seed": 64105,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63106,
+      "episode": 7,
+      "episode_seed": 64106,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63106,
+      "episode": 7,
+      "episode_seed": 64106,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63107,
+      "episode": 8,
+      "episode_seed": 64107,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63107,
+      "episode": 8,
+      "episode_seed": 64107,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63108,
+      "episode": 5,
+      "episode_seed": 64108,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63108,
+      "episode": 5,
+      "episode_seed": 64108,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63109,
+      "episode": 6,
+      "episode_seed": 64109,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63109,
+      "episode": 6,
+      "episode_seed": 64109,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63110,
+      "episode": 7,
+      "episode_seed": 64110,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63110,
+      "episode": 7,
+      "episode_seed": 64110,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63111,
+      "episode": 8,
+      "episode_seed": 64111,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63111,
+      "episode": 8,
+      "episode_seed": 64111,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    }
+  ]
+}

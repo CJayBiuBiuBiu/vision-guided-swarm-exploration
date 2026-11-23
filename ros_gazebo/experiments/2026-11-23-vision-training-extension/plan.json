@@ -1,0 +1,26 @@
+{
+  "training_seeds": [62600, 62601, 62602],
+  "pilot_manifest_sha256": "a9a8d109c57309f06a50722cac096b6a9b315c686d969c48eba734b6fae0626e",
+  "rollout_steps": 12,
+  "updates_per_episode": 2,
+  "decision_interval_s": 1.5,
+  "training_seconds": 52,
+  "validation_seconds": 65,
+  "validation_cases": [
+    {"layout": "hu_aligned", "seed": 65000},
+    {"layout": "hu_layout_c", "seed": 65001}
+  ],
+  "training_stages": [
+    {"parent_updates": 8, "target_updates": 16, "episode_seed_base": 63100, "sampling_seed_base": 64100},
+    {"parent_updates": 16, "target_updates": 32, "episode_seed_base": 63200, "sampling_seed_base": 64200}
+  ],
+  "test_seconds": 120,
+  "test_cases": [
+    {"layout": "hu_aligned", "seed": 65100},
+    {"layout": "hu_layout_c", "seed": 65101},
+    {"layout": "hu_aligned", "seed": 65102},
+    {"layout": "hu_layout_c", "seed": 65103},
+    {"layout": "hu_aligned", "seed": 65104},
+    {"layout": "hu_layout_c", "seed": 65105}
+  ]
+}

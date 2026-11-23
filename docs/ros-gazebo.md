@@ -77,6 +77,8 @@ The [active recheck study](active-depth-recheck.md) tests an additional
 waypoint check while a robot is following its current assignment.
 The [matched vision training study](matched-vision-training.md) trains two
 MAPPO actors independently with the same budget and observation mask.
+The [training extension](vision-training-extension.md) follows the same
+lineages through fixed checkpoints and a new held-out test.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)
