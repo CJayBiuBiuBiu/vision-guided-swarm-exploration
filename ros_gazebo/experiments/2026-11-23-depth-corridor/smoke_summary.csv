@@ -1,0 +1,4 @@
+scene,seed,order,condition,coverage_pct,mean_coverage_pct,path_m,stuck_events,trace_arrivals,trace_assignments,time_to_90_s,time_to_97_s,simulation_seconds,near_collision_events,coverage_mask_sha256,decisions,fresh_depth,paired,depth_only,depth_only_at_blocks,would_change,would_retarget,changed,withheld,retargeted_arrivals,block_contacts
+low_blocks,62490,1,lidar,21.978,15.390742857142854,9.3954,5,3,8,,,28.0,89,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,8,4,4,2,2,2,1,0,0,0,6
+low_blocks,62490,2,fusion,25.0458,15.158329910714288,11.4288,3,8,10,,,28.0,83,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,10,8,4,1,1,1,1,0,0,0,8
+low_blocks,62490,3,depth,31.5476,17.838751339285714,13.4705,1,8,11,,,28.0,90,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,12,12,6,3,3,4,3,4,1,3,0

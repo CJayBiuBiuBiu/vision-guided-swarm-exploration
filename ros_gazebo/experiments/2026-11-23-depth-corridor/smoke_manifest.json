@@ -1,0 +1,33 @@
+{
+  "horizon_s": 28,
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "low_blocks": "03f51958eaf13866304609226b8234fb27accfc960a09f89794e018e2d5492df",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "5c8a11d33e81439ce3074129036c651135659dbbc0f6567bbcd7795d97cc1ff3",
+    "schedule": "9fba1bec90c7bf975058cb552d77e7d78a78a26ed12807f8b03e116cfe8a143d",
+    "shared_runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883"
+  },
+  "schedule": [
+    [
+      "low_blocks",
+      62490,
+      1,
+      "lidar"
+    ],
+    [
+      "low_blocks",
+      62490,
+      2,
+      "fusion"
+    ],
+    [
+      "low_blocks",
+      62490,
+      3,
+      "depth"
+    ]
+  ],
+  "source_tree": "a3c6a8dff56e1188ef27aa3c7374b45d3f87d24c"
+}

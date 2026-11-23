@@ -1,0 +1,7 @@
+scene,seed,order,condition
+low_blocks,62400,1,lidar
+low_blocks,62400,2,fusion
+low_blocks,62400,3,depth
+clear,62401,1,depth
+clear,62401,2,fusion
+clear,62401,3,lidar

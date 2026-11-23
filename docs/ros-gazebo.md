@@ -71,6 +71,8 @@ The [adaptive clearance study](adaptive-clearance-study.md) adds a quality
 profile and a LiDAR fallback for underexposed camera frames.
 The [mixed-exposure study](mixed-exposure-study.md) checks how that gate
 switches as the camera exposure changes within a run.
+The [depth corridor pilot](depth-corridor-study.md) compares camera depth
+with the horizontal scan on obstacles below the scan plane.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)
