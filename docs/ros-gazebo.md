@@ -75,6 +75,8 @@ The [depth corridor pilot](depth-corridor-study.md) compares camera depth
 with the horizontal scan on obstacles below the scan plane.
 The [active recheck study](active-depth-recheck.md) tests an additional
 waypoint check while a robot is following its current assignment.
+The [matched vision training study](matched-vision-training.md) trains two
+MAPPO actors independently with the same budget and observation mask.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)

@@ -1,0 +1,3 @@
+stage,seed,cue,environment_seed,layout,horizon,elapsed_s,coverage_pct,coverage_mask_sha256,path_m,goals_reached,stuck_events,recovery_results,recovery_successes,near_collision_events,rgb_pair_availability,time_to_90_s,time_to_97_s,checkpoint_sha256
+eval,62690,lidar,65800,hu_aligned,45,45.0,40.3846,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,25.8288,16,5,5,5,120,0.9981378026070763,,,fb5e8aa76ed0c944f67572290c300be4241d766edb8d1e30590a473ae051e73b
+eval,62690,fusion,65800,hu_aligned,45,45.01,32.6465,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,22.4517,1,5,5,1,121,0.99812734082397,,,9a505cdcc7b3cb2e5b71903485a946f5daa95c0c5c008d1cca4c45fea74a840b

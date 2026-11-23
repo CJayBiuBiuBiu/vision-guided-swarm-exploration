@@ -1,0 +1,15 @@
+{
+  "training_seeds": [62600, 62601, 62602],
+  "training_episodes": 4,
+  "training_seconds": 52,
+  "episode_seed_base": 63000,
+  "sampling_seed_base": 64000,
+  "decision_interval_s": 1.5,
+  "rollout_steps": 12,
+  "updates_per_episode": 2,
+  "evaluation_seconds": 65,
+  "evaluation_cases": [
+    {"layout": "hu_aligned", "seed": 65000},
+    {"layout": "hu_layout_c", "seed": 65001}
+  ]
+}

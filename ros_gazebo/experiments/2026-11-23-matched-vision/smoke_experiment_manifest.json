@@ -1,0 +1,92 @@
+{
+  "eval_schedule": [
+    {
+      "cue": "lidar",
+      "environment_seed": 65800,
+      "horizon": 45,
+      "layout": "hu_aligned",
+      "seed": 62690,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65800,
+      "horizon": 45,
+      "layout": "hu_aligned",
+      "seed": 62690,
+      "stage": "eval"
+    }
+  ],
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44",
+    "observation_adapter": "6696578d187ff89c1924b7ce1956f81f683c4ad9730317bd1b2e3df6a5b62f0b",
+    "plan": "62fa8d34dde0d64479b56efaf54a8af0a5efb9434d7ba020883e57048430a374",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "140fae859725a530a34cb1b6c04d62b9ae988459d958550e52cb2c8984a1f302",
+    "shared_runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883"
+  },
+  "plan": {
+    "decision_interval_s": 1.5,
+    "episode_seed_base": 63800,
+    "evaluation_cases": [
+      {
+        "layout": "hu_aligned",
+        "seed": 65800
+      }
+    ],
+    "evaluation_seconds": 45,
+    "rollout_steps": 12,
+    "sampling_seed_base": 64800,
+    "training_episodes": 2,
+    "training_seconds": 50,
+    "training_seeds": [
+      62690
+    ],
+    "updates_per_episode": 2
+  },
+  "source_tree": "838076ac0c8c025bdbe54e350f4db8c4b208a1d1",
+  "train_schedule": [
+    {
+      "cue": "lidar",
+      "environment_seed": 63800,
+      "episode": 1,
+      "episode_seed": 64800,
+      "horizon": 50,
+      "layout": "hu_aligned",
+      "seed": 62690,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63800,
+      "episode": 1,
+      "episode_seed": 64800,
+      "horizon": 50,
+      "layout": "hu_aligned",
+      "seed": 62690,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63801,
+      "episode": 2,
+      "episode_seed": 64801,
+      "horizon": 50,
+      "layout": "hu_aligned",
+      "seed": 62690,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63801,
+      "episode": 2,
+      "episode_seed": 64801,
+      "horizon": 50,
+      "layout": "hu_aligned",
+      "seed": 62690,
+      "stage": "train"
+    }
+  ]
+}
