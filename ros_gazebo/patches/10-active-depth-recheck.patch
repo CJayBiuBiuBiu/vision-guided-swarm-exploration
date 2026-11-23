@@ -1,0 +1,355 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 83aeed1..37fb08c 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -1,7 +1,9 @@
+ <launch>
+   <arg name="model" default="waffle_pi"/>
+   <arg name="depth_corridor_mode" default="off"
+-       doc="off, observe, or avoid. Observe and avoid enable the optional Waffle Pi depth camera"/>
++       doc="off, observe, avoid, or recheck. Depth modes enable the Waffle Pi depth camera"/>
++  <arg name="depth_active_audit" default="false"
++       doc="Trace active-waypoint checks in any enabled depth mode"/>
+   <arg name="gui" default="true"/>
+   <arg name="verbose" default="false"/>
+   <arg name="robot_count" default="3"/>
+@@ -182,6 +184,7 @@
+               file="$(find turtlebot_ddpg)/config/gazebo_research_experiment.yaml"/>
+     <rosparam param="robot_names" subst_value="true">$(arg robot_names)</rosparam>
+     <param name="depth_corridor_mode" value="$(arg depth_corridor_mode)"/>
++    <param name="depth_active_audit" value="$(arg depth_active_audit)"/>
+     <param name="depth_camera_model" value="$(arg model)"/>
+     <param name="selection_mode" value="$(arg selection_mode)"/>
+     <param name="vision_enabled" value="$(arg vision_enabled)"/>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py b/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py
+index c51b996..2a06cb8 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py
+@@ -67,3 +67,47 @@ def corridor_hit(points, start, waypoint, minimum_points):
+     first = indices[np.argmin(projection[indices])]
+     return dict(xy=points[first].tolist(), along_m=float(projection[first]),
+                 support=int(len(indices)))
++
++
++ACTIVE_CONFIRM_INTERVAL_S = 0.50
++ACTIVE_CONFIRM_RADIUS_M = 0.28
++RECHECK_EXCLUSION_S = 3.0
++RECHECK_GOAL_RADIUS_M = 0.30
++
++
++class ActiveDepthConfirmation:
++    """Confirm a persistent hit with distinct frames on the same assignment."""
++
++    def __init__(self):
++        self.reset()
++
++    def reset(self):
++        self.last_stamp = -np.inf
++        self.previous_hit = None
++        self.reported = False
++
++    def observe(self, stamp, hit):
++        if stamp <= self.last_stamp:
++            return None
++        self.last_stamp = stamp
++        previous = self.previous_hit
++        if hit is None:
++            self.previous_hit = None
++            self.reported = False
++            return {"confirmed": False, "previous_stamp": None, "previous_xy": None}
++        agrees = (previous is not None and stamp - previous[0] <= ACTIVE_CONFIRM_INTERVAL_S
++                  and np.linalg.norm(np.subtract(hit["xy"], previous[1])) <= ACTIVE_CONFIRM_RADIUS_M)
++        self.previous_hit = (stamp, hit["xy"])
++        checked = bool(agrees and not self.reported)
++        self.reported = bool(agrees)
++        return {"confirmed": checked, "previous_stamp": previous[0] if agrees else None,
++                "previous_xy": previous[1] if agrees else None}
++
++
++def reroute_exclusions(frontiers, frontier_ids, interruption, now):
++    """Suppress the recently confirmed goal ID and its immediate vicinity."""
++    if now >= interruption["stamp"] + RECHECK_EXCLUSION_S:
++        return np.zeros(len(frontiers), dtype=bool)
++    return ((np.asarray(frontier_ids) == interruption["frontier_id"])
++            | (np.linalg.norm(frontiers - interruption["goal_xy"], axis=1)
++               <= RECHECK_GOAL_RADIUS_M))
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 6b540ea..5eb9b62 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -48,8 +48,8 @@ from frontier_scoring import (
+     normalize_rows, score_frontier_roles, vision_role_flags)
+ from frontier_decision_trace import FrontierDecisionTrace
+ from depth_corridor import (
+-    MAX_POSE_SKEW_S, MAX_SENSOR_SKEW_S, corridor_hit, depth_points, fresh_sample,
+-    laser_points)
++    MAX_POSE_SKEW_S, MAX_SENSOR_SKEW_S, ActiveDepthConfirmation, corridor_hit,
++    depth_points, fresh_sample, laser_points, reroute_exclusions)
+ from camera_quality import (
+     CAMERA_RUN_PROFILES, MIXED_WINDOWS, CameraQualityGate, camera_features,
+     camera_input, mixed_window)
+@@ -460,8 +460,18 @@ class Coordinator(object):
+         if self.pose_source not in POSE_SOURCES:
+             raise ValueError('pose_source must be one of %s' % (POSE_SOURCES,))
+         self.depth_corridor_mode = rospy.get_param('~depth_corridor_mode', 'off')
+-        if self.depth_corridor_mode not in ('off', 'observe', 'avoid'):
+-            raise ValueError('depth_corridor_mode must be off, observe, or avoid')
++        if self.depth_corridor_mode not in ('off', 'observe', 'avoid', 'recheck'):
++            raise ValueError('depth_corridor_mode must be off, observe, avoid, or recheck')
++        self.depth_active = (self.depth_corridor_mode == 'recheck'
++                             or rospy.get_param('~depth_active_audit', False))
++        if self.depth_active and self.depth_corridor_mode == 'off':
++            raise ValueError('Active depth audit requires an enabled depth corridor mode')
++        self.depth_interrupted = {}
++        if self.depth_active:
++            self.depth_commanded_waypoints = {}
++            self.depth_confirmations = {name: ActiveDepthConfirmation()
++                                        for name in self.robot_names}
++            self.depth_interruption_count = 0
+         if self.depth_corridor_mode != 'off':
+             if (self.pose_source != 'gazebo_truth' or self.mapping_mode != 'laser_scan'
+                     or rospy.get_param('~depth_camera_model', 'waffle_pi') != 'waffle_pi'
+@@ -820,6 +830,9 @@ class Coordinator(object):
+             if self.frontier_trace is None:
+                 raise ValueError('Depth corridor requires frontier_trace_path for decision audit')
+             self.frontier_trace.record('depth_corridor', mode=self.depth_corridor_mode)
++            if self.depth_active:
++                self.frontier_trace.record('depth_active_monitor',
++                                           applies=self.depth_corridor_mode == 'recheck')
+             rospy.Subscriber('/depth_corridor/contacts', ContactsState,
+                              self._depth_contact_cb, queue_size=32)
+         rospy.loginfo('[coordinator] robots=%s, selection_mode=%s, mapping_mode=%s, pose_source=%s, world_profile=%s, clustered_frontiers=%s, metrics=%s',
+@@ -1397,6 +1410,54 @@ class Coordinator(object):
+         distance = np.linalg.norm(direction)
+         return pos + direction * min(1.0, MAX_WAYPOINT_DIST / max(distance, 1e-9))
+ 
++    def _check_active_depth(self):
++        now = rospy.Time.now().to_sec()
++        for name in self.robot_names:
++            goal = self.current_goal.get(name)
++            waypoint = self.depth_commanded_waypoints.get(name)
++            goal_id = self.current_goal_id.get(name)
++            if goal is None or goal_id is None or waypoint is None:
++                continue
++            pos = np.asarray(self.positions[name])
++            if np.linalg.norm(pos - goal) < ARRIVE_THRESH:
++                continue
++            tracker = self.depth_confirmations[name]
++            depth = fresh_sample(self.depth_returns.get(name), now)
++            if depth is None or depth[0] <= tracker.last_stamp:
++                continue
++            hit = corridor_hit(depth[1], pos, waypoint, 3)
++            decision = tracker.observe(depth[0], hit)
++            scan = fresh_sample(self.corridor_scan_returns.get(name), now)
++            paired = bool(scan is not None and abs(scan[0] - depth[0]) <= MAX_SENSOR_SKEW_S)
++            laser_hit = corridor_hit(scan[1], pos, waypoint, 1) if paired else None
++            if self.current_goal.get(name) is not goal:
++                continue
++            applied = decision['confirmed'] and self.depth_corridor_mode == 'recheck'
++            interruption = None
++            goal_id = int(goal_id)
++            if applied:
++                self.depth_interruption_count += 1
++                interruption = self.depth_interruption_count
++            elapsed, _ = self._frontier_trace_snapshot()
++            self.frontier_trace.record(
++                'depth_active_check', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++                depth_stamp=depth[0], laser_stamp=scan[0] if paired else None,
++                robot_xy=pos.tolist(), waypoint=waypoint.tolist(), depth_hit=hit,
++                laser_hit=laser_hit, frontier_id=goal_id, applied=applied,
++                interruption_id=interruption, **decision)
++            if applied:
++                self._finish_frontier_attempt(name, 'depth_blocked')
++                self.depth_interrupted[name] = dict(
++                    interruption_id=interruption, stamp=now, frontier_id=goal_id, goal_xy=goal)
++                self.current_goal[name] = None
++                self.current_goal_id[name] = None
++                self.current_path[name] = None
++
++    def _hold_depth_interruption(self, name):
++        if name in self.depth_interrupted:
++            x, y = self.positions[name]
++            self.targets_pub[name].publish(Point(x=x, y=y, z=-1.0))
++
+     def _depth_target(self, name, position, preferred, alternatives, frontiers, frontier_ids,
+                       selected_path, selection_source):
+         now = rospy.Time.now().to_sec()
+@@ -1420,7 +1481,7 @@ class Coordinator(object):
+             if depth_hit is None:
+                 proposed, proposed_path = index, path
+                 break
+-        applied, applied_path = ((proposed, proposed_path) if self.depth_corridor_mode == 'avoid'
++        applied, applied_path = ((proposed, proposed_path) if self.depth_corridor_mode in ('avoid', 'recheck')
+                                  else (preferred, selected_path))
+         elapsed, _ = self._frontier_trace_snapshot()
+         self.frontier_trace.record(
+@@ -2138,10 +2199,14 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             # minus points near a reported stuck spot. If this empties out
+             # while all_frontiers is still non-empty, every robot just goes
+             # idle this tick rather than falsely declaring the mission done.
++            if self.depth_active:
++                self._check_active_depth()
+             frontiers = self.cluster_frontier_points(self.filter_blacklisted(all_frontiers))
+             self._write_metrics(coverage, all_frontiers, frontiers,
+                                 observed_free_area=observed_free_area)
+             if len(frontiers) == 0:
++                for name in self.depth_interrupted:
++                    self._hold_depth_interruption(name)
+                 if self.frontier_trace is not None:
+                     for name in self.robot_names:
+                         goal = self.current_goal.get(name)
+@@ -2247,8 +2312,9 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     self.current_goal_id[name] = None
+                     self.current_path[name] = None
+ 
++                interruption = self.depth_interrupted.get(name)
+                 policy_controls_selection = (
+-                    self.selection_mode in POLICY_SELECTION_MODES and
++                    interruption is None and self.selection_mode in POLICY_SELECTION_MODES and
+                     not analytic_override_active)
+                 policy_index = None
+                 if policy_controls_selection:
+@@ -2283,6 +2349,10 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     own_indices = (np.asarray([policy_index], dtype=np.int64)
+                                    if policy_controls_selection
+                                    else np.flatnonzero(owner == i))
++                    if interruption is not None:
++                        excluded = reroute_exclusions(
++                            frontiers, frontier_ids, interruption, rospy.Time.now().to_sec())
++                        own_indices = own_indices[~excluded[own_indices]]
+                     if len(own_indices) > 0:
+                         # prefer line-of-sight-clear candidates, but fall back
+                         # to the unfiltered set rather than leaving the robot
+@@ -2342,7 +2412,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                     self.vision_bias(pos, yaw, f, name) for f in own_frontiers])
+                                 utility -= VISION_WEIGHT * vision
+                             best_index = own_indices[np.argmin(utility)]
+-                        selection_source = ('actor' if policy_controls_selection else
++                        selection_source = ('depth_recheck' if interruption is not None else
++                                            'actor' if policy_controls_selection else
+                                             'stall_fallback' if fallback_active else 'rule')
+                         if self.depth_corridor_mode != 'off':
+                             if policy_controls_selection:
+@@ -2355,8 +2426,14 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                 name, pos, best_index, alternatives, frontiers, frontier_ids,
+                                 selected_path, selection_source)
+                             if best_index is None:
++                                self._hold_depth_interruption(name)
+                                 continue
+                         best = frontiers[best_index]
++                        if self.depth_active:
++                            self.depth_confirmations[name].reset()
++                            self.depth_commanded_waypoints.pop(name, None)
++                        if interruption is not None:
++                            self.depth_interrupted.pop(name)
+                         if replacing_policy_goal:
+                             self.goals_replaced_policy += 1
+                         goal = tuple(best)
+@@ -2380,6 +2457,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                     selected_actor_clearance_bonus=self.vision_bias(
+                                         pos, self.yaws.get(name, 0.0), best, name,
+                                         self.actor_clearance_scores))
++                            if interruption is not None:
++                                clearance_details['depth_interruption_id'] = interruption['interruption_id']
+                             self.frontier_trace.assign(
+                                 name, elapsed, area,
+                                 selection_source=selection_source,
+@@ -2422,6 +2501,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                       "%d waypoints" % len(path_cells) if path_cells else "none, using beeline")
+ 
+                 if goal is None:
++                    self._hold_depth_interruption(name)
+                     continue
+ 
+                 path_xy = self.current_path.get(name)
+@@ -2429,6 +2509,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+ 
+                 msg = Point(x=waypoint[0], y=waypoint[1], z=0.0)
+                 self.targets_pub[name].publish(msg)
++                if self.depth_active:
++                    self.depth_commanded_waypoints[name] = waypoint
+ 
+             rate = self._safe_sleep(rate)
+ 
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index a0f1d3b..7adb25c 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -103,6 +103,7 @@ class RobotAgent(object):
+         self.target_x = 0.0
+         self.target_y = 0.0
+         self.have_target = False
++        self.navigation_hold = False
+         rospy.Subscriber('/%s/exploration_target' % robot_name, Point, self._target_cb)
+ 
+         self.mission_done = False
+@@ -134,9 +135,14 @@ class RobotAgent(object):
+         self.prev_angular = 0.0
+ 
+     def _target_cb(self, msg):
++        # The coordinator sends z=-1 to retire a visual obstruction's waypoint.
++        if msg.z == -1.0:
++            self.navigation_hold = True
++            return
+         self.target_x = msg.x
+         self.target_y = msg.y
+         self.have_target = True
++        self.navigation_hold = False
+ 
+     def _done_cb(self, msg):
+         if msg.data and not self.mission_done:
+@@ -306,6 +312,12 @@ def main():
+ 
+         if agent.mission_done:
+             agent.pub.publish(Twist())  # all-zero: full stop
++        elif agent.navigation_hold:
++            agent.pub.publish(Twist())
++            agent.prev_linear = agent.prev_angular = 0.0
++            stuck_check_pos = None
++            recovering_until = now
++            recovery_start_pos = None
+         elif now < recovering_until:
+             cmd = Twist()
+             cmd.linear.x = -0.15
+diff --git a/turtlebot_ddpg/tests/test_depth_corridor.py b/turtlebot_ddpg/tests/test_depth_corridor.py
+index 0621227..49f16b3 100644
+--- a/turtlebot_ddpg/tests/test_depth_corridor.py
++++ b/turtlebot_ddpg/tests/test_depth_corridor.py
+@@ -46,3 +46,37 @@ class DepthCorridorTests(unittest.TestCase):
+         self.assertIs(fresh_sample(sample, 1.2), sample)
+         self.assertIsNone(fresh_sample(sample, 1.6))
+         self.assertIsNone(fresh_sample(sample, 0.9))
++
++
++class ActiveDepthTests(unittest.TestCase):
++    def setUp(self):
++        from depth_corridor import ActiveDepthConfirmation
++        self.tracker = ActiveDepthConfirmation()
++        self.hit = {"xy": [0.8, 0.1]}
++
++    def test_distinct_frames_confirm_once_until_clear(self):
++        check = self.tracker.observe
++        self.assertFalse(check(1.0, self.hit)["confirmed"])
++        self.assertIsNone(check(1.0, self.hit))
++        self.assertTrue(check(1.25, self.hit)["confirmed"])
++        self.assertFalse(check(1.5, self.hit)["confirmed"])
++        check(1.75, None)
++        self.assertFalse(check(2.0, self.hit)["confirmed"])
++        self.assertTrue(check(2.25, self.hit)["confirmed"])
++
++    def test_late_or_spatially_distinct_hits_do_not_confirm(self):
++        check = self.tracker.observe
++        check(1.0, self.hit)
++        self.assertFalse(check(1.75, self.hit)["confirmed"])
++        self.assertFalse(check(2.0, {"xy": [1.3, 0.0]})["confirmed"])
++        self.tracker.reset()
++        self.assertFalse(check(2.25, self.hit)["confirmed"])
++
++    def test_interrupted_goal_and_shifted_frontier_expire(self):
++        from depth_corridor import reroute_exclusions
++        frontiers = np.array([[0, 0], [1.5, 0], [1.2, 0]])
++        pending = {"stamp": 4.0, "frontier_id": 4, "goal_xy": [1, 0]}
++        np.testing.assert_equal(reroute_exclusions(frontiers, [4, 5, 6], pending, 5.0),
++                                [True, False, True])
++        np.testing.assert_equal(reroute_exclusions(frontiers, [4, 5, 6], pending, 7.0),
++                                [False, False, False])
