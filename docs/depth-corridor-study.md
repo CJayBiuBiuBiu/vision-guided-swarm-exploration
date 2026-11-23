@@ -80,3 +80,47 @@ single seed verifies the instrumentation and target-selection path.
 
 [Smoke results](../ros_gazebo/experiments/2026-11-23-depth-corridor/smoke_summary.csv)
 · [Recorded inputs](../ros_gazebo/experiments/2026-11-23-depth-corridor/smoke_manifest.json).
+
+## Matched pilot results
+
+All six runs reached the 75 s horizon. Final coverage and low-box
+contact episodes are shown for each matched block.
+
+| Scene and seed | LiDAR coverage | Fixed fusion coverage | Depth guidance coverage | Low-box contacts, LiDAR / fusion / depth |
+| --- | ---: | ---: | ---: | ---: |
+| Low boxes, 62400 | 46.57% | 49.27% | 49.77% | 9 / 3 / 1 |
+| Clear reference, 62401 | 57.46% | 51.88% | 44.51% | 0 / 0 / 0 |
+
+The low-box baseline runs recorded three depth detections near the
+boxes that lay in the proposed corridor and had no matched laser hit
+in that corridor. The depth condition made 24 selection decisions.
+Fresh depth was available for 20, and 15 met the pairing tolerance.
+It issued the original assignment every time. Robot 3 contacted a
+low box while executing an active assignment. These observations
+leave the contact and coverage differences unattributed to the
+depth intervention in this block.
+
+In the clear reference, none of the three conditions flagged a
+preferred assignment. The depth condition had a fresh depth sample
+at 15 of 25 decisions. This seed provides a check on behavior in the
+reference scene. The observed coverage differences also include
+run-to-run simulator variation. A deployable avoidance claim would
+require tests during active navigation and broader coverage of pose
+noise, camera geometry and layouts.
+
+The left panel in the figure shows a reached replacement from the
+28 s smoke block. The right panels show the independent 75 s pilot.
+Download the corresponding JSON event to inspect the sensor stamps,
+the original and replacement commands, and the selected frontier.
+
+[Run results](../ros_gazebo/experiments/2026-11-23-depth-corridor/pilot_summary.csv)
+· [Pilot manifest](../ros_gazebo/experiments/2026-11-23-depth-corridor/pilot_manifest.json)
+· [Figure](../ros_gazebo/experiments/2026-11-23-depth-corridor/depth_corridor_pilot.png)
+· [Logged retargeting](../ros_gazebo/experiments/2026-11-23-depth-corridor/retarget_example.json).
+
+With the raw smoke and pilot directories under `$ARCHIVE`, regenerate
+the figure and event with the plot script.
+
+```sh
+python3 scripts/plot_depth_corridor_pilot.py "$ARCHIVE" "$FIGURE_OUTPUT"
+```

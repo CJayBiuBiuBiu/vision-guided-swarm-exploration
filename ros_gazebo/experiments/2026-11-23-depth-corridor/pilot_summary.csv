@@ -1,0 +1,7 @@
+scene,seed,order,condition,coverage_pct,mean_coverage_pct,path_m,stuck_events,trace_arrivals,trace_assignments,time_to_90_s,time_to_97_s,simulation_seconds,near_collision_events,coverage_mask_sha256,decisions,fresh_depth,paired,depth_only,depth_only_at_blocks,would_change,would_retarget,changed,withheld,retargeted_arrivals,block_contacts
+low_blocks,62400,1,lidar,46.5659,27.421165833333337,32.1472,10,11,19,,,75.0,212,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,19,19,16,2,2,3,2,0,0,0,9
+low_blocks,62400,2,fusion,49.2674,30.0663145,37.1716,8,13,24,,,75.0,231,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,24,22,18,1,1,1,1,0,0,0,3
+low_blocks,62400,3,depth,49.7711,32.39829443333333,38.6635,8,15,24,,,75.01,225,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,24,20,15,0,0,0,0,0,0,0,1
+clear,62401,1,depth,44.5055,31.21481251333333,40.0584,8,15,25,,,75.0,230,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,25,15,7,0,0,0,0,0,0,0,0
+clear,62401,2,fusion,51.8773,32.49358583333333,38.0828,7,15,25,,,75.0,246,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,25,19,12,0,0,0,0,0,0,0,0
+clear,62401,3,lidar,57.4634,32.12307926,36.5326,6,19,30,,,75.0,235,b18fec85fc3a188df3297d6c581c70c341fca72002c2a104c04359e7a298f3a5,30,22,14,0,0,0,0,0,0,0,0

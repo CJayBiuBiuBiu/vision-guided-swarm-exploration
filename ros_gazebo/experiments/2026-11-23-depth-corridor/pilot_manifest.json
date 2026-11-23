@@ -1,0 +1,52 @@
+{
+  "horizon_s": 75,
+  "input_sha256": {
+    "clear": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "low_blocks": "03f51958eaf13866304609226b8234fb27accfc960a09f89794e018e2d5492df",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "d5f5a8b48b4e082ac2d6ee251b7032a266c3f38e3f6451c144e0a71fb301b260",
+    "schedule": "4169ff8b1d4f5250d16d40ae4798e7638384a3b45229b7fbcf7dc947a4c16345",
+    "shared_runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883"
+  },
+  "schedule": [
+    [
+      "low_blocks",
+      62400,
+      1,
+      "lidar"
+    ],
+    [
+      "low_blocks",
+      62400,
+      2,
+      "fusion"
+    ],
+    [
+      "low_blocks",
+      62400,
+      3,
+      "depth"
+    ],
+    [
+      "clear",
+      62401,
+      1,
+      "depth"
+    ],
+    [
+      "clear",
+      62401,
+      2,
+      "fusion"
+    ],
+    [
+      "clear",
+      62401,
+      3,
+      "lidar"
+    ]
+  ],
+  "source_tree": "a3c6a8dff56e1188ef27aa3c7374b45d3f87d24c"
+}

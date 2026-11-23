@@ -1,0 +1,117 @@
+{
+  "stage": "smoke",
+  "seed": 62490,
+  "decision": {
+    "event": "depth_decision",
+    "robot": "robot1",
+    "elapsed_sim_s": 0.9999999999999999,
+    "control_stamp": 1.17,
+    "robot_xy": [
+      -0.7989411481792839,
+      3.9995793403746056
+    ],
+    "selection_source": "actor",
+    "depth_stamp": 1.02,
+    "laser_stamp": 1.17,
+    "paired": true,
+    "candidates": [
+      {
+        "frontier_id": 2,
+        "xy": [
+          -1.0999999999999996,
+          2.9000000000000004
+        ],
+        "waypoint": [
+          -1.0999999999999996,
+          2.9000000000000004
+        ],
+        "depth_hit": {
+          "xy": [
+            -0.855096696153076,
+            3.13999069705076
+          ],
+          "along_m": 0.8439042945491544,
+          "support": 40
+        },
+        "laser_hit": null
+      },
+      {
+        "frontier_id": 4,
+        "xy": [
+          -1.6999999999999993,
+          3.5
+        ],
+        "waypoint": [
+          -1.6999999999999993,
+          3.5
+        ],
+        "depth_hit": null,
+        "laser_hit": null
+      }
+    ],
+    "would_select": 4,
+    "selected": 4
+  },
+  "assignment": {
+    "event": "assigned",
+    "attempt_id": 1,
+    "robot": "robot1",
+    "elapsed_sim_s": 0.9999999999999999,
+    "team_area_m2": 2.9600000000000004,
+    "selection_source": "actor",
+    "selected_frontier_id": 4,
+    "selected_xy": [
+      -1.6999999999999993,
+      3.5
+    ],
+    "candidate_frontier_ids": [
+      0,
+      1,
+      5,
+      2,
+      4,
+      3
+    ],
+    "candidate_owners": [
+      "robot3",
+      "robot3",
+      "robot2",
+      "robot1",
+      "robot1",
+      "robot2"
+    ],
+    "directional_clearance": [
+      0.9579640328884125,
+      0.8749003410339355,
+      0.9357239902019501
+    ],
+    "selected_clearance_bonus": 0.0,
+    "fusion_pair": {
+      "status": "latest",
+      "latest_rejection": "",
+      "latest_rgb_age_s": 0.1499999999999999,
+      "latest_lidar_age_s": 0.19999999999999996,
+      "paired_rgb_age_s": 0.1499999999999999,
+      "paired_lidar_age_s": 0.19999999999999996,
+      "paired_skew_s": 0.050000000000000044,
+      "cue_lidar_stamp_s": 0.97,
+      "cue_lidar_scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "paired_rgb_scores": [
+        0.915928065776825,
+        0.7498006820678711,
+        0.8714479804039001
+      ],
+      "lidar_fallback": false
+    },
+    "actor_directional_clearance": [
+      0.9579640328884125,
+      0.8749003410339355,
+      0.9357239902019501
+    ],
+    "selected_actor_clearance_bonus": 0.0
+  }
+}
