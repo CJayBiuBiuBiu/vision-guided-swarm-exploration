@@ -1,0 +1,237 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 37fb08c..37603e3 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -123,6 +123,12 @@
+   <arg name="start_mappo_training" default="false"/>
+   <arg name="training_algorithm" default="mappo"
+        doc="mappo or ippo; IPPO removes the centralized critic"/>
++  <arg name="policy_omit_reference_coverage" default="false"
++       doc="Withhold reference coverage from training and inference policy observations"/>
++  <arg name="training_episode_seed" default="-1"
++       doc="Sampling seed applied after initializing or restoring weights"/>
++  <arg name="training_update_budget" default="0"
++       doc="Maximum updates inside one episode; zero preserves legacy behavior"/>
+   <arg name="training_seed" default="0"
+        doc="Seed for MAPPO initialization, sampling, and minibatch order"/>
+   <arg name="training_rollout_length" default="32"/>
+@@ -370,6 +376,7 @@
+       <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+       <param name="deterministic" value="$(arg network_deterministic)"/>
+       <param name="decision_interval" value="$(arg network_decision_interval)"/>
++      <param name="omit_reference_coverage" value="$(arg policy_omit_reference_coverage)"/>
+       <param name="max_frontiers" value="48"/>
+       <param name="bev_size" value="64"/>
+     </node>
+@@ -382,6 +389,7 @@
+         <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+         <param name="deterministic" value="$(arg network_deterministic)"/>
+         <param name="decision_interval" value="$(arg network_decision_interval)"/>
++        <param name="omit_reference_coverage" value="$(arg policy_omit_reference_coverage)"/>
+         <param name="max_frontiers" value="48"/>
+         <param name="bev_size" value="64"/>
+       </node>
+@@ -392,6 +400,7 @@
+         <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+         <param name="deterministic" value="$(arg network_deterministic)"/>
+         <param name="decision_interval" value="$(arg network_decision_interval)"/>
++        <param name="omit_reference_coverage" value="$(arg policy_omit_reference_coverage)"/>
+         <param name="max_frontiers" value="48"/>
+         <param name="bev_size" value="64"/>
+       </node>
+@@ -402,6 +411,7 @@
+         <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+         <param name="deterministic" value="$(arg network_deterministic)"/>
+         <param name="decision_interval" value="$(arg network_decision_interval)"/>
++        <param name="omit_reference_coverage" value="$(arg policy_omit_reference_coverage)"/>
+         <param name="max_frontiers" value="48"/>
+         <param name="bev_size" value="64"/>
+       </node>
+@@ -421,10 +431,13 @@
+     <param name="diagnostics_log" value="$(arg mappo_diagnostics_log)"/>
+     <param name="rollout_length" value="$(arg training_rollout_length)"/>
+     <param name="decision_interval" value="$(arg training_decision_interval)"/>
++    <param name="omit_reference_coverage" value="$(arg policy_omit_reference_coverage)"/>
+     <param name="target_switch_penalty" value="$(arg training_target_switch_penalty)"/>
+     <param name="snapshot_interval" value="$(arg training_snapshot_interval)"/>
+     <param name="snapshot_dir" value="$(arg training_snapshot_dir)"/>
+     <param name="training_seed" value="$(arg training_seed)"/>
++    <param name="episode_seed" value="$(arg training_episode_seed)"/>
++    <param name="update_budget" value="$(arg training_update_budget)"/>
+     <param name="max_frontiers" value="48"/>
+     <param name="bev_size" value="64"/>
+   </node>
+diff --git a/turtlebot_ddpg/scripts/mappo_policy_node.py b/turtlebot_ddpg/scripts/mappo_policy_node.py
+index caaee0c..925b15f 100755
+--- a/turtlebot_ddpg/scripts/mappo_policy_node.py
++++ b/turtlebot_ddpg/scripts/mappo_policy_node.py
+@@ -35,6 +35,7 @@ class MAPPOPolicyNode(object):
+         self.spec = ObservationSpec(
+             bev_size=int(rospy.get_param('~bev_size', 64)),
+             max_frontiers=int(rospy.get_param('~max_frontiers', 48)),
++            omit_reference_coverage=rospy.get_param('~omit_reference_coverage', False),
+             max_teammates=max(0, len(self.team_robot_names) - 1))
+         self.policy = MAPPO(max_frontiers=self.spec.max_frontiers)
+         self.last_decision_time = dict((name, None) for name in self.robot_names)
+@@ -57,6 +58,8 @@ class MAPPOPolicyNode(object):
+             rospy.Subscriber('/%s/frontier_observation' % name,
+                              FrontierObservation, self._observation_cb,
+                              callback_args=name, queue_size=1)
++        if self.spec.omit_reference_coverage:
++            rospy.loginfo('[mappo_policy] reference coverage omitted from actor input')
+         rospy.loginfo('[mappo_policy] actors=%s decision_interval=%.2fs',
+                       ','.join(self.robot_names), self.decision_interval)
+ 
+diff --git a/turtlebot_ddpg/scripts/mappo_train_node.py b/turtlebot_ddpg/scripts/mappo_train_node.py
+index 2ada109..394bf17 100755
+--- a/turtlebot_ddpg/scripts/mappo_train_node.py
++++ b/turtlebot_ddpg/scripts/mappo_train_node.py
+@@ -2,6 +2,7 @@
+ """Minimal online MAPPO trainer for one Gazebo exploration episode."""
+ 
+ import csv
++import hashlib
+ import os
+ import random
+ import sys
+@@ -43,9 +44,15 @@ class MAPPOTrainerNode(object):
+         self.spec = ObservationSpec(
+             bev_size=int(rospy.get_param('~bev_size', 64)),
+             max_frontiers=int(rospy.get_param('~max_frontiers', 48)),
++            omit_reference_coverage=rospy.get_param('~omit_reference_coverage', False),
+             max_teammates=max(0, len(self.robot_names) - 1))
+         self.rollout_length = int(rospy.get_param('~rollout_length', 32))
+         self.decision_interval = float(rospy.get_param('~decision_interval', 2.5))
++        self.update_budget = int(rospy.get_param('~update_budget', 0))
++        if self.update_budget < 0:
++            raise ValueError('update_budget must be nonnegative')
++        self.episode_seed = int(rospy.get_param('~episode_seed', -1))
++
+         self.coverage_reward = float(rospy.get_param('~coverage_reward', 1.0))
+         self.step_penalty = float(rospy.get_param('~step_penalty', 0.01))
+         self.near_collision_penalty = float(
+@@ -80,6 +87,19 @@ class MAPPOTrainerNode(object):
+             self.update_count = int(metadata.get('updates', 0))
+             rospy.loginfo('[mappo_train] resumed %s at update %d',
+                           self.checkpoint, self.update_count)
++        self.initial_updates = self.update_count
++        self.input_weights_sha256 = None
++        if self.update_budget:
++            digest = hashlib.sha256()
++            for module in (self.policy.actor, self.policy.critic):
++                for name, parameter in sorted(module.state_dict().items()):
++                    digest.update(name.encode('utf-8') + b'\x00')
++                    digest.update(parameter.detach().cpu().numpy().tobytes())
++            self.input_weights_sha256 = digest.hexdigest()
++        if self.episode_seed >= 0:
++            random.seed(self.episode_seed)
++            np.random.seed(self.episode_seed)
++            torch.manual_seed(self.episode_seed)
+         self.buffer = (RolloutBuffer() if self.algorithm == 'mappo' else
+                        IndependentRolloutBuffer())
+         self.pending = None
+@@ -90,6 +110,7 @@ class MAPPOTrainerNode(object):
+         self.last_selected_frontier = dict((name, None) for name in self.robot_names)
+         self._reset_rollout_diagnostics()
+         self.lock = threading.Lock()
++        self.processing_lock = threading.Lock()
+ 
+         self.publishers = {
+             name: rospy.Publisher('/%s/frontier_action' % name,
+@@ -174,7 +195,8 @@ class MAPPOTrainerNode(object):
+             self.messages_by_stamp = dict(
+                 (key, value) for key, value in self.messages_by_stamp.items()
+                 if key > stamp)
+-        self._process_team_observation(messages)
++        with self.processing_lock:
++            self._process_team_observation(messages)
+ 
+     def _process_team_observation(self, messages):
+         stamp_s = messages[self.robot_names[0]].header.stamp.to_sec()
+@@ -203,7 +225,7 @@ class MAPPOTrainerNode(object):
+             self.rollout_diagnostics['near_collisions'] += near_collisions
+             self.rollout_diagnostics['stuck_events'] += stuck_events
+             self.rollout_diagnostics['target_switches'] += self.pending['switches']
+-            done = coverage >= self.done_coverage
++            done = not self.update_budget and coverage >= self.done_coverage
+             self.buffer.add(
+                 self.pending['observation'], self.pending['actions'],
+                 self.pending['log_probs'], reward, self.pending['value'], done)
+@@ -216,9 +238,12 @@ class MAPPOTrainerNode(object):
+                 return
+ 
+         actions, log_probs = self.policy.act(team_obs, deterministic=False)
++        switches = self._publish_actions(actions, adapted)
++        if self.update_budget and self.update_count - self.initial_updates >= self.update_budget:
++            self.pending = None
++            return
+         value = self._estimate_value(team_obs)
+         self._record_action_diagnostics(actions, adapted)
+-        switches = self._publish_actions(actions, adapted)
+         self.pending = {
+             'observation': team_obs,
+             'actions': actions,
+@@ -245,6 +270,12 @@ class MAPPOTrainerNode(object):
+             'algorithm': self.algorithm,
+             'selection_rule': 'training_endpoint_not_validation_selected',
+         }
++        if self.update_budget:
++            checkpoint_metadata.update(
++                episode_seed=self.episode_seed, initial_updates=self.initial_updates,
++                update_budget=self.update_budget, rollout_length=self.rollout_length,
++                omit_reference_coverage=self.spec.omit_reference_coverage,
++                input_weights_sha256=self.input_weights_sha256)
+         self.policy.save(self.checkpoint, metadata=checkpoint_metadata)
+         if (self.snapshot_interval > 0 and
+                 self.update_count % self.snapshot_interval == 0):
+diff --git a/turtlebot_ddpg/scripts/marl/observation_adapter.py b/turtlebot_ddpg/scripts/marl/observation_adapter.py
+index 80d3204..dbee856 100644
+--- a/turtlebot_ddpg/scripts/marl/observation_adapter.py
++++ b/turtlebot_ddpg/scripts/marl/observation_adapter.py
+@@ -14,10 +14,11 @@ TEAMMATE_FEATURES = 7
+ 
+ class ObservationSpec(object):
+     def __init__(self, bev_size=64, max_frontiers=48, max_teammates=2,
+-                 arena_width=30.0, arena_height=15.0):
++                 arena_width=30.0, arena_height=15.0, omit_reference_coverage=False):
+         self.bev_size = int(bev_size)
+         self.max_frontiers = int(max_frontiers)
+         self.max_teammates = int(max_teammates)
++        self.omit_reference_coverage = bool(omit_reference_coverage)
+         self.arena_width = float(arena_width)
+         self.arena_height = float(arena_height)
+         self.map_diagonal = float(np.hypot(arena_width, arena_height))
+@@ -89,7 +90,7 @@ def adapt_observation(observation, spec=None):
+         py / (0.5 * spec.arena_height),
+         np.sin(theta),
+         np.cos(theta),
+-        observation.coverage_pct / 100.0,
++        0.0 if spec.omit_reference_coverage else observation.coverage_pct / 100.0,
+     ], dtype=np.float32)
+ 
+     teammates = np.zeros(
+diff --git a/turtlebot_ddpg/tests/test_mappo.py b/turtlebot_ddpg/tests/test_mappo.py
+index 7e99524..7c7e7e1 100644
+--- a/turtlebot_ddpg/tests/test_mappo.py
++++ b/turtlebot_ddpg/tests/test_mappo.py
+@@ -95,6 +95,20 @@ class MAPPOTests(unittest.TestCase):
+         self.assertTrue(observation['action_mask'][-2])
+         self.assertTrue(observation['action_mask'][-1])
+ 
++    def test_omit_reference_coverage_preserves_shape_and_action_mask(self):
++        message = SimpleNamespace(
++            local_bev=SimpleNamespace(
++                data=[-1] * (64 * 64), info=SimpleNamespace(width=64, height=64)),
++            robot_pose=SimpleNamespace(x=0.5, y=-0.2, theta=0.3),
++            coverage_pct=73.0, has_active_goal=True, frontiers=[], teammate_intents=[])
++        reference = adapt_observation(message, self.spec)
++        observable = adapt_observation(
++            message, ObservationSpec(max_frontiers=8, omit_reference_coverage=True))
++        np.testing.assert_array_equal(reference['action_mask'], observable['action_mask'])
++        np.testing.assert_array_equal(reference['robot_state'][:-1], observable['robot_state'][:-1])
++        self.assertAlmostEqual(float(reference['robot_state'][-1]), 0.73, places=6)
++        self.assertEqual(observable['robot_state'][-1], 0.0)
++
+     def test_wait_is_available_when_no_frontier_or_goal_exists(self):
+         occupancy = SimpleNamespace(
+             data=[-1] * (64 * 64),
