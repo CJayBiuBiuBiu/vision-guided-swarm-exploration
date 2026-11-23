@@ -1,0 +1,608 @@
+{
+  "eval_schedule": [
+    {
+      "cue": "lidar",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65000,
+      "horizon": 65,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65001,
+      "horizon": 65,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    }
+  ],
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44",
+    "observation_adapter": "6696578d187ff89c1924b7ce1956f81f683c4ad9730317bd1b2e3df6a5b62f0b",
+    "paired_runner": "140fae859725a530a34cb1b6c04d62b9ae988459d958550e52cb2c8984a1f302",
+    "pilot_catalog": "2c09b4c93336c25332305d9af9f12623224a0e301db94750d9604a4832524470",
+    "pilot_manifest": "a9a8d109c57309f06a50722cac096b6a9b315c686d969c48eba734b6fae0626e",
+    "plan": "04343d063427d049db4948a9a52ac07951672cbc0932abb85cb98b66ed90fa68",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "1956b630ad0e2b23d773c79c9922111a1294078b99ff021ce540bc4fdc60b48b",
+    "shared_runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883"
+  },
+  "parent_checkpoints_sha256": {
+    "62600_fusion": "0f3ca3264437af082c9764503fb29803cec5e528b59feae00b211226263a7c8a",
+    "62600_lidar": "5964aa5e781673440ad36f200ba4bfe3d3f3d583c6c8aaa597c029698bf22240",
+    "62601_fusion": "ef98f0556746330e05db1784a2a1b15b60ded6f6ede4dddc817398daa6383941",
+    "62601_lidar": "667076529c90c64b653f8ac1954c57102b3406439eea45d5a64a1d1d5c889b3a",
+    "62602_fusion": "40ad1406c3dff5d6ee1f37d0fcb132ba6c4697c389af620645834ddf0f4bfe80",
+    "62602_lidar": "78032c5c14cf88500afaccb4108c947ad611023079608f3c71e98558a40ebcd3"
+  },
+  "parent_manifest_sha256": "83c9dd327bd594adced646821ad34e7406ef633d69c1800eb031fa0a79670ea9",
+  "parent_updates": 16,
+  "source_tree": "838076ac0c8c025bdbe54e350f4db8c4b208a1d1",
+  "stage": "update_32",
+  "target_updates": 32,
+  "train_schedule": [
+    {
+      "cue": "lidar",
+      "environment_seed": 63200,
+      "episode": 9,
+      "episode_seed": 64200,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63200,
+      "episode": 9,
+      "episode_seed": 64200,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63201,
+      "episode": 10,
+      "episode_seed": 64201,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63201,
+      "episode": 10,
+      "episode_seed": 64201,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63202,
+      "episode": 11,
+      "episode_seed": 64202,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63202,
+      "episode": 11,
+      "episode_seed": 64202,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63203,
+      "episode": 12,
+      "episode_seed": 64203,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63203,
+      "episode": 12,
+      "episode_seed": 64203,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63204,
+      "episode": 13,
+      "episode_seed": 64204,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63204,
+      "episode": 13,
+      "episode_seed": 64204,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63205,
+      "episode": 14,
+      "episode_seed": 64205,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63205,
+      "episode": 14,
+      "episode_seed": 64205,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63206,
+      "episode": 15,
+      "episode_seed": 64206,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63206,
+      "episode": 15,
+      "episode_seed": 64206,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63207,
+      "episode": 16,
+      "episode_seed": 64207,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63207,
+      "episode": 16,
+      "episode_seed": 64207,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63208,
+      "episode": 9,
+      "episode_seed": 64208,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63208,
+      "episode": 9,
+      "episode_seed": 64208,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63209,
+      "episode": 10,
+      "episode_seed": 64209,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63209,
+      "episode": 10,
+      "episode_seed": 64209,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63210,
+      "episode": 11,
+      "episode_seed": 64210,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63210,
+      "episode": 11,
+      "episode_seed": 64210,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63211,
+      "episode": 12,
+      "episode_seed": 64211,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63211,
+      "episode": 12,
+      "episode_seed": 64211,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63212,
+      "episode": 13,
+      "episode_seed": 64212,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63212,
+      "episode": 13,
+      "episode_seed": 64212,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63213,
+      "episode": 14,
+      "episode_seed": 64213,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63213,
+      "episode": 14,
+      "episode_seed": 64213,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63214,
+      "episode": 15,
+      "episode_seed": 64214,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63214,
+      "episode": 15,
+      "episode_seed": 64214,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63215,
+      "episode": 16,
+      "episode_seed": 64215,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63215,
+      "episode": 16,
+      "episode_seed": 64215,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63216,
+      "episode": 9,
+      "episode_seed": 64216,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63216,
+      "episode": 9,
+      "episode_seed": 64216,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63217,
+      "episode": 10,
+      "episode_seed": 64217,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63217,
+      "episode": 10,
+      "episode_seed": 64217,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63218,
+      "episode": 11,
+      "episode_seed": 64218,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63218,
+      "episode": 11,
+      "episode_seed": 64218,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63219,
+      "episode": 12,
+      "episode_seed": 64219,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63219,
+      "episode": 12,
+      "episode_seed": 64219,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63220,
+      "episode": 13,
+      "episode_seed": 64220,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63220,
+      "episode": 13,
+      "episode_seed": 64220,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63221,
+      "episode": 14,
+      "episode_seed": 64221,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63221,
+      "episode": 14,
+      "episode_seed": 64221,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63222,
+      "episode": 15,
+      "episode_seed": 64222,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63222,
+      "episode": 15,
+      "episode_seed": 64222,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 63223,
+      "episode": 16,
+      "episode_seed": 64223,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 63223,
+      "episode": 16,
+      "episode_seed": 64223,
+      "horizon": 52,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "train"
+    }
+  ]
+}

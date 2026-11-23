@@ -71,3 +71,23 @@ schedule.
 [Validation pairs](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_16_validation_pairs.csv)
 · [Checkpoint fingerprints](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_16_lineage_endpoints.csv)
 · [Validation figure](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_16_vision_training_budgets.png).
+
+## 32-update validation
+
+The six lineages completed the additional 48 episodes, reaching 32
+updates and 384 team transitions each. All 12 fixed-case evaluations
+passed. Coverage means use the three training seeds per layout.
+
+| Layout | LiDAR coverage | RGB–LiDAR coverage | Mean paired difference | RGB–LiDAR ahead |
+| --- | ---: | ---: | ---: | ---: |
+| Hu-aligned | 51.01% | 48.64% | −2.37 pp | 1/3 |
+| Layout C | 51.05% | 41.38% | −9.68 pp | 1/3 |
+
+In Hu-aligned, the positive difference at 16 updates did not persist.
+In Layout C, the difference remained negative across all three
+budgets. The next test uses the prespecified 32-update endpoints
+and the six reserved environment seeds.
+
+[Validation across budgets](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_32_validation_pairs.csv)
+· [32-update checkpoints](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_32_lineage_endpoints.csv)
+· [Manifest](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_32_manifest.json).
