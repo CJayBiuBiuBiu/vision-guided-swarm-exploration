@@ -91,3 +91,42 @@ and the six reserved environment seeds.
 [Validation across budgets](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_32_validation_pairs.csv)
 · [32-update checkpoints](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_32_lineage_endpoints.csv)
 · [Manifest](../ros_gazebo/experiments/2026-11-23-vision-training-extension/update_32_manifest.json).
+
+## Held-out 120-second test
+
+All 36 test runs completed on the six reserved environment seeds.
+The three training seed pairs each contributed three test cases per layout.
+The coverage means give the three training lineages equal weight.
+
+| Layout | LiDAR coverage | RGB–LiDAR coverage | Mean paired difference | RGB–LiDAR ahead |
+| --- | ---: | ---: | ---: | ---: |
+| Hu-aligned | 77.77% | 60.01% | −17.76 pp | 0/9 |
+| Layout C | 74.13% | 57.27% | −16.86 pp | 2/9 |
+
+The fusion arm had lower mean coverage for every training seed in
+both layouts. Its two positive pairs came from training seed 62602
+on Layout C. Two LiDAR runs in Hu-aligned reached 90% coverage. No
+other run reached 90%, and all runs stayed below 97%. The raw
+evaluation table gives the threshold times, path and recovery metrics.
+
+The fixed 65 s validation results show a transient gain at 16
+updates in Hu-aligned. The 120 s test measures the prespecified
+32-update endpoints. The two protocols use different seed sets and
+horizons. Together they show no repeatable coverage gain for this
+encoder and fixed fusion input within the tested budgets. The design
+uses three paired training seeds and two simulated layouts. It leaves
+convergence and broader deployment conditions open.
+
+A final audit revalidated all 132 continuation, validation and test
+runs. The project archive preserves the checkpoint chains, original
+training and evaluation CSVs, and launch logs.
+
+[Held-out manifest](../ros_gazebo/experiments/2026-11-23-vision-training-extension/test_32_manifest.json)
+· [Full test results](../ros_gazebo/experiments/2026-11-23-vision-training-extension/test_32_evaluation_runs.csv)
+· [Per-case differences](../ros_gazebo/experiments/2026-11-23-vision-training-extension/test_pairs.csv)
+· [Training seed means](../ros_gazebo/experiments/2026-11-23-vision-training-extension/test_lineage_means.csv)
+· [Comparison figure](../ros_gazebo/experiments/2026-11-23-vision-training-extension/vision_training_budgets.png).
+
+```sh
+python3 scripts/summarize_vision_training_extension.py "$PILOT_OUTPUT" "$EXTENSION_OUTPUT" "$SUMMARY_OUTPUT"
+```

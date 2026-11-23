@@ -1,0 +1,3 @@
+layout,pairs,lidar_coverage_pct,fusion_coverage_pct,difference_coverage_pct,fusion_ahead,training_seed_pairs,fusion_mean_ahead
+hu_aligned,9,77.767622,60.0122,-17.755422,0,3,0
+hu_layout_c,9,74.126133,57.265289,-16.860844,2,3,0

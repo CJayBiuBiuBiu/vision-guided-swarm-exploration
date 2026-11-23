@@ -1,0 +1,319 @@
+{
+  "eval_schedule": [
+    {
+      "cue": "lidar",
+      "environment_seed": 65100,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65100,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65101,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65101,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65102,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65102,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65103,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65103,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65104,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65104,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65105,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65105,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62600,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65100,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65100,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65101,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65101,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65102,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65102,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65103,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65103,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65104,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65104,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65105,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65105,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62601,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65100,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65100,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65101,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65101,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65102,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65102,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65103,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65103,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65104,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65104,
+      "horizon": 120,
+      "layout": "hu_aligned",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "fusion",
+      "environment_seed": 65105,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 65105,
+      "horizon": 120,
+      "layout": "hu_layout_c",
+      "seed": 62602,
+      "stage": "eval"
+    }
+  ],
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44",
+    "observation_adapter": "6696578d187ff89c1924b7ce1956f81f683c4ad9730317bd1b2e3df6a5b62f0b",
+    "paired_runner": "140fae859725a530a34cb1b6c04d62b9ae988459d958550e52cb2c8984a1f302",
+    "pilot_catalog": "2c09b4c93336c25332305d9af9f12623224a0e301db94750d9604a4832524470",
+    "pilot_manifest": "a9a8d109c57309f06a50722cac096b6a9b315c686d969c48eba734b6fae0626e",
+    "plan": "04343d063427d049db4948a9a52ac07951672cbc0932abb85cb98b66ed90fa68",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "1956b630ad0e2b23d773c79c9922111a1294078b99ff021ce540bc4fdc60b48b",
+    "shared_runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883"
+  },
+  "parent_checkpoints_sha256": {
+    "62600_fusion": "9d188e885da3ad88c5c7b46e6c5f554692f9109f6e51d68d87de95ab254e6725",
+    "62600_lidar": "24c3c2edf94593484cf36a596054cc0d0273f922e3039e2fbe5fdd4d45cff212",
+    "62601_fusion": "478e349e4c0aaef8c04ebfda5683b74e0c800b259ee72794e5d2d43e6225963d",
+    "62601_lidar": "712640c09c1c5e9abe0998e7e3320fb171fb108c605d0bf3af17630e25f7015d",
+    "62602_fusion": "546763c08c4a537b9c5262324fe61a45caa1fc104849a9215bb8256fa09b9b6c",
+    "62602_lidar": "b2b4aa42b55edfde9525228870bf1033a32ceb601f6922370ffa3564aee62c9b"
+  },
+  "parent_manifest_sha256": "bb327e88efb6d589808cd60900c90e63e91acb05a0268a5da4f52279c31b4035",
+  "parent_updates": 32,
+  "source_tree": "838076ac0c8c025bdbe54e350f4db8c4b208a1d1",
+  "stage": "test_32",
+  "target_updates": 32,
+  "train_schedule": []
+}

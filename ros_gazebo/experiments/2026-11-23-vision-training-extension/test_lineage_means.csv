@@ -1,0 +1,7 @@
+layout,training_seed,pairs,lidar_coverage_pct,fusion_coverage_pct,difference_coverage_pct,fusion_ahead
+hu_aligned,62600,3,80.235067,54.197167,-26.0379,0
+hu_aligned,62601,3,69.7955,56.074467,-13.721033,0
+hu_aligned,62602,3,83.2723,69.764967,-13.507333,0
+hu_layout_c,62600,3,75.7852,54.749233,-21.035967,0
+hu_layout_c,62601,3,72.505067,49.8987,-22.606367,0
+hu_layout_c,62602,3,74.088133,67.147933,-6.9402,2
