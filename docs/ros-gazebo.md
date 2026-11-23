@@ -73,6 +73,8 @@ The [mixed-exposure study](mixed-exposure-study.md) checks how that gate
 switches as the camera exposure changes within a run.
 The [depth corridor pilot](depth-corridor-study.md) compares camera depth
 with the horizontal scan on obstacles below the scan plane.
+The [active recheck study](active-depth-recheck.md) tests an additional
+waypoint check while a robot is following its current assignment.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)

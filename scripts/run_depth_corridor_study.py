@@ -16,14 +16,15 @@ from run_clearance_study import digest, preserve_json, run_launch, startup_segfa
 
 
 BASELINE = {"lidar": "matched_lidar_lidar", "fusion": "matched_fusion_fusion",
-            "depth": "matched_fusion_fusion"}
+            "depth": "matched_fusion_fusion", "recheck": "matched_fusion_fusion"}
+DEPTH_MODES = {"lidar": "observe", "fusion": "observe", "depth": "avoid", "recheck": "recheck"}
 SCENES = ("low_blocks", "clear")
 WORLD_PROFILE = "hu_aligned"
 BLOCK_CENTRES = [(-0.8, 2.95), (0.0, 2.78), (0.8, 2.95)]
 BLOCK_SIZE = (0.29, 0.38, 0.09)
 
 
-def read_schedule(path):
+def read_schedule(path, active_check=False):
     with path.open(newline="") as stream:
         rows = [(row["scene"], int(row["seed"]), int(row["order"]), row["condition"])
                 for row in csv.DictReader(stream)]
@@ -34,9 +35,11 @@ def read_schedule(path):
         if scene not in SCENES or seed < 0 or condition not in BASELINE:
             raise ValueError(f"Invalid schedule row {(scene, seed, order, condition)}")
         blocks.setdefault((scene, seed), []).append((order, condition))
-    if any([order for order, _ in rows] != [1, 2, 3] or
-           {condition for _, condition in rows} != set(BASELINE) for rows in blocks.values()):
-        raise ValueError("Every scene and seed must run all three conditions in logged order")
+    required = {"depth", "recheck"} if active_check else {"lidar", "fusion", "depth"}
+    orders = list(range(1, len(required) + 1))
+    if any([order for order, _ in rows] != orders or
+           {condition for _, condition in rows} != required for rows in blocks.values()):
+        raise ValueError("Every scene and seed must run all required conditions in logged order")
     return rows
 
 
@@ -116,7 +119,7 @@ def verify_pilot(directory, run, args, package):
     scene, seed, order, condition = run
     result = verify_run(directory, WORLD_PROFILE, seed, BASELINE[condition], args.horizon, package)
     events = [json.loads(line) for line in (directory / "decisions.jsonl").read_text().splitlines()]
-    mode = "avoid" if condition == "depth" else "observe"
+    mode = DEPTH_MODES[condition]
     if [event["mode"] for event in events if event["event"] == "depth_corridor"] != [mode]:
         raise ValueError(f"Unexpected depth mode in {directory}")
     decisions = [event for event in events if event["event"] == "depth_decision"]
@@ -131,7 +134,7 @@ def verify_pilot(directory, run, args, package):
         options = event["candidates"]
         first = options[0]["frontier_id"]
         target = next((item["frontier_id"] for item in options if item["depth_hit"] is None), None)
-        expected = target if mode == "avoid" else first
+        expected = first if mode == "observe" else target
         if target != event["would_select"] or expected != event["selected"]:
             raise ValueError(f"Depth decisions fail reconstruction in {directory}")
         for stamp in (event["depth_stamp"], event["laser_stamp"]):
@@ -163,6 +166,10 @@ def verify_pilot(directory, run, args, package):
                                                "stuck_events", "trace_arrivals", "trace_assignments",
                                                "time_to_90_s", "time_to_97_s", "simulation_seconds",
                                                "near_collision_events", "coverage_mask_sha256")}
+    active = {}
+    if args.active_check:
+        from audit_active_depth import audit_active_depth
+        active = audit_active_depth(events, mode, scene, directory, near_test_block)
     return dict(scene=scene, seed=seed, order=order, condition=condition, **clearance,
                 decisions=len(decisions), fresh_depth=counts["fresh_depth"], paired=counts["paired"],
                 depth_only=counts["depth_only"], depth_only_at_blocks=counts["depth_only_at_blocks"],
@@ -170,7 +177,7 @@ def verify_pilot(directory, run, args, package):
                 changed=counts["changed"], withheld=counts["withheld"],
                 retargeted_arrivals=sum(changed and outcomes[attempt] == "reached"
                                         for attempt, changed in assignments.items()),
-                block_contacts=count_block_contacts(events))
+                block_contacts=count_block_contacts(events), **active)
 
 
 def launch(run, args, worlds, mappo, rgb, name):
@@ -182,7 +189,7 @@ def launch(run, args, worlds, mappo, rgb, name):
     log_dir = directory / "ros_logs"
     log_dir.mkdir()
     cue = "lidar" if condition == "lidar" else "fusion"
-    depth = "avoid" if condition == "depth" else "observe"
+    depth = DEPTH_MODES[condition]
     settings = [
         "gui:=false", f"world_profile:={WORLD_PROFILE}", f"world_name:={worlds[scene]}",
         "robot1_x:=-0.8", "robot2_x:=0.0", "robot3_x:=0.8",
@@ -199,6 +206,8 @@ def launch(run, args, worlds, mappo, rgb, name):
         "shutdown_on_done:=true", "complete_on_coverage:=false", "tail_completion_enabled:=false",
         f"metrics_path:={directory / 'metrics.csv'}", f"frontier_trace_path:={directory / 'decisions.jsonl'}",
     ]
+    if args.active_check:
+        settings.append("depth_active_audit:=true")
     (directory / "launch_arguments.txt").write_text("\n".join(settings) + "\n")
     print(f"START {name} {directory}", flush=True)
     command = ["timeout", "--signal=INT", "--kill-after=25s", f"{6 * args.horizon}s",
@@ -227,7 +236,8 @@ def run_one(run, args, package, worlds, mappo, rgb):
     preserve_json(marker, dict(directory=directory.name, result=result))
     print(f"COMPLETE {name} coverage={result['coverage_pct']:.2f}% "
           f"paired={result['paired']} depth-only={result['depth_only']} "
-          f"changed={result['changed']} contacts={result['block_contacts']}", flush=True)
+          f"changed={result['changed']} contacts={result['block_contacts']} "
+          f"active_interrupted={result.get('active_interrupted', 0)}", flush=True)
     return result
 
 
@@ -237,6 +247,8 @@ def main():
     parser.add_argument("schedule", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--horizon", type=int, default=75)
+    parser.add_argument("--active-check", action="store_true",
+                        help="compare assignment-only depth with active waypoint rechecking")
     args = parser.parse_args()
     if args.horizon <= 0:
         parser.error("horizon must be positive")
@@ -250,7 +262,7 @@ def main():
                     "turtlebot3_description", "laser_filters"], check=True)
     tree = subprocess.check_output(["git", "-C", str(project), "rev-parse", "HEAD^{tree}"],
                                    text=True).strip()
-    schedule = read_schedule(args.schedule)
+    schedule = read_schedule(args.schedule, args.active_check)
     mappo = project / "research_artifacts/dissertation_v1/checkpoint/mappo_selected_validation_v1.pt"
     ddpg = package / "scripts/fd_replay/play_human_data/actormodel-450-500.h5"
     rgb = Path(__file__).resolve().parents[1] / "ros_gazebo/checkpoints/rgb_clearance_inference.pt"
@@ -261,6 +273,8 @@ def main():
                                     {run[0] for run in schedule})
         files = dict(mappo=mappo, rgb=rgb, ddpg=ddpg, schedule=args.schedule, runner=Path(__file__),
                      shared_runner=Path(__file__).with_name("run_clearance_study.py"), **worlds)
+        if args.active_check:
+            files["active_auditor"] = Path(__file__).with_name("audit_active_depth.py")
         preserve_json(args.output / "experiment_manifest.json", {
             "schedule": [list(row) for row in schedule], "horizon_s": args.horizon,
             "source_tree": tree, "input_sha256": {key: digest(path) for key, path in files.items()},

@@ -1,0 +1,9 @@
+scene,seed,order,condition
+low_blocks,62500,1,depth
+low_blocks,62500,2,recheck
+low_blocks,62502,1,recheck
+low_blocks,62502,2,depth
+clear,62501,1,depth
+clear,62501,2,recheck
+low_blocks,62504,1,recheck
+low_blocks,62504,2,depth
