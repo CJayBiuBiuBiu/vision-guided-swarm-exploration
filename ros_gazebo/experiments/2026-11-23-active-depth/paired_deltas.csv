@@ -1,0 +1,5 @@
+scene,seed,assignment_coverage_pct,recheck_coverage_pct,coverage_difference_pp,assignment_contacts,recheck_contacts,contacts_difference,shadow_confirmed,recheck_interruptions,recheck_depth_only_at_box,recheck_replacements,recheck_replacement_arrivals,recheck_changed_frontier_ids,recheck_changed_frontier_arrivals
+low_blocks,62500,46.8864,31.3187,-15.5677,0,8,8,0,3,2,3,0,1,0
+low_blocks,62502,34.6154,38.4158,3.8004,3,1,-2,0,0,0,0,0,0,0
+clear,62501,42.5824,36.8132,-5.7692,0,0,0,1,0,0,0,0,0,0
+low_blocks,62504,42.4451,46.2454,3.8003,0,1,1,1,0,0,0,0,0,0

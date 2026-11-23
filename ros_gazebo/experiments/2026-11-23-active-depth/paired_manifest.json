@@ -1,0 +1,65 @@
+{
+  "horizon_s": 65,
+  "input_sha256": {
+    "active_auditor": "48241f5696234b0145079448dcc19964af0be2f44b3fb0352cff2e95b41cf41f",
+    "clear": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "low_blocks": "03f51958eaf13866304609226b8234fb27accfc960a09f89794e018e2d5492df",
+    "mappo": "a3ba6f3a29ea70c39788ddfb9ab9aabf4d9fc07ab7e6a0a3c277bba29e443dc9",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "56b96d3c9be0aca7b8b8bba7bd3d09eea2fa737202f61c3d723ddd86c98fe090",
+    "schedule": "86d9db72fc9597d62933cc72e65a2fad0724b105030499ad70deca7eeaa33cbc",
+    "shared_runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883"
+  },
+  "schedule": [
+    [
+      "low_blocks",
+      62500,
+      1,
+      "depth"
+    ],
+    [
+      "low_blocks",
+      62500,
+      2,
+      "recheck"
+    ],
+    [
+      "low_blocks",
+      62502,
+      1,
+      "recheck"
+    ],
+    [
+      "low_blocks",
+      62502,
+      2,
+      "depth"
+    ],
+    [
+      "clear",
+      62501,
+      1,
+      "depth"
+    ],
+    [
+      "clear",
+      62501,
+      2,
+      "recheck"
+    ],
+    [
+      "low_blocks",
+      62504,
+      1,
+      "recheck"
+    ],
+    [
+      "low_blocks",
+      62504,
+      2,
+      "depth"
+    ]
+  ],
+  "source_tree": "b389368f228dba9be7e0ca586072ba0ff97d37b5"
+}

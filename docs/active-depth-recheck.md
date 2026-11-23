@@ -23,6 +23,7 @@ A confirmed obstruction closes the current frontier attempt. The
 coordinator searches the owned frontiers in rule cost order and uses
 the depth check to test the proposed replacement. It excludes the
 interrupted frontier ID and candidates within 0.30 m for 3 s.
+The coordinator can retry the same frontier after the exclusion expires.
 The existing follower receives a hold when the coordinator has no
 replacement. It pauses motion and the stuck timer during a hold. The
 next waypoint resumes exploration. The scan mapper, robot model,
@@ -70,3 +71,48 @@ The smoke block checks the logging and execution path under both modes.
 
 [Smoke summary](../ros_gazebo/experiments/2026-11-23-active-depth/smoke_summary.csv)
 · [Smoke manifest](../ros_gazebo/experiments/2026-11-23-active-depth/smoke_manifest.json).
+
+## Paired results
+
+All eight runs reached the 65 s horizon. The audit independently
+reconstructed active decisions and checked the frontier outcome trace.
+
+| Scene and seed | Assignment-only coverage | Active recheck coverage | Low-box contacts, assignment only / recheck | Active interruptions |
+| --- | ---: | ---: | ---: | ---: |
+| Low boxes, 62500 | 46.89% | 31.32% | 0 / 8 | 3 |
+| Low boxes, 62502 | 34.62% | 38.42% | 3 / 1 | 0 |
+| Clear reference, 62501 | 42.58% | 36.81% | 0 / 0 | 0 |
+| Low boxes, 62504 | 42.45% | 46.25% | 0 / 1 | 0 |
+
+All three active interruptions occurred in seed 62500. Two had a fresh
+paired LiDAR scan with no hit in the sampled corridor. The coordinator
+retried the same frontier after the exclusion window in the first two
+cases, at 4.50 and 3.50 s. In the third case, it immediately replaced
+frontier 24 with frontier 20. Frontier 20 remained active at the horizon.
+No post-interruption assignment reached its target within the run.
+
+The active check changed an existing goal in this setting. The tested
+response did not demonstrate a contact or coverage benefit. In particular,
+the only seed with interruptions had lower coverage and more contacts.
+The other three differences occurred without an active interruption and
+include ordinary simulator variation. The clear reference is one seed.
+Its assignment-only arm logged one shadow confirmation, and its recheck
+arm recorded none.
+
+The feature is available as an experiment option. The three low-box
+seed blocks share the same world layout, frozen checkpoints, and Gazebo
+pose registration. These results support a mechanism check under that
+configuration.
+
+[Per-run results](../ros_gazebo/experiments/2026-11-23-active-depth/paired_summary.csv)
+· [Matched differences](../ros_gazebo/experiments/2026-11-23-active-depth/paired_deltas.csv)
+· [Interruption evidence](../ros_gazebo/experiments/2026-11-23-active-depth/interventions.csv)
+· [Pilot manifest](../ros_gazebo/experiments/2026-11-23-active-depth/paired_manifest.json)
+· [Comparison figure](../ros_gazebo/experiments/2026-11-23-active-depth/active_depth_pairs.png).
+
+Regenerate the differences, interruption table and figure from the raw
+study directory.
+
+```sh
+python3 scripts/summarize_active_depth_study.py "$STUDY_OUTPUT" "$SUMMARY_OUTPUT"
+```

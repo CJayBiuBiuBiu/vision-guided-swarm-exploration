@@ -1,0 +1,4 @@
+scene,seed,robot,interruption_id,elapsed_sim_s,previous_depth_stamp,confirming_depth_stamp,paired_laser_stamp,paired_laser_hit,hit_x,hit_y,interrupted_frontier,replacement_frontier,same_frontier,assignment_delay_s,outcome,outcome_time_s
+low_blocks,62500,robot2,1,7.25,7.02,7.26,7.37,False,-0.9434466675685537,2.9172286548020767,9,9,True,4.5,depth_blocked,14.25
+low_blocks,62500,robot2,2,14.25,13.96,14.13,,,-0.7848337819980847,2.8041526977781293,9,9,True,3.5,ownership_changed,20.25
+low_blocks,62500,robot3,3,49.75,49.43,49.63,49.77,False,0.8948489737952294,2.8665714723843454,24,20,False,0.0,simulation_horizon,65.0
