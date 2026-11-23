@@ -1,0 +1,537 @@
+diff --git a/turtlebot3_description/urdf/turtlebot3_waffle_pi.gazebo.xacro b/turtlebot3_description/urdf/turtlebot3_waffle_pi.gazebo.xacro
+index bb11483..e4e584a 100644
+--- a/turtlebot3_description/urdf/turtlebot3_waffle_pi.gazebo.xacro
++++ b/turtlebot3_description/urdf/turtlebot3_waffle_pi.gazebo.xacro
+@@ -1,6 +1,7 @@
+ <?xml version="1.0"?>
+ <robot name="turtlebot3_waffle_pi_sim" xmlns:xacro="http://ros.org/wiki/xacro">
+   <xacro:arg name="laser_visual"  default="true"/>
++  <xacro:arg name="depth_camera" default="false"/>
+   <xacro:arg name="camera_visual" default="false"/>
+   <xacro:arg name="imu_visual"    default="false"/>
+   <xacro:arg name="robot_name"    default=""/>
+@@ -183,4 +184,30 @@
+     </sensor>
+   </gazebo>
+ 
++  <xacro:if value="$(arg depth_camera)">
++    <gazebo reference="camera_rgb_frame">
++      <sensor type="depth" name="corridor_depth">
++        <always_on>true</always_on>
++        <update_rate>8</update_rate>
++        <camera>
++          <horizontal_fov>1.085595</horizontal_fov>
++          <image><width>160</width><height>120</height><format>R8G8B8</format></image>
++          <clip><near>0.20</near><far>3.0</far></clip>
++        </camera>
++        <plugin name="corridor_depth_controller" filename="libgazebo_ros_openni_kinect.so">
++          <robotNamespace>/$(arg robot_name)</robotNamespace>
++          <cameraName>corridor_depth</cameraName>
++          <frameName>$(arg robot_name)/camera_rgb_optical_frame</frameName>
++          <imageTopicName>not_used_rgb</imageTopicName>
++          <cameraInfoTopicName>not_used_rgb_info</cameraInfoTopicName>
++          <depthImageTopicName>image_raw</depthImageTopicName>
++          <depthImageCameraInfoTopicName>camera_info</depthImageCameraInfoTopicName>
++          <pointCloudTopicName>points</pointCloudTopicName>
++          <pointCloudCutoff>0.20</pointCloudCutoff>
++          <pointCloudCutoffMax>3.0</pointCloudCutoffMax>
++        </plugin>
++      </sensor>
++    </gazebo>
++  </xacro:if>
++
+ </robot>
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index b566075..83aeed1 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -1,5 +1,7 @@
+ <launch>
+   <arg name="model" default="waffle_pi"/>
++  <arg name="depth_corridor_mode" default="off"
++       doc="off, observe, or avoid. Observe and avoid enable the optional Waffle Pi depth camera"/>
+   <arg name="gui" default="true"/>
+   <arg name="verbose" default="false"/>
+   <arg name="robot_count" default="3"/>
+@@ -142,6 +144,7 @@
+ 
+   <include file="$(find turtlebot_ddpg)/launch/voronoi_multi_robot.launch">
+     <arg name="model" value="$(arg model)"/>
++    <arg name="depth_camera" value="$(eval arg('depth_corridor_mode') != 'off')"/>
+     <arg name="gui" value="$(arg gui)"/>
+     <arg name="verbose" value="$(arg verbose)"/>
+     <arg name="world_name" value="$(arg world_name)"/>
+@@ -178,6 +181,8 @@
+     <rosparam command="load"
+               file="$(find turtlebot_ddpg)/config/gazebo_research_experiment.yaml"/>
+     <rosparam param="robot_names" subst_value="true">$(arg robot_names)</rosparam>
++    <param name="depth_corridor_mode" value="$(arg depth_corridor_mode)"/>
++    <param name="depth_camera_model" value="$(arg model)"/>
+     <param name="selection_mode" value="$(arg selection_mode)"/>
+     <param name="vision_enabled" value="$(arg vision_enabled)"/>
+     <param name="vision_scoring_mode" value="$(arg vision_scoring_mode)"/>
+diff --git a/turtlebot_ddpg/launch/voronoi_multi_robot.launch b/turtlebot_ddpg/launch/voronoi_multi_robot.launch
+index 82ab90d..9297ddd 100644
+--- a/turtlebot_ddpg/launch/voronoi_multi_robot.launch
++++ b/turtlebot_ddpg/launch/voronoi_multi_robot.launch
+@@ -1,5 +1,6 @@
+ <launch>
+   <arg name="model" default="waffle_pi"/>
++  <arg name="depth_camera" default="false"/>
+   <arg name="gui" default="true"/>
+   <arg name="paused" default="false"/>
+   <arg name="verbose" default="false"/>
+@@ -44,7 +45,7 @@
+ 
+   <!-- robot1 -->
+   <group ns="robot1">
+-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot1" />
++    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot1 depth_camera:=$(arg depth_camera)" />
+     <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+       <param name="publish_frequency" type="double" value="30.0" />
+     </node>
+@@ -57,7 +58,7 @@
+ 
+   <!-- robot2 -->
+   <group ns="robot2">
+-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot2" />
++    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot2 depth_camera:=$(arg depth_camera)" />
+     <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+       <param name="publish_frequency" type="double" value="30.0" />
+     </node>
+@@ -70,7 +71,7 @@
+ 
+   <!-- robot3 -->
+   <group ns="robot3">
+-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot3" />
++    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot3 depth_camera:=$(arg depth_camera)" />
+     <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+       <param name="publish_frequency" type="double" value="30.0" />
+     </node>
+@@ -82,7 +83,7 @@
+   </group>
+ 
+   <group if="$(eval int(arg('robot_count')) >= 4)" ns="robot4">
+-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot4" />
++    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot4 depth_camera:=$(arg depth_camera)" />
+     <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+       <param name="publish_frequency" type="double" value="30.0" />
+     </node>
+@@ -94,7 +95,7 @@
+   </group>
+ 
+   <group if="$(eval int(arg('robot_count')) >= 5)" ns="robot5">
+-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot5" />
++    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot5 depth_camera:=$(arg depth_camera)" />
+     <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+       <param name="publish_frequency" type="double" value="30.0" />
+     </node>
+@@ -106,7 +107,7 @@
+   </group>
+ 
+   <group if="$(eval int(arg('robot_count')) >= 6)" ns="robot6">
+-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot6" />
++    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot6 depth_camera:=$(arg depth_camera)" />
+     <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+       <param name="publish_frequency" type="double" value="30.0" />
+     </node>
+@@ -118,7 +119,7 @@
+   </group>
+ 
+   <group if="$(eval int(arg('robot_count')) >= 7)" ns="robot7">
+-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot7" />
++    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro robot_name:=robot7 depth_camera:=$(arg depth_camera)" />
+     <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+       <param name="publish_frequency" type="double" value="30.0" />
+     </node>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py b/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py
+new file mode 100644
+index 0000000..c51b996
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py
+@@ -0,0 +1,69 @@
++"""Project near-field depth returns and test the next commanded corridor."""
++
++import numpy as np
++from scipy.spatial.transform import Rotation
++
++
++# Waffle Pi RGB frame relative to base_footprint in the research launch.
++CAMERA_ORIGIN = np.array([0.076, 0.0, 0.103])
++LASER_ORIGIN = np.array([-0.064, 0.0, 0.132])
++MIN_HEIGHT_M = 0.035
++MAX_HEIGHT_M = 0.116
++MAX_SAMPLE_AGE_S = 0.40
++MAX_SENSOR_SKEW_S = 0.22
++MAX_POSE_SKEW_S = 0.10
++CORRIDOR_RADIUS_M = 0.175
++
++
++def depth_points(depth, intrinsics, pose):
++    """Return world XY points in a low obstacle band above the floor."""
++    fx, fy, cx, cy = intrinsics
++    if not np.isfinite(intrinsics).all() or fx <= 0 or fy <= 0:
++        raise ValueError("Invalid camera intrinsics")
++    rows, columns = np.indices(depth.shape)
++    valid = np.isfinite(depth) & (depth >= 0.25) & (depth <= 2.5)
++    distance = depth[valid]
++    optical = np.column_stack((distance, -(columns[valid] - cx) * distance / fx,
++                               -(rows[valid] - cy) * distance / fy))
++    position, orientation = pose
++    points = Rotation.from_quat(orientation).apply(optical + CAMERA_ORIGIN) + position
++    band = (points[:, 2] >= MIN_HEIGHT_M) & (points[:, 2] <= MAX_HEIGHT_M)
++    return points[band, :2]
++
++
++def laser_points(ranges, angle_min, increment, range_min, range_max, pose):
++    """Return world XY points from valid hits in the unchanged raw scan."""
++    ranges = np.asarray(ranges)
++    mask = np.isfinite(ranges) & (ranges >= range_min) & (ranges < range_max)
++    angles = angle_min + increment * np.flatnonzero(mask)
++    values = ranges[mask]
++    hits = np.column_stack((values * np.cos(angles), values * np.sin(angles),
++                            np.zeros_like(values)))
++    position, orientation = pose
++    return (Rotation.from_quat(orientation).apply(hits + LASER_ORIGIN) + position)[:, :2]
++
++
++def fresh_sample(sample, timestamp):
++    if sample is None or not 0 <= timestamp - sample[0] <= MAX_SAMPLE_AGE_S:
++        return None
++    return sample
++
++
++def corridor_hit(points, start, waypoint, minimum_points):
++    """Find the nearest supported hit inside the segment's swept footprint."""
++    direction = np.asarray(waypoint) - start
++    length = np.linalg.norm(direction)
++    if len(points) < minimum_points or length < 0.05:
++        return None
++    relative = points - start
++    unit = direction / length
++    projection = relative @ unit
++    nearest = np.clip(projection, 0, length)[:, None] * unit
++    corridor = (projection > 0) & (
++        np.linalg.norm(relative - nearest, axis=1) <= CORRIDOR_RADIUS_M)
++    indices = np.flatnonzero(corridor)
++    if len(indices) < minimum_points:
++        return None
++    first = indices[np.argmin(projection[indices])]
++    return dict(xy=points[first].tolist(), along_m=float(projection[first]),
++                support=int(len(indices)))
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index cb4a907..6b540ea 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -36,9 +36,9 @@ import numpy as np
+ import cv2
+ from geometry_msgs.msg import Point, Pose2D
+ from std_msgs.msg import Bool, Float32, Header
+-from sensor_msgs.msg import Image, JointState, LaserScan
++from sensor_msgs.msg import CameraInfo, Image, JointState, LaserScan
+ from nav_msgs.msg import OccupancyGrid
+-from gazebo_msgs.msg import ModelStates
++from gazebo_msgs.msg import ContactsState, ModelStates
+ from turtlebot_ddpg.msg import (
+     FrontierAction, FrontierObservation, FrontierToken, TeammateIntent)
+ from scipy.spatial import Voronoi
+@@ -47,6 +47,9 @@ from frontier_scoring import (
+     SELECTION_MODES, assign_by_cost, blend_phase_costs, line_risk_path_cost,
+     normalize_rows, score_frontier_roles, vision_role_flags)
+ from frontier_decision_trace import FrontierDecisionTrace
++from depth_corridor import (
++    MAX_POSE_SKEW_S, MAX_SENSOR_SKEW_S, corridor_hit, depth_points, fresh_sample,
++    laser_points)
+ from camera_quality import (
+     CAMERA_RUN_PROFILES, MIXED_WINDOWS, CameraQualityGate, camera_features,
+     camera_input, mixed_window)
+@@ -456,6 +459,19 @@ class Coordinator(object):
+         self.pose_source = rospy.get_param('~pose_source', 'gazebo_truth')
+         if self.pose_source not in POSE_SOURCES:
+             raise ValueError('pose_source must be one of %s' % (POSE_SOURCES,))
++        self.depth_corridor_mode = rospy.get_param('~depth_corridor_mode', 'off')
++        if self.depth_corridor_mode not in ('off', 'observe', 'avoid'):
++            raise ValueError('depth_corridor_mode must be off, observe, or avoid')
++        if self.depth_corridor_mode != 'off':
++            if (self.pose_source != 'gazebo_truth' or self.mapping_mode != 'laser_scan'
++                    or rospy.get_param('~depth_camera_model', 'waffle_pi') != 'waffle_pi'
++                    or self.selection_mode not in EXECUTION_SELECTION_MODES):
++                raise ValueError('Depth corridor requires the Waffle Pi Gazebo research stack')
++            self.depth_sensor_lock = threading.Lock()
++            self.depth_pose = {name: deque(maxlen=48) for name in self.robot_names}
++            self.depth_intrinsics = {}
++            self.depth_returns = {}
++            self.corridor_scan_returns = {}
+         self.scan_mapping_range = float(rospy.get_param(
+             '~scan_mapping_range', SENSING_RANGE))
+         self.scan_ray_stride = max(1, int(rospy.get_param('~scan_ray_stride', 4)))
+@@ -760,6 +776,11 @@ class Coordinator(object):
+             rospy.Subscriber('/%s/min_clearance_m' % name, Float32,
+                              self._clearance_cb, callback_args=name)
+             rospy.Subscriber('/%s/camera/rgb/image_raw' % name, Image, self._camera_cb, callback_args=name)
++            if self.depth_corridor_mode != 'off':
++                rospy.Subscriber('/%s/corridor_depth/camera_info' % name, CameraInfo,
++                                 self._depth_info_cb, callback_args=name, queue_size=1)
++                rospy.Subscriber('/%s/corridor_depth/image_raw' % name, Image,
++                                 self._depth_image_cb, callback_args=name, queue_size=1)
+             rospy.Subscriber('/%s/scan' % name, LaserScan,
+                              self._scan_cb, callback_args=name)
+             rospy.Subscriber('/%s/frontier_action' % name, FrontierAction,
+@@ -795,6 +816,12 @@ class Coordinator(object):
+                 actor_uses_vision=self.actor_uses_vision, rules_use_vision=self.rules_use_vision,
+                 horizon_s=self.max_simulation_seconds, **cue_metadata)
+             rospy.on_shutdown(self._close_frontier_trace)
++        if self.depth_corridor_mode != 'off':
++            if self.frontier_trace is None:
++                raise ValueError('Depth corridor requires frontier_trace_path for decision audit')
++            self.frontier_trace.record('depth_corridor', mode=self.depth_corridor_mode)
++            rospy.Subscriber('/depth_corridor/contacts', ContactsState,
++                             self._depth_contact_cb, queue_size=32)
+         rospy.loginfo('[coordinator] robots=%s, selection_mode=%s, mapping_mode=%s, pose_source=%s, world_profile=%s, clustered_frontiers=%s, metrics=%s',
+                       ','.join(self.robot_names),
+                       self.selection_mode, self.mapping_mode, self.pose_source,
+@@ -838,7 +865,59 @@ class Coordinator(object):
+             sum(value * value for value in scores))
+         self.vision_direction_contrast_sum += float(max(scores) - min(scores))
+ 
++    def _depth_info_cb(self, msg, name):
++        if msg.K[0] > 0 and msg.K[4] > 0:
++            self.depth_intrinsics[name] = (msg.height, msg.width,
++                                           (msg.K[0], msg.K[4], msg.K[2], msg.K[5]))
++
++    def _nearest_depth_pose(self, name, stamp):
++        if stamp <= 0.0:
++            return None
++        with self.depth_sensor_lock:
++            poses = tuple(self.depth_pose[name])
++        if not poses:
++            return None
++        received, position, rotation = min(poses, key=lambda item: abs(item[0] - stamp))
++        if abs(received - stamp) <= MAX_POSE_SKEW_S:
++            return position, rotation
++        return None
++
++    def _depth_image_cb(self, msg, name):
++        info = self.depth_intrinsics.get(name)
++        if (info is None or info[:2] != (msg.height, msg.width)
++                or msg.encoding != '32FC1' or msg.step < 4 * msg.width):
++            return
++        stamp = msg.header.stamp.to_sec()
++        pose = self._nearest_depth_pose(name, stamp)
++        if pose is None:
++            return
++        dtype = np.dtype('>f4' if msg.is_bigendian else '<f4')
++        try:
++            depth = np.ndarray((msg.height, msg.width), dtype=dtype, buffer=msg.data,
++                               strides=(msg.step, 4))
++        except (ValueError, TypeError):
++            return
++        fx, fy, cx, cy = info[2]
++        self.depth_returns[name] = (
++            stamp, depth_points(depth[::2, ::2], (fx / 2, fy / 2, cx / 2, cy / 2), pose))
++
++    def _depth_contact_cb(self, msg):
++        if not msg.states:
++            return
++        elapsed, _ = self._frontier_trace_snapshot()
++        pairs = sorted({tuple(sorted((state.collision1_name, state.collision2_name)))
++                        for state in msg.states})
++        self.frontier_trace.record('depth_contact', elapsed_sim_s=elapsed,
++                                   contact_stamp=msg.header.stamp.to_sec(), pairs=pairs)
++
+     def _scan_cb(self, msg, name):
++        if self.depth_corridor_mode != 'off':
++            stamp = msg.header.stamp.to_sec()
++            pose = self._nearest_depth_pose(name, stamp)
++            if pose is not None:
++                self.corridor_scan_returns[name] = (
++                    stamp, laser_points(msg.ranges, msg.angle_min, msg.angle_increment,
++                                       msg.range_min, msg.range_max, pose))
+         if self.vision_enabled and self.vision_scoring_mode in (
+                 LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, MATCHED_CLEARANCE):
+             scores = lidar_openness(
+@@ -1059,6 +1138,11 @@ class Coordinator(object):
+                 cosy_cosp = 1 - 2 * (o.y * o.y + o.z * o.z)
+                 self._update_pose(
+                     name, p.x, p.y, math.atan2(siny_cosp, cosy_cosp))
++                if self.depth_corridor_mode != 'off':
++                    with self.depth_sensor_lock:
++                        self.depth_pose[name].append(
++                            (rospy.Time.now().to_sec(), (p.x, p.y, p.z),
++                             (o.x, o.y, o.z, o.w)))
+ 
+     def _joint_states_cb(self, msg, name):
+         try:
+@@ -1306,6 +1390,51 @@ class Coordinator(object):
+             allow_unknown=self.mapping_mode == 'laser_scan',
+             unknown_cost=2.0)
+ 
++    def _next_waypoint(self, pos, target, path_xy):
++        if path_xy:
++            return waypoint_along_path(path_xy, pos, MAX_WAYPOINT_DIST)
++        direction = np.asarray(target) - pos
++        distance = np.linalg.norm(direction)
++        return pos + direction * min(1.0, MAX_WAYPOINT_DIST / max(distance, 1e-9))
++
++    def _depth_target(self, name, position, preferred, alternatives, frontiers, frontier_ids,
++                      selected_path, selection_source):
++        now = rospy.Time.now().to_sec()
++        depth = fresh_sample(self.depth_returns.get(name), now)
++        scan = fresh_sample(self.corridor_scan_returns.get(name), now)
++        start = self._cell_index(*position)
++        candidates = [int(preferred)]
++        candidates.extend(int(index) for index in alternatives if index != preferred)
++        evaluated = []
++        proposed, proposed_path = None, None
++        for index in candidates:
++            path = selected_path if index == preferred else self._plan_path(
++                start, self._cell_index(*frontiers[index]))
++            path_xy = [(self.xs[ix], self.ys[iy]) for ix, iy in path] if path else None
++            waypoint = self._next_waypoint(position, frontiers[index], path_xy)
++            depth_hit = None if depth is None else corridor_hit(depth[1], position, waypoint, 3)
++            laser_hit = None if scan is None else corridor_hit(scan[1], position, waypoint, 1)
++            evaluated.append(dict(frontier_id=int(frontier_ids[index]),
++                                  xy=frontiers[index].tolist(), waypoint=waypoint.tolist(),
++                                  depth_hit=depth_hit, laser_hit=laser_hit))
++            if depth_hit is None:
++                proposed, proposed_path = index, path
++                break
++        applied, applied_path = ((proposed, proposed_path) if self.depth_corridor_mode == 'avoid'
++                                 else (preferred, selected_path))
++        elapsed, _ = self._frontier_trace_snapshot()
++        self.frontier_trace.record(
++            'depth_decision', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++            robot_xy=position.tolist(), selection_source=selection_source,
++            depth_stamp=None if depth is None else depth[0],
++            laser_stamp=None if scan is None else scan[0],
++            paired=bool(depth is not None and scan is not None
++                        and abs(depth[0] - scan[0]) <= MAX_SENSOR_SKEW_S),
++            candidates=evaluated,
++            would_select=None if proposed is None else int(frontier_ids[proposed]),
++            selected=None if applied is None else int(frontier_ids[applied]))
++        return applied, applied_path
++
+     def _execution_costs(self, frontiers, robot_positions):
+         """Build cheap finite costs for dynamic ownership at control rate.
+ 
+@@ -2213,6 +2342,20 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                     self.vision_bias(pos, yaw, f, name) for f in own_frontiers])
+                                 utility -= VISION_WEIGHT * vision
+                             best_index = own_indices[np.argmin(utility)]
++                        selection_source = ('actor' if policy_controls_selection else
++                                            'stall_fallback' if fallback_active else 'rule')
++                        if self.depth_corridor_mode != 'off':
++                            if policy_controls_selection:
++                                alternatives = np.flatnonzero(owner == i)
++                                alternatives = alternatives[np.argsort(
++                                    execution_costs[i, alternatives], kind='stable')]
++                            else:
++                                alternatives = own_indices[np.argsort(refined_cost, kind='stable')]
++                            best_index, selected_path = self._depth_target(
++                                name, pos, best_index, alternatives, frontiers, frontier_ids,
++                                selected_path, selection_source)
++                            if best_index is None:
++                                continue
+                         best = frontiers[best_index]
+                         if replacing_policy_goal:
+                             self.goals_replaced_policy += 1
+@@ -2239,8 +2382,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                         self.actor_clearance_scores))
+                             self.frontier_trace.assign(
+                                 name, elapsed, area,
+-                                selection_source=('actor' if policy_controls_selection else
+-                                                  'stall_fallback' if fallback_active else 'rule'),
++                                selection_source=selection_source,
+                                 selected_frontier_id=int(frontier_ids[best_index]),
+                                 selected_xy=best.tolist(),
+                                 candidate_frontier_ids=[int(fid) for fid in frontier_ids],
+@@ -2283,18 +2425,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     continue
+ 
+                 path_xy = self.current_path.get(name)
+-                if path_xy:
+-                    waypoint = waypoint_along_path(path_xy, pos, MAX_WAYPOINT_DIST)
+-                else:
+-                    # no plannable path (e.g. goal not yet reachable through
+-                    # sensed space) -- fall back to a bounded-lookahead
+-                    # straight line, same as before this feature existed.
+-                    vec = np.array(goal) - pos
+-                    dist_to_goal = np.linalg.norm(vec)
+-                    if dist_to_goal > MAX_WAYPOINT_DIST:
+-                        waypoint = pos + vec / dist_to_goal * MAX_WAYPOINT_DIST
+-                    else:
+-                        waypoint = np.array(goal)
++                waypoint = self._next_waypoint(pos, goal, path_xy)
+ 
+                 msg = Point(x=waypoint[0], y=waypoint[1], z=0.0)
+                 self.targets_pub[name].publish(msg)
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/frontier_decision_trace.py b/turtlebot_ddpg/scripts/voronoi_exploration/frontier_decision_trace.py
+index 96ff8f3..0f4dae5 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/frontier_decision_trace.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/frontier_decision_trace.py
+@@ -18,6 +18,11 @@ class FrontierDecisionTrace:
+     def _write(self, row):
+         self._file.write(json.dumps(row, allow_nan=False) + '\n')
+ 
++    def record(self, event, **fields):
++        with self._lock:
++            if not self._file.closed:
++                self._write(dict(event=event, **fields))
++
+     def assign(self, robot, elapsed, area, **selection):
+         with self._lock:
+             if self._file.closed:
+diff --git a/turtlebot_ddpg/tests/test_depth_corridor.py b/turtlebot_ddpg/tests/test_depth_corridor.py
+new file mode 100644
+index 0000000..0621227
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_depth_corridor.py
+@@ -0,0 +1,48 @@
++import sys
++import unittest
++from pathlib import Path
++
++import numpy as np
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
++from depth_corridor import corridor_hit, depth_points, fresh_sample, laser_points
++
++
++class DepthCorridorTests(unittest.TestCase):
++    def test_depth_keeps_low_obstacles_and_rejects_floor_and_invalid_depth(self):
++        image = np.full((15, 3), np.nan)
++        image[0, 1] = 1.0      # Above the height band
++        image[4, 1] = 1.0      # Low obstacle
++        image[14, 1] = 1.0     # Floor
++        image[5, 0] = np.inf
++        pose = ((0, 0, 0), (0, 0, 0, 1))
++        points = depth_points(image, (100, 100, 1, 3), pose)
++        np.testing.assert_allclose(points, [[1.076, 0.0]])
++
++    def test_depth_handles_no_hits_and_robot_yaw(self):
++        image = np.array([[1.0, np.nan]])
++        pose = ((1, 2, 0), (0, 0, np.sqrt(0.5), np.sqrt(0.5)))
++        np.testing.assert_allclose(depth_points(image, (100, 100, 0, 0), pose),
++                                   [[1.0, 3.076]])
++        self.assertEqual(depth_points(np.full((1, 1), np.nan),
++                                      (100, 100, 0, 0), pose).shape, (0, 2))
++
++    def test_intersection_uses_waypoint_and_support(self):
++        center = np.array([[0.9, 0.02], [0.95, -0.02], [0.91, 0.0], [0, -0.1],
++                           [0.2, 0.5], [1.5, 0], [-0.2, 0]])
++        hit = corridor_hit(center, np.zeros(2), (1.0, 0.0), 3)
++        self.assertEqual(hit['support'], 3)
++        self.assertAlmostEqual(hit['along_m'], 0.9)
++        self.assertIsNone(corridor_hit(center, np.zeros(2), (0.0, -1.0), 3))
++        self.assertIsNone(corridor_hit(center, np.zeros(2), (0.3, 0.0), 1))
++
++    def test_laser_filters_no_return_and_rotates_from_scan_frame(self):
++        pose = ((0, 0, 0), (0, 0, 1, 0))
++        hits = laser_points([1.0, 3.5, np.inf], 0, 0.1, 0.12, 3.5, pose)
++        np.testing.assert_allclose(hits, [[-0.936, 0.0]])
++
++    def test_stale_and_future_frames_are_unavailable(self):
++        sample = (1.0, object())
++        self.assertIs(fresh_sample(sample, 1.2), sample)
++        self.assertIsNone(fresh_sample(sample, 1.6))
++        self.assertIsNone(fresh_sample(sample, 0.9))
