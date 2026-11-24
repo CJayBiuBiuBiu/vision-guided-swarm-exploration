@@ -1,0 +1,34 @@
+{
+  "baseline_metrics": {
+    "balanced_top_agreement": 0.624561403508772,
+    "frames": 449,
+    "layout": "all",
+    "low_detection_auroc": 0.638361669959648,
+    "low_mae": 0.7062426805496216,
+    "low_mean_signed_error": 0.7062426805496216,
+    "low_sectors": 231,
+    "mae": 0.26468363404273987,
+    "model": "robust_aligned",
+    "other_mae": 0.17328563332557678,
+    "ranked_frames": 155
+  },
+  "checkpoint_sha256": "2ca9b2fd42d77edeb29c86d705c185565ea1d005e09dbf3fb40fcaa95b961676",
+  "excluded_by_exact_hash": 1,
+  "passed": false,
+  "selected": "run_isolated_low_clearance_66702",
+  "selected_metrics": {
+    "balanced_top_agreement": 0.6067251461988304,
+    "frames": 449,
+    "layout": "all",
+    "low_detection_auroc": 0.7417690871833268,
+    "low_mae": 0.16990773379802704,
+    "low_mean_signed_error": 0.150187686085701,
+    "low_sectors": 231,
+    "mae": 0.42219117283821106,
+    "model": "run_isolated_low_clearance_66702",
+    "other_mae": 0.4744111895561218,
+    "ranked_frames": 155
+  },
+  "test_manifest_sha256": "f53c59c1ef231e90371bba07bb5f21d290ac595b5e89efff173559997702f8c8",
+  "test_rows_received": 450
+}

@@ -65,3 +65,44 @@ fusion, and guarded versus fixed fusion of the same new checkpoint.
 The pure LiDAR arm anchors the practical interpretation. Coverage at
 75 s is the navigation endpoint. The paired results also report paths,
 goals reached and near-collision events.
+
+## Factorial test results
+
+The three runs yielded 450 image and scan records. One image matched
+an earlier input hash, leaving 449 test frames. The table averages
+the three trained initialisations for each recipe.
+
+| Data | Objective | Overall MAE | Low-clearance MAE | Low-clearance AUROC |
+| --- | --- | ---: | ---: | ---: |
+| Historical | Uniform | 0.311 | 0.935 | 0.642 |
+| Historical | Low-clearance weighted | 0.373 | 0.343 | 0.581 |
+| Run-isolated | Uniform | 0.173 | 0.466 | 0.737 |
+| Run-isolated | Low-clearance weighted | 0.435 | 0.162 | 0.737 |
+
+The isolated captures improved overall and low-clearance estimates
+under the uniform objective with the same architecture and budget.
+Heavy low-clearance weighting reduced error on the blocked class and
+increased error elsewhere. The selected weighted candidate scored
+0.170 low-clearance MAE versus 0.706 for the archived baseline. Its
+overall MAE was 0.422 versus 0.265, so it failed the deployment check.
+
+[Training design, raw recipe metrics and first test gate](../ros_gazebo/experiments/2026-11-24-rgb-low-clearance/factorial/)
+
+## Moderate score calibration
+
+The follow-up uses seed 66702 from the isolated-data uniform recipe.
+It uses one positive scale and one bias shared across the three
+output logits. The transform preserves direction ordering and uses
+the same inference architecture. The search uses the development
+runs only. Candidate parameters must improve the three deployment
+metrics on development and keep the non-low MAE within 0.05 of the
+archived encoder. Among eligible parameters, selection minimises
+0.55 times overall MAE plus 0.45 times low-clearance MAE. The frozen
+export uses scale 0.75 and bias −0.85.
+
+The second test repeats the capture protocol in three new runs
+using seeds 66314–66316. Its test loader excludes image hashes shared
+with training, development or the first test. The navigation stage
+uses the same deployment check on this new test.
+
+[Calibration grid and frozen checkpoint](../ros_gazebo/experiments/2026-11-24-rgb-low-clearance/calibrated/)

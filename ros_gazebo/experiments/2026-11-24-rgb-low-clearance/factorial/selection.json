@@ -1,0 +1,13 @@
+{
+  "checkpoint": "run_isolated_low_clearance_66702.bkqaldaf/encoder.pt",
+  "checkpoint_sha256": "2ca9b2fd42d77edeb29c86d705c185565ea1d005e09dbf3fb40fcaa95b961676",
+  "dataset": "run_isolated",
+  "development_group_scores": {
+    "historical_low_clearance": 0.42373937765757247,
+    "historical_uniform": 0.6149062315778795,
+    "run_isolated_low_clearance": 0.3741480889245978,
+    "run_isolated_uniform": 0.41739871933960293
+  },
+  "objective": "low_clearance",
+  "seed": 66702
+}

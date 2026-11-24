@@ -1,0 +1,29 @@
+{
+  "batch": 24,
+  "clean_fit_runs": [
+    "fit_62100",
+    "fit_62101",
+    "fit_62104",
+    "fit_62105"
+  ],
+  "development_runs": [
+    "held_out_62102",
+    "held_out_62103",
+    "held_out_62106",
+    "held_out_62107"
+  ],
+  "historical_manifest_sha256": "a24e7f4adc2675293e48a620a552aa45c5c2001880a772883c4cc2991e9a7e68",
+  "quality_profile_sha256": "9bf900cfca4eb0c7d3b47e1ebb052d2aceeefa0a0b634242b7df0fae486023f1",
+  "script_sha256": "321712863b322b73a9ec0c2e3468ecb866f1f2800334acfa1af05933996a21c1",
+  "seed_list": [
+    66701,
+    66702,
+    66703
+  ],
+  "selection_weights": {
+    "balanced_direction_error": 0.2,
+    "low_mae": 0.4,
+    "mae": 0.4
+  },
+  "steps": 320
+}
