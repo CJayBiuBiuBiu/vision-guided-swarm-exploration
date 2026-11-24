@@ -106,3 +106,33 @@ with training, development or the first test. The navigation stage
 uses the same deployment check on this new test.
 
 [Calibration grid and frozen checkpoint](../ros_gazebo/experiments/2026-11-24-rgb-low-clearance/calibrated/)
+
+### Independent calibration result
+
+The second test retained 447 of 450 captured frames after hash
+exclusion. The calibrated checkpoint passed the independent check.
+
+| RGB encoder | Overall MAE | Low-clearance MAE | Low-clearance AUROC |
+| --- | ---: | ---: | ---: |
+| Archived aligned encoder | 0.229 | 0.674 | 0.622 |
+| Calibrated encoder | 0.223 | 0.426 | 0.674 |
+
+The guard addresses the remaining optimistic error when the paired
+scan already measures close obstacles. The navigation schedule
+keeps the new encoder fixed across the guarded and fixed conditions.
+
+[Independent test metrics and deployment check](../ros_gazebo/experiments/2026-11-24-rgb-low-clearance/calibrated/)
+
+## Reproduce the closed-loop test
+
+Build and source the ROS workspace with patch 13. Use the actor from
+the [doorway study](rgb-passage-study.md), the archived aligned robust
+checkpoint from the [encoder retest](rgb-encoder-retest.md), and the
+calibrated model from this study. Use a distinct run directory.
+On a headless host prefix the command with `xvfb-run -a`.
+
+```sh
+STUDY="$PWD/ros_gazebo/experiments/2026-11-24-rgb-low-clearance"
+python3 scripts/run_rgb_clearance_guard_study.py "$ROS_PROJECT" "$ACTOR" \
+  "$ARCHIVED_ALIGNED_RGB" "$STUDY/calibrated" "$RUN_DIR"
+```

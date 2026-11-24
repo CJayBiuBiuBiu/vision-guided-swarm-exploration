@@ -1,0 +1,168 @@
+{
+  "actor_sha256": "24c3c2edf94593484cf36a596054cc0d0273f922e3039e2fbe5fdd4d45cff212",
+  "input_sha256": {
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "pair_verifier": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "runner": "6b3911a0e890f04f60186550eb7e641243838f72d15514032cd6349b7d243b5f",
+    "selection": "34974231cb13dc4b4428ce5a31b15ce31df60d9787aa8b46884fd785e4e6c184",
+    "test_gate": "bdfa326353e535818eb602fc6f2a10346fe43e99e294c03140a3e72497980fc5",
+    "trial_configurations": "2fb2759e6fe0a76b645d1b9425e32faa75e6293ee2567509013ad8c6dcfc4cdd"
+  },
+  "rgb_sha256": {
+    "lidar": "b3115535d34539e380d69335be76f7822ab2eeb9afab5a10674c951030217d21",
+    "new_fixed": "b3115535d34539e380d69335be76f7822ab2eeb9afab5a10674c951030217d21",
+    "new_guarded": "b3115535d34539e380d69335be76f7822ab2eeb9afab5a10674c951030217d21",
+    "old_fixed": "4be795fe75a3f91d040bc1a71595cdd9b4885821b8381d89a74e6f71f02715b3"
+  },
+  "runs": [
+    {
+      "cue": "lidar",
+      "environment_seed": 66401,
+      "horizon": 75,
+      "layout": "hu_aligned",
+      "method": "lidar",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66401,
+      "horizon": 75,
+      "layout": "hu_aligned",
+      "method": "old_fixed",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66401,
+      "horizon": 75,
+      "layout": "hu_aligned",
+      "method": "new_guarded",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66401,
+      "horizon": 75,
+      "layout": "hu_aligned",
+      "method": "new_fixed",
+      "order": 4,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66402,
+      "horizon": 75,
+      "layout": "hu_layout_c",
+      "method": "old_fixed",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66402,
+      "horizon": 75,
+      "layout": "hu_layout_c",
+      "method": "new_fixed",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66402,
+      "horizon": 75,
+      "layout": "hu_layout_c",
+      "method": "lidar",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66402,
+      "horizon": 75,
+      "layout": "hu_layout_c",
+      "method": "new_guarded",
+      "order": 4,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66403,
+      "horizon": 75,
+      "layout": "hu_aligned",
+      "method": "new_fixed",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66403,
+      "horizon": 75,
+      "layout": "hu_aligned",
+      "method": "new_guarded",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66403,
+      "horizon": 75,
+      "layout": "hu_aligned",
+      "method": "old_fixed",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66403,
+      "horizon": 75,
+      "layout": "hu_aligned",
+      "method": "lidar",
+      "order": 4,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66404,
+      "horizon": 75,
+      "layout": "hu_layout_c",
+      "method": "new_guarded",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66404,
+      "horizon": 75,
+      "layout": "hu_layout_c",
+      "method": "lidar",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66404,
+      "horizon": 75,
+      "layout": "hu_layout_c",
+      "method": "new_fixed",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66404,
+      "horizon": 75,
+      "layout": "hu_layout_c",
+      "method": "old_fixed",
+      "order": 4,
+      "stage": "eval"
+    }
+  ],
+  "source_tree": "9c5f0a04f9d865ebe3f369ecdafedb11aba00a62",
+  "world_sha256": {
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44"
+  }
+}
