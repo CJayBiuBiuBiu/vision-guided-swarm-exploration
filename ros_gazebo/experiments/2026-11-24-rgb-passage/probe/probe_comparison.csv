@@ -1,0 +1,5 @@
+layout,direction,opening,far_score,near_score,angle_deg,lidar_range_max_m,lidar_bracket_m,lidar_at_horizon,expected_camera_class
+passage_left_open,left,True,1.0,1.0,19.230274552454336,3.5,"[null, null]",True,True
+passage_left_open,right,False,0.0,1.0,-19.231090981471805,3.5,"[null, null]",True,True
+passage_right_open,left,False,0.0,1.0,19.230275020296563,3.5,"[null, null]",True,True
+passage_right_open,right,True,1.0,1.0,-19.2310905040318,3.5,"[null, null]",True,True

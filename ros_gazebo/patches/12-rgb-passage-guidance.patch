@@ -1,0 +1,433 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 37603e3..d7aa6ae 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -2,6 +2,8 @@
+   <arg name="model" default="waffle_pi"/>
+   <arg name="depth_corridor_mode" default="off"
+        doc="off, observe, avoid, or recheck. Depth modes enable the Waffle Pi depth camera"/>
++  <arg name="rgb_passage_mode" default="off"
++       doc="Observe or rerank frontier directions using RGB floor continuation beyond LiDAR range"/>
+   <arg name="depth_active_audit" default="false"
+        doc="Trace active-waypoint checks in any enabled depth mode"/>
+   <arg name="gui" default="true"/>
+@@ -189,6 +191,7 @@
+     <rosparam command="load"
+               file="$(find turtlebot_ddpg)/config/gazebo_research_experiment.yaml"/>
+     <rosparam param="robot_names" subst_value="true">$(arg robot_names)</rosparam>
++    <param name="rgb_passage_mode" value="$(arg rgb_passage_mode)"/>
+     <param name="depth_corridor_mode" value="$(arg depth_corridor_mode)"/>
+     <param name="depth_active_audit" value="$(arg depth_active_audit)"/>
+     <param name="depth_camera_model" value="$(arg model)"/>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 5eb9b62..4b04196 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -47,6 +47,10 @@ from frontier_scoring import (
+     SELECTION_MODES, assign_by_cost, blend_phase_costs, line_risk_path_cost,
+     normalize_rows, score_frontier_roles, vision_role_flags)
+ from frontier_decision_trace import FrontierDecisionTrace
++from passage_scene import PASSAGE_PROFILES
++from rgb_passage import (
++    MAX_BLOCKED_SCORE, MAX_IMAGE_AGE_S, MAX_POSE_DRIFT_M, MIN_OPEN_SCORE,
++    measure_passage, propose_passage, route_length, score_direction)
+ from depth_corridor import (
+     MAX_POSE_SKEW_S, MAX_SENSOR_SKEW_S, ActiveDepthConfirmation, corridor_hit,
+     depth_points, fresh_sample, laser_points, reroute_exclusions)
+@@ -136,6 +140,7 @@ WORLD_PROFILES = {
+         ],
+     },
+ }
++WORLD_PROFILES.update(PASSAGE_PROFILES)
+ 
+ 
+ def configure_world(profile):
+@@ -462,6 +467,18 @@ class Coordinator(object):
+         self.depth_corridor_mode = rospy.get_param('~depth_corridor_mode', 'off')
+         if self.depth_corridor_mode not in ('off', 'observe', 'avoid', 'recheck'):
+             raise ValueError('depth_corridor_mode must be off, observe, avoid, or recheck')
++        self.rgb_passage_mode = rospy.get_param('~rgb_passage_mode', 'off')
++        if self.rgb_passage_mode not in ('off', 'observe', 'rerank'):
++            raise ValueError('rgb_passage_mode must be off, observe, or rerank')
++        if self.rgb_passage_mode != 'off':
++            if (self.depth_corridor_mode != 'off' or self.pose_source != 'gazebo_truth'
++                    or self.mapping_mode != 'laser_scan' or not self.use_sim_time
++                    or rospy.get_param('~depth_camera_model', 'waffle_pi') != 'waffle_pi'
++                    or self.selection_mode not in EXECUTION_SELECTION_MODES
++                    or not rospy.get_param('~frontier_trace_path', '')):
++                raise ValueError('RGB passage requires traced Waffle Pi exploration with laser mapping')
++            self.passage_intrinsics = {}
++            self.passage_frames = {}
+         self.depth_active = (self.depth_corridor_mode == 'recheck'
+                              or rospy.get_param('~depth_active_audit', False))
+         if self.depth_active and self.depth_corridor_mode == 'off':
+@@ -477,11 +494,13 @@ class Coordinator(object):
+                     or rospy.get_param('~depth_camera_model', 'waffle_pi') != 'waffle_pi'
+                     or self.selection_mode not in EXECUTION_SELECTION_MODES):
+                 raise ValueError('Depth corridor requires the Waffle Pi Gazebo research stack')
+-            self.depth_sensor_lock = threading.Lock()
+-            self.depth_pose = {name: deque(maxlen=48) for name in self.robot_names}
+             self.depth_intrinsics = {}
+             self.depth_returns = {}
+             self.corridor_scan_returns = {}
++        self.needs_sensor_pose = self.depth_corridor_mode != 'off' or self.rgb_passage_mode != 'off'
++        if self.needs_sensor_pose:
++            self.sensor_pose_lock = threading.Lock()
++            self.sensor_poses = {name: deque(maxlen=48) for name in self.robot_names}
+         self.scan_mapping_range = float(rospy.get_param(
+             '~scan_mapping_range', SENSING_RANGE))
+         self.scan_ray_stride = max(1, int(rospy.get_param('~scan_ray_stride', 4)))
+@@ -786,6 +805,9 @@ class Coordinator(object):
+             rospy.Subscriber('/%s/min_clearance_m' % name, Float32,
+                              self._clearance_cb, callback_args=name)
+             rospy.Subscriber('/%s/camera/rgb/image_raw' % name, Image, self._camera_cb, callback_args=name)
++            if self.rgb_passage_mode != 'off':
++                rospy.Subscriber('/%s/camera/rgb/camera_info' % name, CameraInfo,
++                                 self._passage_info_cb, callback_args=name, queue_size=1)
+             if self.depth_corridor_mode != 'off':
+                 rospy.Subscriber('/%s/corridor_depth/camera_info' % name, CameraInfo,
+                                  self._depth_info_cb, callback_args=name, queue_size=1)
+@@ -817,6 +839,8 @@ class Coordinator(object):
+             if self.matched_clearance:
+                 cue_metadata.update(clearance_actor_cue=self.clearance_actor_cue,
+                                     clearance_rules_cue=self.clearance_rules_cue)
++            if self.rgb_passage_mode != 'off':
++                cue_metadata.update(rgb_passage_mode=self.rgb_passage_mode)
+             if self.camera_quality_gate is not None:
+                 cue_metadata.update(clearance_camera_profile=self.clearance_camera_profile)
+             self.frontier_trace = FrontierDecisionTrace(
+@@ -842,7 +866,8 @@ class Coordinator(object):
+                       self.metrics_path)
+ 
+     def _camera_cb(self, msg, name):
+-        if not self.vision_enabled or self.vision_scoring_mode == LIDAR_OPENNESS:
++        use_clearance = self.vision_enabled and self.vision_scoring_mode != LIDAR_OPENNESS
++        if not use_clearance and self.rgb_passage_mode == 'off':
+             return
+         if msg.encoding not in ('rgb8', 'bgr8') or msg.height == 0 or msg.width == 0:
+             return
+@@ -852,8 +877,12 @@ class Coordinator(object):
+             return
+         if msg.encoding == 'bgr8':
+             img = img[:, :, ::-1]
++        stamp = msg.header.stamp.to_sec()
++        if self.rgb_passage_mode != 'off':
++            self._update_passage_frame(name, stamp, img)
++        if not use_clearance:
++            return
+         if self.learned_vision_scorer is not None:
+-            stamp = msg.header.stamp.to_sec()
+             quality = ()
+             if self.camera_quality_gate is not None:
+                 profile = (MIXED_WINDOWS[mixed_window(stamp)] if self.mixed_camera
+@@ -878,16 +907,31 @@ class Coordinator(object):
+             sum(value * value for value in scores))
+         self.vision_direction_contrast_sum += float(max(scores) - min(scores))
+ 
++    def _passage_info_cb(self, msg, name):
++        intrinsics = (msg.K[0], msg.K[4], msg.K[2], msg.K[5])
++        if all(map(math.isfinite, intrinsics)) and min(intrinsics[:2]) > 0:
++            self.passage_intrinsics[name] = ((msg.height, msg.width), intrinsics)
++
++    def _update_passage_frame(self, name, stamp, image):
++        info = self.passage_intrinsics.get(name)
++        if info is None or info[0] != image.shape[:2]:
++            return
++        pose = self._nearest_sensor_pose(name, stamp)
++        if pose is None:
++            return
++        evidence = measure_passage(image, info[1], pose)
++        self.passage_frames[name] = (stamp, None if evidence is None else (pose[0], *evidence))
++
+     def _depth_info_cb(self, msg, name):
+         if msg.K[0] > 0 and msg.K[4] > 0:
+             self.depth_intrinsics[name] = (msg.height, msg.width,
+                                            (msg.K[0], msg.K[4], msg.K[2], msg.K[5]))
+ 
+-    def _nearest_depth_pose(self, name, stamp):
++    def _nearest_sensor_pose(self, name, stamp):
+         if stamp <= 0.0:
+             return None
+-        with self.depth_sensor_lock:
+-            poses = tuple(self.depth_pose[name])
++        with self.sensor_pose_lock:
++            poses = tuple(self.sensor_poses[name])
+         if not poses:
+             return None
+         received, position, rotation = min(poses, key=lambda item: abs(item[0] - stamp))
+@@ -901,7 +945,7 @@ class Coordinator(object):
+                 or msg.encoding != '32FC1' or msg.step < 4 * msg.width):
+             return
+         stamp = msg.header.stamp.to_sec()
+-        pose = self._nearest_depth_pose(name, stamp)
++        pose = self._nearest_sensor_pose(name, stamp)
+         if pose is None:
+             return
+         dtype = np.dtype('>f4' if msg.is_bigendian else '<f4')
+@@ -926,7 +970,7 @@ class Coordinator(object):
+     def _scan_cb(self, msg, name):
+         if self.depth_corridor_mode != 'off':
+             stamp = msg.header.stamp.to_sec()
+-            pose = self._nearest_depth_pose(name, stamp)
++            pose = self._nearest_sensor_pose(name, stamp)
+             if pose is not None:
+                 self.corridor_scan_returns[name] = (
+                     stamp, laser_points(msg.ranges, msg.angle_min, msg.angle_increment,
+@@ -1151,9 +1195,9 @@ class Coordinator(object):
+                 cosy_cosp = 1 - 2 * (o.y * o.y + o.z * o.z)
+                 self._update_pose(
+                     name, p.x, p.y, math.atan2(siny_cosp, cosy_cosp))
+-                if self.depth_corridor_mode != 'off':
+-                    with self.depth_sensor_lock:
+-                        self.depth_pose[name].append(
++                if self.needs_sensor_pose:
++                    with self.sensor_pose_lock:
++                        self.sensor_poses[name].append(
+                             (rospy.Time.now().to_sec(), (p.x, p.y, p.z),
+                              (o.x, o.y, o.z, o.w)))
+ 
+@@ -1458,6 +1502,37 @@ class Coordinator(object):
+             x, y = self.positions[name]
+             self.targets_pub[name].publish(Point(x=x, y=y, z=-1.0))
+ 
++    def _passage_target(self, name, position, preferred, owned, frontiers, frontier_ids,
++                        start_cell, preferred_path):
++        now = rospy.Time.now().to_sec()
++        stamp, frame = self.passage_frames.get(name, (None, None))
++        proposed, scores = preferred, {}
++        paths = {preferred: preferred_path}
++        if (frame is not None and 0.0 <= now - stamp <= MAX_IMAGE_AGE_S
++                and np.linalg.norm(position - frame[0][:2]) <= MAX_POSE_DRIFT_M):
++            preferred_score = score_direction(frame, frontiers[preferred])
++            try_alternatives = (preferred_path and preferred_score is not None
++                                and preferred_score['far'] <= MAX_BLOCKED_SCORE)
++            for index in owned:
++                if index == preferred:
++                    continue
++                score = score_direction(frame, frontiers[index])
++                paths[index] = (self._plan_path(start_cell, self._cell_index(*frontiers[index]))
++                                if try_alternatives and score is not None
++                                and score['far'] >= MIN_OPEN_SCORE else None)
++            candidates = {index: (frontiers[index], path) for index, path in paths.items()}
++            proposed, scores = propose_passage(preferred, candidates, frame, GRID_RES)
++        selected = proposed if self.rgb_passage_mode == 'rerank' else preferred
++        elapsed, _ = self._frontier_trace_snapshot()
++        self.frontier_trace.record(
++            'passage_decision', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++            image_stamp=stamp, preferred=int(frontier_ids[preferred]),
++            would_select=int(frontier_ids[proposed]), selected=int(frontier_ids[selected]),
++            candidates=[dict(frontier_id=int(frontier_ids[index]), score=score,
++                             route_m=route_length(paths[index], GRID_RES) if paths[index] else None)
++                        for index, score in scores.items()])
++        return selected, paths[selected]
++
+     def _depth_target(self, name, position, preferred, alternatives, frontiers, frontier_ids,
+                       selected_path, selection_source):
+         now = rospy.Time.now().to_sec()
+@@ -2428,6 +2503,10 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                             if best_index is None:
+                                 self._hold_depth_interruption(name)
+                                 continue
++                        if self.rgb_passage_mode != 'off':
++                            best_index, selected_path = self._passage_target(
++                                name, pos, best_index, np.flatnonzero(owner == i),
++                                frontiers, frontier_ids, start_cell, selected_path)
+                         best = frontiers[best_index]
+                         if self.depth_active:
+                             self.depth_confirmations[name].reset()
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/passage_scene.py b/turtlebot_ddpg/scripts/voronoi_exploration/passage_scene.py
+new file mode 100644
+index 0000000..6343627
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/passage_scene.py
+@@ -0,0 +1,66 @@
++"""Mirrored doorway scenes for testing RGB information beyond scan range."""
++
++DOOR_X = 1.5
++DOOR_HALF_WIDTH = 0.75
++STAGING_Y = 4.30
++ARENA = (-4.8, -5.0, 4.8, 5.0)
++
++
++def profile(open_side):
++    inner = DOOR_X - DOOR_HALF_WIDTH
++    outer = DOOR_X + DOOR_HALF_WIDTH
++    gaps = {1: (inner, outer), -1: (-outer, -inner)}
++    left, right = gaps[open_side]
++    return {'arena': ARENA, 'obstacles': [
++        (ARENA[0], -0.1, left, 0.1),
++        (right, -0.1, ARENA[2], 0.1),
++    ]}
++
++
++PASSAGE_PROFILES = {
++    'passage_left_open': profile(1),
++    'passage_right_open': profile(-1),
++}
++
++
++def box(name, bounds, height, z, colour):
++    x0, y0, x1, y1 = bounds
++    return f"""<model name="{name}"><static>true</static>
++      <pose>{(x0 + x1) / 2} {(y0 + y1) / 2} {z} 0 0 0</pose>
++      <link name="link">
++        <collision name="collision">
++          <geometry><box><size>{x1 - x0} {y1 - y0} {height}</size></box></geometry>
++        </collision>
++        <visual name="visual">
++          <geometry><box><size>{x1 - x0} {y1 - y0} {height}</size></box></geometry>
++          <material><ambient>{colour} 1</ambient><diffuse>{colour} 1</diffuse></material>
++        </visual>
++      </link>
++    </model>"""
++
++
++def world_xml(world):
++    x0, y0, x1, y1 = ARENA
++    thickness = 0.15
++    boundary = [
++        (x0 - thickness, y0, x0, y1),
++        (x1, y0, x1 + thickness, y1),
++        (x0 - thickness, y0 - thickness, x1 + thickness, y0),
++        (x0 - thickness, y1, x1 + thickness, y1 + thickness),
++    ]
++    walls = PASSAGE_PROFILES[world]['obstacles'] + boundary
++    obstacles = '\n'.join(box(f'wall_{index}', bounds, 0.8, 0.4, '0.26 0.29 0.34')
++                          for index, bounds in enumerate(walls))
++    floor = box('floor', (x0 - 1, y0 - 1, x1 + 1, y1 + 1), 0.1, -0.05, '0.62 0.62 0.62')
++    return f"""<?xml version="1.0" ?>
++<sdf version="1.6"><world name="{world}">
++    <scene><ambient>0.7 0.7 0.7 1</ambient><background>0.55 0.55 0.55 1</background>
++      <shadows>false</shadows></scene>
++    <light name="downlight" type="directional">
++      <cast_shadows>false</cast_shadows><direction>0 0 -1</direction>
++      <diffuse>0.45 0.45 0.45 1</diffuse><specular>0 0 0 1</specular>
++    </light>
++    {floor}
++    {obstacles}
++</world></sdf>
++"""
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/rgb_passage.py b/turtlebot_ddpg/scripts/voronoi_exploration/rgb_passage.py
+new file mode 100644
+index 0000000..07137f0
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/rgb_passage.py
+@@ -0,0 +1,118 @@
++"""Estimate visible floor continuation beyond the Waffle Pi's planar LiDAR."""
++
++import math
++
++import numpy as np
++from scipy.spatial.transform import Rotation
++
++from depth_corridor import CAMERA_ORIGIN
++
++
++BEARINGS_DEG = np.arange(-28.0, 29.0, 2.0)
++NEAR_DISTANCES = (2.0, 2.6, 3.1)
++FAR_DISTANCES = (3.85, 4.25, 4.65, 5.15, 5.65)
++LATERAL_OFFSETS = np.array([-0.20, -0.10, 0.0, 0.10, 0.20])
++MAX_IMAGE_AGE_S = 0.40
++MAX_POSE_DRIFT_M = 0.25
++MIN_NEAR_SCORE = 0.75
++MAX_BLOCKED_SCORE = 0.35
++MIN_OPEN_SCORE = 0.80
++MAX_EXTRA_ROUTE_M = 0.60
++
++
++def project_floor(shape, intrinsics, pose, bearings_deg, distances, offsets):
++    """Return pixel coordinates for horizontal, heading-relative floor samples."""
++    position, quaternion = pose
++    body = Rotation.from_quat(quaternion)
++    forward = body.apply([1.0, 0.0, 0.0])
++    yaw = math.atan2(forward[1], forward[0])
++    heading = Rotation.from_rotvec([0.0, 0.0, yaw])
++    relative = (body.inv() * heading).as_matrix()
++    angle = np.deg2rad(bearings_deg)[:, None, None]
++    distance = np.asarray(distances)[None, :, None]
++    lateral = np.asarray(offsets)[None, None, :]
++    x = np.cos(angle) * distance - np.sin(angle) * lateral
++    y = np.sin(angle) * distance + np.cos(angle) * lateral
++    points = np.stack((x, y, np.full_like(x, -position[2])), axis=-1)
++    optical = points @ relative.T - CAMERA_ORIGIN
++    fx, fy, cx, cy = intrinsics
++    depth = optical[..., 0]
++    with np.errstate(divide='ignore', invalid='ignore'):
++        u = cx - fx * optical[..., 1] / depth
++        v = cy - fy * optical[..., 2] / depth
++    valid = ((depth > 0) & (u >= 0) & (u < shape[1] - 1)
++             & (v >= 0) & (v < shape[0] - 1))
++    return u, v, valid, yaw
++
++
++def floor_samples(image, intrinsics, pose, bearings, distances, offsets):
++    u, v, valid, yaw = project_floor(
++        image.shape, intrinsics, pose, bearings, distances, offsets)
++    u, v = np.where(valid, u, 0.0), np.where(valid, v, 0.0)
++    x, y = u.astype(int), v.astype(int)
++    du, dv = (u - x)[..., None], (v - y)[..., None]
++    top = (1 - du) * image[y, x] + du * image[y, x + 1]
++    bottom = (1 - du) * image[y + 1, x] + du * image[y + 1, x + 1]
++    return (1 - dv) * top + dv * bottom, valid, yaw
++
++
++def measure_passage(image, intrinsics, pose):
++    """Return the frame yaw, near score and beyond-range score for each bearing."""
++    reference, valid, yaw = floor_samples(
++        image, intrinsics, pose, [0.0], [0.50, 0.60, 0.75], LATERAL_OFFSETS)
++    if not valid.all():
++        return None
++    reference_rgb = np.median(reference, axis=(0, 1, 2))
++    spread = np.max(np.linalg.norm(reference - reference_rgb, axis=-1))
++    if not 35 <= reference_rgb.mean() <= 235 or spread > 32:
++        return None
++    samples, valid, _ = floor_samples(
++        image, intrinsics, pose, BEARINGS_DEG, NEAR_DISTANCES + FAR_DISTANCES,
++        LATERAL_OFFSETS)
++    error = np.linalg.norm(samples - reference_rgb, axis=-1)
++    floor_likelihood = np.clip((48.0 - error) / 28.0, 0.0, 1.0)
++    band_score = floor_likelihood.mean(axis=-1)
++    near_count = len(NEAR_DISTANCES)
++    near = band_score[:, :near_count].min(axis=1)
++    far = band_score[:, near_count:].min(axis=1)
++    invalid = ~valid.all(axis=(1, 2))
++    near[invalid] = np.nan
++    far[invalid | (near < MIN_NEAR_SCORE)] = np.nan
++    return yaw, near, far
++
++
++def score_direction(sample, target_xy):
++    """Look up the nearest measured bearing without extrapolating the image."""
++    position, yaw, near, far = sample
++    bearing = math.atan2(target_xy[1] - position[1], target_xy[0] - position[0]) - yaw
++    angle = math.degrees(math.atan2(math.sin(bearing), math.cos(bearing)))
++    if not BEARINGS_DEG[0] <= angle <= BEARINGS_DEG[-1]:
++        return None
++    index = int(np.argmin(np.abs(BEARINGS_DEG - angle)))
++    if not np.isfinite(far[index]):
++        return None
++    return {'bearing_deg': angle, 'near': float(near[index]), 'far': float(far[index])}
++
++
++def propose_passage(preferred, candidates, sample, grid_resolution):
++    """Suggest a reachable, similarly short path toward camera-visible floor."""
++    _, preferred_path = candidates[preferred]
++    scores = {index: score_direction(sample, xy)
++              for index, (xy, _) in candidates.items()}
++    preferred_score = scores[preferred]
++    if not preferred_path or preferred_score is None or preferred_score['far'] > MAX_BLOCKED_SCORE:
++        return preferred, scores
++    maximum = route_length(preferred_path, grid_resolution) + MAX_EXTRA_ROUTE_M
++    choices = []
++    for index, (_, path) in candidates.items():
++        score = scores[index]
++        if index != preferred and path and score is not None and score['far'] >= MIN_OPEN_SCORE:
++            length = route_length(path, grid_resolution)
++            if length <= maximum + 1e-9:
++                choices.append((length, -score['far'], index))
++    return min(choices)[-1] if choices else preferred, scores
++
++
++def route_length(path, resolution):
++    return resolution * sum(math.hypot(x1 - x0, y1 - y0)
++                            for (x0, y0), (x1, y1) in zip(path, path[1:]))

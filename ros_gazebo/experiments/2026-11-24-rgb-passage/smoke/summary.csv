@@ -1,0 +1,4 @@
+stage,cue,layout,environment_seed,condition,order,horizon,elapsed_s,coverage_pct,coverage_mask_sha256,path_m,goals_reached,stuck_events,recovery_results,recovery_successes,near_collision_events,rgb_pair_availability,time_to_90_s,time_to_97_s,assignments,preferred_scored,proposed_reranks,applied_reranks
+eval,lidar,passage_left_open,65391,lidar,1,40,40.002,63.6696,deddda197a8234679af3b5e95e33ef4664193c5c3414fe39f140b0637a00dd04,24.7904,3,3,3,0,0,1.0,,,36,14,0,0
+eval,lidar,passage_left_open,65391,fusion,2,40,40.003,60.9649,deddda197a8234679af3b5e95e33ef4664193c5c3414fe39f140b0637a00dd04,21.398,4,3,2,1,1,0.9979035639412998,,,37,11,0,0
+eval,lidar,passage_left_open,65391,passage,3,40,40.059,64.693,deddda197a8234679af3b5e95e33ef4664193c5c3414fe39f140b0637a00dd04,27.4345,2,0,0,0,0,0.9979035639412998,,,33,7,0,0

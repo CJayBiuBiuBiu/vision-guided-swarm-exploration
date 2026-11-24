@@ -79,6 +79,8 @@ The [matched vision training study](matched-vision-training.md) trains two
 MAPPO actors independently with the same budget and observation mask.
 The [training extension](vision-training-extension.md) follows the same
 lineages through fixed checkpoints and a new held-out test.
+The [RGB passage study](rgb-passage-study.md) projects visible floor beyond
+the scan horizon and evaluates its use in frontier selection.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)

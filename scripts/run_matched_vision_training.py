@@ -74,7 +74,7 @@ def run_name(run):
     return f"{run['stage']}_{run['seed']}_{run['cue']}_{label}"
 
 
-def verify_metrics(directory, run):
+def verify_metrics(directory, run, *, rules="lidar"):
     if (directory / "exit_status.txt").read_text().strip() != "0":
         raise ValueError(f"ROS launch failed in {directory}")
     log = (directory / "launch.log").read_text(errors="replace")
@@ -86,7 +86,7 @@ def verify_metrics(directory, run):
     expected = dict(selection_mode="mappo", mapping_mode="laser_scan", pose_source="gazebo_truth",
                     experiment_seed=str(run["environment_seed"]), world_profile=run["layout"],
                     vision_scoring_mode="matched_directional_clearance", clearance_actor_cue=run["cue"],
-                    clearance_rules_cue="lidar", robot_count="3", fusion_pairing_mode="buffered")
+                    clearance_rules_cue=rules, robot_count="3", fusion_pairing_mode="buffered")
     if not rows or any({row[key] for row in rows} != {value} for key, value in expected.items()):
         raise ValueError(f"Unexpected or missing runtime configuration in {directory}")
     last = rows[-1]
