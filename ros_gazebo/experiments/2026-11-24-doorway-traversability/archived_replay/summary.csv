@@ -1,0 +1,3 @@
+case,side,center_x,kind,nominal_width_m,blocked_exit,traversable,old_far_score,old_open,entry_width_m,rear_width_m,width_rule_passable,lidar_at_horizon,rgb_sha256,sensors_sha256
+left_reference,left,1.5,reference,1.5,False,True,1.0,True,1.425,1.4,True,True,794224ad063a901737fc975fc10777383f1f5a65931f7452cde3fc165c5532d0,d67fc70327dc87ded7aeea01eca58798991711fb01046012265e516716067163
+right_reference,right,-1.5,reference,1.5,False,True,1.0,True,1.425,1.4,True,True,ad8d27fe27cf17021db81aae4c703263a0f40b2e75499dab9a3def9ab10167cc,beaeb2c6ef2bcb0949109b355717cb3de534ece9469362a7b130e47f3893a3b6
