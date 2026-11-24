@@ -1,0 +1,9 @@
+layout,seed,baseline,applied_reranks,coverage_delta_pp,path_delta_m,near_collision_delta,stuck_delta,recovery_success_delta,crossed_delta,passage_first_crossing_s,baseline_first_crossing_s,first_crossing_s_delta,passage_time_to_90_s,baseline_time_to_90_s,time_to_90_s_delta,passage_time_to_97_s,baseline_time_to_97_s,time_to_97_s_delta
+passage_left_open,65401,lidar,0,-45.6871,-1.7606,-5,-5,-3,-1,,32.003,,,80.005,,,,
+passage_left_open,65401,fusion,0,-26.7544,-2.5026,-4,-6,0,-1,,67.251,,,,,,,
+passage_left_open,65404,lidar,0,-15.2046,-2.9449,-1,0,0,0,76.002,57.502,18.5,,,,,,
+passage_left_open,65404,fusion,0,-26.6081,-3.5242,2,4,2,-1,76.002,25.252,50.75,,87.757,,,,
+passage_right_open,65402,lidar,1,-43.7865,-9.2021,1,10,8,-1,,39.003,,,81.007,,,,
+passage_right_open,65402,fusion,1,-42.3977,-15.8041,1,18,11,-2,,22.754,,,69.761,,,,
+passage_right_open,65403,lidar,1,-3.728,3.6996,-1,-3,-2,1,26.005,26.002,0.003,76.257,81.502,-5.245,,,
+passage_right_open,65403,fusion,1,-1.1696,10.0423,-6,-10,-3,0,26.005,27.001,-0.996,76.257,75.752,0.505,,,

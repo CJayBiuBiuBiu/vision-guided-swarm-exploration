@@ -1,0 +1,3 @@
+layout,seed,robot,attempt_id,elapsed_s,image_age_s,original_frontier,selected_frontier,original_far_score,selected_far_score,original_route_m,selected_route_m,outcome,outcome_elapsed_s
+passage_right_open,65402,robot1,4,4.011,0.097,1,7,0.0,1.0,0.682842712474619,0.965685424949238,wait,5.758
+passage_right_open,65403,robot1,4,4.265,0.029,1,7,0.0,1.0,0.682842712474619,0.965685424949238,wait,5.754

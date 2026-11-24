@@ -1,0 +1,139 @@
+{
+  "input_sha256": {
+    "actor": "24c3c2edf94593484cf36a596054cc0d0273f922e3039e2fbe5fdd4d45cff212",
+    "clearance_runner": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "probe": "1ccc56d90a515fede45ff852d516301a2df1998f369455d93eae41358a16d9ba",
+    "rgb": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "runner": "14b3f7791e6004cb79e96bf1d930664fe22e1cceb4d7dfc80b2460e90bcca1b1",
+    "training_runner": "2fb2759e6fe0a76b645d1b9425e32faa75e6293ee2567509013ad8c6dcfc4cdd"
+  },
+  "probe_seed": null,
+  "ros_tree": "92e578d8fa047e115a97c49a7f12ed3ea73d5dd6",
+  "runs": [
+    {
+      "condition": "lidar",
+      "cue": "lidar",
+      "environment_seed": 65401,
+      "horizon": 90,
+      "layout": "passage_left_open",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "condition": "fusion",
+      "cue": "lidar",
+      "environment_seed": 65401,
+      "horizon": 90,
+      "layout": "passage_left_open",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "condition": "passage",
+      "cue": "lidar",
+      "environment_seed": 65401,
+      "horizon": 90,
+      "layout": "passage_left_open",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "condition": "fusion",
+      "cue": "lidar",
+      "environment_seed": 65402,
+      "horizon": 90,
+      "layout": "passage_right_open",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "condition": "passage",
+      "cue": "lidar",
+      "environment_seed": 65402,
+      "horizon": 90,
+      "layout": "passage_right_open",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "condition": "lidar",
+      "cue": "lidar",
+      "environment_seed": 65402,
+      "horizon": 90,
+      "layout": "passage_right_open",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "condition": "passage",
+      "cue": "lidar",
+      "environment_seed": 65403,
+      "horizon": 90,
+      "layout": "passage_right_open",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "condition": "lidar",
+      "cue": "lidar",
+      "environment_seed": 65403,
+      "horizon": 90,
+      "layout": "passage_right_open",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "condition": "fusion",
+      "cue": "lidar",
+      "environment_seed": 65403,
+      "horizon": 90,
+      "layout": "passage_right_open",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "condition": "passage",
+      "cue": "lidar",
+      "environment_seed": 65404,
+      "horizon": 90,
+      "layout": "passage_left_open",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "condition": "fusion",
+      "cue": "lidar",
+      "environment_seed": 65404,
+      "horizon": 90,
+      "layout": "passage_left_open",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "condition": "lidar",
+      "cue": "lidar",
+      "environment_seed": 65404,
+      "horizon": 90,
+      "layout": "passage_left_open",
+      "order": 3,
+      "stage": "eval"
+    }
+  ],
+  "spawn": [
+    "robot1_x:=-3.0",
+    "robot1_y:=4.3",
+    "robot1_yaw:=-1.57079632679",
+    "robot2_x:=0.0",
+    "robot2_y:=4.3",
+    "robot2_yaw:=-1.57079632679",
+    "robot3_x:=3.0",
+    "robot3_y:=4.3",
+    "robot3_yaw:=-1.57079632679"
+  ],
+  "stage": "pilot",
+  "world_sha256": {
+    "passage_left_open": "d100e6b3f27f6e858e904f83c2dd753823f7ec2eb22ca4b92e36a46953eaf485",
+    "passage_right_open": "aa01a522727d2105af0b03c7305a35bfc580ea9d316011a381fa225df50c3a70"
+  }
+}
