@@ -1,0 +1,272 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 9508506..04ff3c2 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -114,6 +114,8 @@
+   <arg name="policy_wait_mode" default="legacy"
+        doc="legacy, cancel with waypoint retirement, or conditional goal hold"/>
+   <arg name="policy_wait_hold_s" default="4.5"/>
++  <arg name="policy_wait_margin" default="0.0"
++       doc="Recheck continuation on a deterministic WAIT within this logit margin (requires cancel mode)"/>
+   <arg name="network_action_trace_path" default=""/>
+   <arg name="start_network_policy" default="false"/>
+   <arg name="decentralized_actor_nodes" default="false"
+@@ -257,6 +259,7 @@
+            value="$(arg observed_area_progress_epsilon_m2)"/>
+     <param name="policy_wait_mode" value="$(arg policy_wait_mode)"/>
+     <param name="policy_wait_hold_s" value="$(arg policy_wait_hold_s)"/>
++    <param name="policy_wait_margin" value="$(arg policy_wait_margin)"/>
+     <param name="starts_policy_training" value="$(arg start_mappo_training)"/>
+     <param name="hybrid_fallback_stall_seconds"
+            value="$(arg hybrid_fallback_stall_seconds)"/>
+@@ -382,6 +385,7 @@
+           required="true">
+       <rosparam param="robot_names" subst_value="true">$(arg robot_names)</rosparam>
+       <param name="action_trace_path" value="$(arg network_action_trace_path)" type="str"/>
++      <param name="wait_margin" value="$(arg policy_wait_margin)"/>
+       <param name="checkpoint" value="$(arg mappo_checkpoint)"/>
+       <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+       <param name="deterministic" value="$(arg network_deterministic)"/>
+@@ -395,6 +399,7 @@
+       <node pkg="turtlebot_ddpg" type="mappo_policy_node.py"
+             name="robot1_mappo_actor" output="screen" required="true">
+         <param name="robot_name" value="robot1"/>
++        <param name="wait_margin" value="$(arg policy_wait_margin)"/>
+         <param name="checkpoint" value="$(arg mappo_checkpoint)"/>
+         <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+         <param name="deterministic" value="$(arg network_deterministic)"/>
+@@ -406,6 +411,7 @@
+       <node pkg="turtlebot_ddpg" type="mappo_policy_node.py"
+             name="robot2_mappo_actor" output="screen" required="true">
+         <param name="robot_name" value="robot2"/>
++        <param name="wait_margin" value="$(arg policy_wait_margin)"/>
+         <param name="checkpoint" value="$(arg mappo_checkpoint)"/>
+         <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+         <param name="deterministic" value="$(arg network_deterministic)"/>
+@@ -417,6 +423,7 @@
+       <node pkg="turtlebot_ddpg" type="mappo_policy_node.py"
+             name="robot3_mappo_actor" output="screen" required="true">
+         <param name="robot_name" value="robot3"/>
++        <param name="wait_margin" value="$(arg policy_wait_margin)"/>
+         <param name="checkpoint" value="$(arg mappo_checkpoint)"/>
+         <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+         <param name="deterministic" value="$(arg network_deterministic)"/>
+diff --git a/turtlebot_ddpg/msg/FrontierAction.msg b/turtlebot_ddpg/msg/FrontierAction.msg
+index 9440f52..a813165 100644
+--- a/turtlebot_ddpg/msg/FrontierAction.msg
++++ b/turtlebot_ddpg/msg/FrontierAction.msg
+@@ -1,6 +1,7 @@
+ uint8 SELECT=0
+ uint8 CONTINUE=1
+ uint8 WAIT=2
++uint8 RECHECK_CONTINUE=3
+ 
+ std_msgs/Header header
+ string robot_name
+diff --git a/turtlebot_ddpg/scripts/mappo_policy_node.py b/turtlebot_ddpg/scripts/mappo_policy_node.py
+index fed16fc..e2ed367 100755
+--- a/turtlebot_ddpg/scripts/mappo_policy_node.py
++++ b/turtlebot_ddpg/scripts/mappo_policy_node.py
+@@ -2,6 +2,7 @@
+ """Minimal decentralized ROS inference node for frontier-level MAPPO."""
+ 
+ import json
++import math
+ import os
+ import sys
+ import threading
+@@ -16,6 +17,7 @@ sys.path.insert(0, MARL_DIR)
+ from mappo import MAPPO
+ from observation_adapter import ObservationSpec, adapt_observation, stack_observations
+ from turtlebot_ddpg.msg import FrontierAction, FrontierObservation
++from voronoi_exploration.policy_goal import weak_wait_preference
+ 
+ 
+ DEFAULT_ROBOTS = ['robot1', 'robot2', 'robot3']
+@@ -31,6 +33,10 @@ class MAPPOPolicyNode(object):
+         self.robot_names = ([self.robot_name] if self.robot_name else
+                             list(self.team_robot_names))
+         self.deterministic = bool(rospy.get_param('~deterministic', True))
++        self.wait_margin = float(rospy.get_param('~wait_margin', 0.0))
++        if (not math.isfinite(self.wait_margin) or self.wait_margin < 0.0
++                or (self.wait_margin > 0.0 and not self.deterministic)):
++            raise ValueError('wait_margin requires a non-negative finite margin and deterministic inference')
+         self.allow_untrained = bool(rospy.get_param('~allow_untrained', False))
+         self.decision_interval = float(rospy.get_param('~decision_interval', 2.5))
+         self.checkpoint = os.path.expanduser(rospy.get_param('~checkpoint', ''))
+@@ -84,12 +90,17 @@ class MAPPOPolicyNode(object):
+             observation = adapt_observation(message, self.spec)
+             batched = stack_observations([observation])
+             decision = self.policy.act(
+-                batched, deterministic=self.deterministic, return_logits=self.action_trace is not None)
++                batched, deterministic=self.deterministic,
++                return_logits=self.wait_margin > 0.0 or self.action_trace is not None)
+             action_index = int(decision[0][0])
+         except (ValueError, RuntimeError) as error:
+             rospy.logerr_throttle(2.0, '[mappo_policy] observation failed: %s', error)
+             return
+ 
++        allowed = observation['action_mask']
++        can_continue, can_wait = map(bool, allowed[-2:])
++        margin = (float(decision[2][0][-1] - decision[2][0][-2])
++                  if len(decision) == 3 and can_continue and can_wait else None)
+         action = FrontierAction()
+         action.header.stamp = rospy.Time.now()
+         action.header.frame_id = 'map'
+@@ -106,17 +117,18 @@ class MAPPOPolicyNode(object):
+             action.action_type = FrontierAction.CONTINUE
+             action.frontier_id = -1
+         else:
+-            action.action_type = FrontierAction.WAIT
++            action.action_type = (
++                FrontierAction.RECHECK_CONTINUE
++                if action_index == self.spec.max_frontiers + 1 and message.has_active_goal
++                and weak_wait_preference(margin, self.wait_margin, can_continue, can_wait)
++                else FrontierAction.WAIT)
+             action.frontier_id = -1
+         if self.action_trace is not None:
+-            allowed = observation['action_mask']
+-            can_continue, can_wait = map(bool, allowed[-2:])
+-            logits = decision[2][0]
+             row = dict(robot=name, stamp_s=stamp_s, active_goal=bool(message.has_active_goal),
+                        selectable_frontiers=int(allowed[:-2].sum()),
+                        action_index=action_index, action_type=int(action.action_type),
+                        can_continue=can_continue, can_wait=can_wait,
+-                       wait_minus_continue=float(logits[-1] - logits[-2]) if can_continue and can_wait else None)
++                       wait_minus_continue=margin)
+             with self.action_trace_lock:
+                 if not self.action_trace.closed:
+                     self.action_trace.write(json.dumps(row, allow_nan=False) + '\n')
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 0c2359b..7522eba 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -67,7 +67,7 @@ from hybrid_fallback import (
+     validate_progress_mode)
+ from communication_model import CommunicationModel
+ from motion_safety import recovery_succeeded
+-from policy_goal import POLICY_IDLE_Z, WAIT_MODES, wait_hold_gate
++from policy_goal import POLICY_IDLE_Z, RECHECK_LIMIT_S, WAIT_MODES, wait_hold_gate
+ from recovery_memory import TimedSpatialBlacklist
+ from safety_metrics import ClearanceTelemetry
+ from scan_mapping import (
+@@ -612,10 +612,14 @@ class Coordinator(object):
+             raise ValueError('frontier_trace_path requires observed_free_area and simulation time')
+         self.policy_wait_mode = rospy.get_param('~policy_wait_mode', 'legacy')
+         self.policy_wait_hold_s = float(rospy.get_param('~policy_wait_hold_s', 4.5))
++        self.policy_wait_margin = float(rospy.get_param('~policy_wait_margin', 0.0))
+         if self.policy_wait_mode not in WAIT_MODES:
+             raise ValueError('policy_wait_mode must be one of %s' % (WAIT_MODES,))
+         if not math.isfinite(self.policy_wait_hold_s) or self.policy_wait_hold_s <= 0:
+             raise ValueError('policy_wait_hold_s must be finite and positive')
++        if (not math.isfinite(self.policy_wait_margin) or self.policy_wait_margin < 0.0
++                or (self.policy_wait_margin > 0.0 and self.policy_wait_mode != 'cancel')):
++            raise ValueError('A positive policy_wait_margin requires explicit waypoint cancellation')
+         if self.policy_wait_mode != 'legacy' and (
+                 self.selection_mode != 'mappo' or self.mapping_mode != 'laser_scan'
+                 or self.depth_corridor_mode != 'off' or rospy.get_param('~starts_policy_training', False)):
+@@ -861,7 +865,8 @@ class Coordinator(object):
+                 vision_scoring_mode=self.vision_scoring_mode, vision_role=self.vision_role,
+                 actor_uses_vision=self.actor_uses_vision, rules_use_vision=self.rules_use_vision,
+                 horizon_s=self.max_simulation_seconds, policy_wait_mode=self.policy_wait_mode,
+-                policy_wait_hold_s=self.policy_wait_hold_s, **cue_metadata)
++                policy_wait_hold_s=self.policy_wait_hold_s,
++                policy_wait_margin=self.policy_wait_margin, **cue_metadata)
+             rospy.on_shutdown(self._close_frontier_trace)
+         if self.depth_corridor_mode != 'off':
+             if self.frontier_trace is None:
+@@ -1125,6 +1130,8 @@ class Coordinator(object):
+ 
+         if msg.action_type == FrontierAction.WAIT:
+             return 'wait', None
++        if msg.action_type == FrontierAction.RECHECK_CONTINUE:
++            return ('recheck_continue' if self.policy_wait_margin > 0.0 else 'wait'), None
+         if msg.action_type == FrontierAction.CONTINUE:
+             return 'continue', None
+         if msg.action_type != FrontierAction.SELECT:
+@@ -1510,14 +1517,15 @@ class Coordinator(object):
+                 self.current_goal_id[name] = None
+                 self.current_path[name] = None
+ 
+-    def _retain_on_policy_wait(self, name, pos, goal):
++    def _retain_on_policy_wait(self, name, pos, goal, recheck=False):
+         now = self._control_now()
+         age = None if goal is None else now - self.goal_set_time[name]
+         clearance = self.clearance_telemetry.recent_clearance(name, now)
+         path = None
+         reason = self.policy_wait_mode
+-        if self.policy_wait_mode == 'hold':
+-            reason = wait_hold_gate(age, self.policy_wait_hold_s, clearance,
++        if self.policy_wait_mode == 'hold' or recheck:
++            limit = RECHECK_LIMIT_S if recheck else self.policy_wait_hold_s
++            reason = wait_hold_gate(age, limit, clearance,
+                                     self.near_collision_clear_range)
+             if reason == 'check_route':
+                 goal_cell = self._cell_index(*goal)
+@@ -1528,7 +1536,8 @@ class Coordinator(object):
+         if self.frontier_trace is not None:
+             elapsed, _ = self._frontier_trace_snapshot()
+             self.frontier_trace.record(
+-                'policy_wait', robot=name, elapsed_sim_s=elapsed, goal_age_s=age,
++                'policy_recheck_continue' if recheck else 'policy_wait',
++                robot=name, elapsed_sim_s=elapsed, goal_age_s=age,
+                 clearance_m=clearance, keep=keep,
+                 active_frontier_id=self.current_goal_id.get(name), reason=reason)
+         if keep:
+@@ -2451,8 +2460,9 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 if policy_controls_selection:
+                     action_kind, action_index = self._consume_policy_action(
+                         name, frontiers, frontier_ids, owner, i)
+-                    if action_kind == 'wait':
+-                        if not self._retain_on_policy_wait(name, pos, goal):
++                    if action_kind in ('wait', 'recheck_continue'):
++                        if not self._retain_on_policy_wait(
++                                name, pos, goal, recheck=action_kind == 'recheck_continue'):
+                             if goal is not None:
+                                 self.goals_cleared_wait += 1
+                                 self._finish_frontier_attempt(name, 'wait')
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/policy_goal.py b/turtlebot_ddpg/scripts/voronoi_exploration/policy_goal.py
+index da0a59e..2a17f42 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/policy_goal.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/policy_goal.py
+@@ -5,6 +5,14 @@ import math
+ 
+ WAIT_MODES = ('legacy', 'cancel', 'hold')
+ POLICY_IDLE_Z = -2.0
++RECHECK_LIMIT_S = 12.0
++
++
++def weak_wait_preference(wait_margin, maximum_margin, can_continue, can_wait):
++    """Whether a deterministic WAIT warrants checking the active route."""
++    return (maximum_margin > 0.0 and can_continue and can_wait and
++            wait_margin is not None and math.isfinite(wait_margin) and
++            0.0 <= wait_margin <= maximum_margin)
+ 
+ 
+ def wait_hold_gate(goal_age_s, hold_s, clearance_m, minimum_clearance_m):
+diff --git a/turtlebot_ddpg/tests/test_policy_goal.py b/turtlebot_ddpg/tests/test_policy_goal.py
+index bcf3dc1..5c1fc42 100644
+--- a/turtlebot_ddpg/tests/test_policy_goal.py
++++ b/turtlebot_ddpg/tests/test_policy_goal.py
+@@ -3,11 +3,20 @@ import unittest
+ from pathlib import Path
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
+-from policy_goal import wait_hold_gate
++from policy_goal import wait_hold_gate, weak_wait_preference
+ from safety_metrics import ClearanceTelemetry
+ 
+ 
+ class PolicyGoalTests(unittest.TestCase):
++    def test_wait_margin_preserves_mask_and_definite_waits(self):
++        for gap in (0.0, 0.05, 0.1):
++            self.assertTrue(weak_wait_preference(gap, 0.1, True, True))
++        for gap in (None, float('nan'), -0.05, 0.11):
++            self.assertFalse(weak_wait_preference(gap, 0.1, True, True))
++        self.assertFalse(weak_wait_preference(0.0, 0.0, True, True))
++        self.assertFalse(weak_wait_preference(0.05, 0.1, False, True))
++        self.assertFalse(weak_wait_preference(0.05, 0.1, True, False))
++
+     def test_wait_checks_route_only_for_a_young_clear_goal(self):
+         self.assertEqual(wait_hold_gate(1.5, 4.5, 0.50, 0.25), 'check_route')
+         self.assertEqual(wait_hold_gate(4.5, 4.5, 0.50, 0.25), 'hold_elapsed')
