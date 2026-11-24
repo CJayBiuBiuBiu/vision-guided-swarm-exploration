@@ -136,3 +136,46 @@ STUDY="$PWD/ros_gazebo/experiments/2026-11-24-rgb-low-clearance"
 python3 scripts/run_rgb_clearance_guard_study.py "$ROS_PROJECT" "$ACTOR" \
   "$ARCHIVED_ALIGNED_RGB" "$STUDY/calibrated" "$RUN_DIR"
 ```
+
+## Verified closed-loop results
+
+All 16 trials reached 75 simulation seconds. A second audit
+recalculated the recorded fusion scores and verified the completed
+schedule. The ROS test suite passed all 120 tests.
+
+| Frontier rule cue | Mean coverage | Mean path length | Low scan scores increased |
+| --- | ---: | ---: | ---: |
+| LiDAR | 56.11% | 45.79 m | 0/120 |
+| Archived RGB, fixed fusion | 60.60% | 48.48 m | 108/108 |
+| Calibrated RGB, fixed fusion | 54.95% | 47.83 m | 109/128 |
+| Calibrated RGB, guarded fusion | 56.54% | 47.29 m | 0/108 |
+
+The calibrated fixed fusion finished 5.65 percentage points below
+archived fixed fusion on average. The guard raised the calibrated
+configuration's mean coverage by 1.59 points relative to fixed fusion.
+Against LiDAR, the guarded configuration led by 0.43 points on average
+and won one of the four seed pairs. These outcomes show no repeatable
+coverage gain within the tested layouts and budget. None of the
+conditions reached 90% or 97% coverage within 75 s.
+
+Archived fixed fusion raised low scan scores by 0.362 on average.
+Calibrated fixed fusion reduced this increase to 0.200. The guard
+preserved all 108 low scores seen in its assignment traces. In the
+five previously recorded close-obstacle views, the replay used the
+same image and scan to compare old RGB, calibrated RGB and the
+guard. For the two obstacles flanking an open centre, side scores
+changed from 0.821 and 0.802 to 0.560 and 0.397. The guarded fusion
+scores were 0.339 and 0.319, close to the scan scores of 0.309.
+
+The shared policy's `WAIT` action still ended most assignments.
+In the guarded arm it ended 241 of 265 goals, at a median of 1.5 s
+after assignment. Across all four conditions the median was 1.5 s.
+The traces show that target retention remains a limitation during
+these runs. They do not quantify how changing it would affect coverage.
+
+Set `clearance_rules_cue:=guarded_fusion` with
+`vision_scoring_mode:=matched_directional_clearance` to opt into the
+guard. The published comparison keeps `clearance_actor_cue:=lidar`.
+
+[Verified runs, paired metrics and coverage figure](../ros_gazebo/experiments/2026-11-24-rgb-low-clearance/formal_analysis/)
+· [Controlled image replay](../ros_gazebo/experiments/2026-11-24-rgb-low-clearance/calibrated/obstruction_replay.csv)

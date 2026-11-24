@@ -1,0 +1,13 @@
+layout,seed,method,baseline,method_coverage,baseline_coverage,coverage_pct_delta,path_m_delta,goals_reached_delta,near_collision_events_delta,stuck_events_delta,recovery_successes_delta,time_to_90_s_method,time_to_90_s_baseline,time_to_90_s_delta,time_to_97_s_method,time_to_97_s_baseline,time_to_97_s_delta
+hu_aligned,66401,new_fixed,old_fixed,56.044,58.4707,-2.4267,-0.1824,0.0,16.0,-3.0,-2.0,,,,,,
+hu_aligned,66401,new_guarded,new_fixed,49.13,56.044,-6.914,-1.5373,-2.0,-20.0,3.0,2.0,,,,,,
+hu_aligned,66401,new_guarded,lidar,49.13,55.5861,-6.4561,-1.6966,-1.0,-20.0,1.0,1.0,,,,,,
+hu_aligned,66403,new_fixed,old_fixed,57.1429,65.2015,-8.0586,-2.716,-3.0,1.0,1.0,0.0,,,,,,
+hu_aligned,66403,new_guarded,new_fixed,55.0366,57.1429,-2.1063,0.4576,2.0,-26.0,-1.0,1.0,,,,,,
+hu_aligned,66403,new_guarded,lidar,55.0366,55.4487,-0.4121,0.9474,0.0,-3.0,1.0,0.0,,,,,,
+hu_layout_c,66402,new_fixed,old_fixed,61.8161,61.5122,0.3039,-0.8579,-1.0,7.0,2.0,1.0,,,,,,
+hu_layout_c,66402,new_guarded,new_fixed,61.6261,61.8161,-0.19,4.0016,1.0,0.0,-3.0,-1.0,,,,,,
+hu_layout_c,66402,new_guarded,lidar,61.6261,51.9757,9.6504,9.947,-1.0,27.0,-6.0,-4.0,,,,,,
+hu_layout_c,66404,new_fixed,old_fixed,44.7948,57.2188,-12.424,1.172,1.0,-30.0,1.0,-1.0,,,,,,
+hu_layout_c,66404,new_guarded,new_fixed,60.3723,44.7948,15.5775,-5.0812,2.0,-10.0,-1.0,0.0,,,,,,
+hu_layout_c,66404,new_guarded,lidar,60.3723,61.4362,-1.0639,-3.1832,0.0,-13.0,-1.0,0.0,,,,,,

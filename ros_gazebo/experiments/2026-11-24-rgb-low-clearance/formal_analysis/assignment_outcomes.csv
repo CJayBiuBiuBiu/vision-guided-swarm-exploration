@@ -1,0 +1,5 @@
+method,assignments,reached,ended_by_wait,median_wait_delay_s
+lidar,258,12,229,1.5
+new_fixed,267,7,250,1.5
+new_guarded,265,10,241,1.5
+old_fixed,280,10,259,1.5

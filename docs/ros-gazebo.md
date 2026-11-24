@@ -84,6 +84,8 @@ the scan horizon and evaluates its use in frontier selection.
 The [RGB encoder audit](rgb-encoder-audit.md) compares the checkpoints
 and tests whether their direction scores agree with the planar scan. The [closed-loop retest](rgb-encoder-retest.md)
 checks the corrected checkpoint with matched trials and a frozen actor.
+The [low-clearance study](rgb-low-clearance-study.md) compares training
+supervision, calibrated scores and a LiDAR-preserving fusion rule.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)
