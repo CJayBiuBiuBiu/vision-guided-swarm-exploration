@@ -1,0 +1,386 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index d7aa6ae..9508506 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -111,6 +111,10 @@
+        doc="euclidean (checkpoint-compatible default) or line_risk"/>
+   <arg name="start_smoke_policy" default="false"
+        doc="Start the deterministic ROS policy bridge used to validate mappo mode"/>
++  <arg name="policy_wait_mode" default="legacy"
++       doc="legacy, cancel with waypoint retirement, or conditional goal hold"/>
++  <arg name="policy_wait_hold_s" default="4.5"/>
++  <arg name="network_action_trace_path" default=""/>
+   <arg name="start_network_policy" default="false"/>
+   <arg name="decentralized_actor_nodes" default="false"
+        doc="Run one checkpoint-backed actor process per robot during evaluation"/>
+@@ -251,6 +255,8 @@
+     <param name="control_progress_mode" value="$(arg control_progress_mode)"/>
+     <param name="observed_area_progress_epsilon_m2"
+            value="$(arg observed_area_progress_epsilon_m2)"/>
++    <param name="policy_wait_mode" value="$(arg policy_wait_mode)"/>
++    <param name="policy_wait_hold_s" value="$(arg policy_wait_hold_s)"/>
+     <param name="starts_policy_training" value="$(arg start_mappo_training)"/>
+     <param name="hybrid_fallback_stall_seconds"
+            value="$(arg hybrid_fallback_stall_seconds)"/>
+@@ -375,6 +381,7 @@
+           output="screen"
+           required="true">
+       <rosparam param="robot_names" subst_value="true">$(arg robot_names)</rosparam>
++      <param name="action_trace_path" value="$(arg network_action_trace_path)" type="str"/>
+       <param name="checkpoint" value="$(arg mappo_checkpoint)"/>
+       <param name="allow_untrained" value="$(arg allow_untrained_policy)"/>
+       <param name="deterministic" value="$(arg network_deterministic)"/>
+diff --git a/turtlebot_ddpg/scripts/mappo_policy_node.py b/turtlebot_ddpg/scripts/mappo_policy_node.py
+index 925b15f..fed16fc 100755
+--- a/turtlebot_ddpg/scripts/mappo_policy_node.py
++++ b/turtlebot_ddpg/scripts/mappo_policy_node.py
+@@ -1,8 +1,10 @@
+ #!/usr/bin/env python3
+ """Minimal decentralized ROS inference node for frontier-level MAPPO."""
+ 
++import json
+ import os
+ import sys
++import threading
+ 
+ import rospy
+ 
+@@ -49,6 +51,11 @@ class MAPPOPolicyNode(object):
+         else:
+             rospy.logwarn('[mappo_policy] using untrained weights for interface testing only')
+ 
++        telemetry_path = os.path.expanduser(rospy.get_param('~action_trace_path', ''))
++        self.action_trace = open(telemetry_path, 'x', buffering=1) if telemetry_path else None
++        self.action_trace_lock = threading.Lock()
++        if self.action_trace is not None:
++            rospy.on_shutdown(self._close_action_trace)
+         self.publishers = {
+             name: rospy.Publisher('/%s/frontier_action' % name,
+                                   FrontierAction, queue_size=1)
+@@ -63,6 +70,10 @@ class MAPPOPolicyNode(object):
+         rospy.loginfo('[mappo_policy] actors=%s decision_interval=%.2fs',
+                       ','.join(self.robot_names), self.decision_interval)
+ 
++    def _close_action_trace(self):
++        with self.action_trace_lock:
++            self.action_trace.close()
++
+     def _observation_cb(self, message, name):
+         stamp_s = message.header.stamp.to_sec()
+         previous = self.last_decision_time[name]
+@@ -72,9 +83,9 @@ class MAPPOPolicyNode(object):
+         try:
+             observation = adapt_observation(message, self.spec)
+             batched = stack_observations([observation])
+-            action_index, _ = self.policy.act(
+-                batched, deterministic=self.deterministic)
+-            action_index = int(action_index[0])
++            decision = self.policy.act(
++                batched, deterministic=self.deterministic, return_logits=self.action_trace is not None)
++            action_index = int(decision[0][0])
+         except (ValueError, RuntimeError) as error:
+             rospy.logerr_throttle(2.0, '[mappo_policy] observation failed: %s', error)
+             return
+@@ -97,6 +108,18 @@ class MAPPOPolicyNode(object):
+         else:
+             action.action_type = FrontierAction.WAIT
+             action.frontier_id = -1
++        if self.action_trace is not None:
++            allowed = observation['action_mask']
++            can_continue, can_wait = map(bool, allowed[-2:])
++            logits = decision[2][0]
++            row = dict(robot=name, stamp_s=stamp_s, active_goal=bool(message.has_active_goal),
++                       selectable_frontiers=int(allowed[:-2].sum()),
++                       action_index=action_index, action_type=int(action.action_type),
++                       can_continue=can_continue, can_wait=can_wait,
++                       wait_minus_continue=float(logits[-1] - logits[-2]) if can_continue and can_wait else None)
++            with self.action_trace_lock:
++                if not self.action_trace.closed:
++                    self.action_trace.write(json.dumps(row, allow_nan=False) + '\n')
+         self.publishers[name].publish(action)
+ 
+ 
+diff --git a/turtlebot_ddpg/scripts/marl/mappo.py b/turtlebot_ddpg/scripts/marl/mappo.py
+index b8efa14..72cd1ec 100644
+--- a/turtlebot_ddpg/scripts/marl/mappo.py
++++ b/turtlebot_ddpg/scripts/marl/mappo.py
+@@ -141,11 +141,12 @@ class MAPPO(object):
+                            obs['teammates'], obs['teammate_mask'])
+ 
+     @torch.no_grad()
+-    def act(self, obs, deterministic=False):
++    def act(self, obs, deterministic=False, return_logits=False):
+         distribution = Categorical(logits=self.actor_logits(obs))
+         action = (torch.argmax(distribution.logits, dim=-1) if deterministic
+                   else distribution.sample())
+-        return action.cpu().numpy(), distribution.log_prob(action).cpu().numpy()
++        result = (action.cpu().numpy(), distribution.log_prob(action).cpu().numpy())
++        return result + (distribution.logits.cpu().numpy(),) if return_logits else result
+ 
+     def update(self, batch, epochs=5, minibatch_size=256):
+         actor_obs = _to_tensor_dict(batch['actor_obs'], self.device)
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 2365976..0c2359b 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -67,6 +67,7 @@ from hybrid_fallback import (
+     validate_progress_mode)
+ from communication_model import CommunicationModel
+ from motion_safety import recovery_succeeded
++from policy_goal import POLICY_IDLE_Z, WAIT_MODES, wait_hold_gate
+ from recovery_memory import TimedSpatialBlacklist
+ from safety_metrics import ClearanceTelemetry
+ from scan_mapping import (
+@@ -609,6 +610,17 @@ class Coordinator(object):
+         if trace_path and (
+                 not self.use_sim_time or self.control_progress_mode != OBSERVED_FREE_AREA):
+             raise ValueError('frontier_trace_path requires observed_free_area and simulation time')
++        self.policy_wait_mode = rospy.get_param('~policy_wait_mode', 'legacy')
++        self.policy_wait_hold_s = float(rospy.get_param('~policy_wait_hold_s', 4.5))
++        if self.policy_wait_mode not in WAIT_MODES:
++            raise ValueError('policy_wait_mode must be one of %s' % (WAIT_MODES,))
++        if not math.isfinite(self.policy_wait_hold_s) or self.policy_wait_hold_s <= 0:
++            raise ValueError('policy_wait_hold_s must be finite and positive')
++        if self.policy_wait_mode != 'legacy' and (
++                self.selection_mode != 'mappo' or self.mapping_mode != 'laser_scan'
++                or self.depth_corridor_mode != 'off' or rospy.get_param('~starts_policy_training', False)):
++            raise ValueError('Explicit policy waypoint retirement requires MAPPO evaluation and laser mapping')
++        self.policy_waypoints = set()
+         if trace_path and Path(trace_path).resolve() == Path(self.metrics_path).resolve():
+             raise ValueError('frontier_trace_path must differ from metrics_path')
+         self.status_html_path = os.path.expanduser(rospy.get_param(
+@@ -848,7 +860,8 @@ class Coordinator(object):
+                 world_profile=self.world_profile, selection_mode=self.selection_mode,
+                 vision_scoring_mode=self.vision_scoring_mode, vision_role=self.vision_role,
+                 actor_uses_vision=self.actor_uses_vision, rules_use_vision=self.rules_use_vision,
+-                horizon_s=self.max_simulation_seconds, **cue_metadata)
++                horizon_s=self.max_simulation_seconds, policy_wait_mode=self.policy_wait_mode,
++                policy_wait_hold_s=self.policy_wait_hold_s, **cue_metadata)
+             rospy.on_shutdown(self._close_frontier_trace)
+         if self.depth_corridor_mode != 'off':
+             if self.frontier_trace is None:
+@@ -1497,6 +1510,41 @@ class Coordinator(object):
+                 self.current_goal_id[name] = None
+                 self.current_path[name] = None
+ 
++    def _retain_on_policy_wait(self, name, pos, goal):
++        now = self._control_now()
++        age = None if goal is None else now - self.goal_set_time[name]
++        clearance = self.clearance_telemetry.recent_clearance(name, now)
++        path = None
++        reason = self.policy_wait_mode
++        if self.policy_wait_mode == 'hold':
++            reason = wait_hold_gate(age, self.policy_wait_hold_s, clearance,
++                                    self.near_collision_clear_range)
++            if reason == 'check_route':
++                goal_cell = self._cell_index(*goal)
++                if self.grid[goal_cell[1], goal_cell[0]] != 2:
++                    path = self._plan_path(self._cell_index(*pos), goal_cell)
++                reason = 'valid_route' if path else 'blocked_or_disconnected'
++        keep = bool(path and self.current_goal.get(name) == goal)
++        if self.frontier_trace is not None:
++            elapsed, _ = self._frontier_trace_snapshot()
++            self.frontier_trace.record(
++                'policy_wait', robot=name, elapsed_sim_s=elapsed, goal_age_s=age,
++                clearance_m=clearance, keep=keep,
++                active_frontier_id=self.current_goal_id.get(name), reason=reason)
++        if keep:
++            self.current_path[name] = [(self.xs[ix], self.ys[iy]) for ix, iy in path]
++        return keep
++
++    def _retire_policy_waypoint(self, name):
++        if name not in self.policy_waypoints:
++            return
++        self.policy_waypoints.remove(name)
++        x, y = self.positions[name]
++        self.targets_pub[name].publish(Point(x=x, y=y, z=POLICY_IDLE_Z))
++        if self.frontier_trace is not None:
++            elapsed, _ = self._frontier_trace_snapshot()
++            self.frontier_trace.record('policy_waypoint_retired', robot=name, elapsed_sim_s=elapsed)
++
+     def _hold_depth_interruption(self, name):
+         if name in self.depth_interrupted:
+             x, y = self.positions[name]
+@@ -2282,12 +2330,20 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             if len(frontiers) == 0:
+                 for name in self.depth_interrupted:
+                     self._hold_depth_interruption(name)
+-                if self.frontier_trace is not None:
++                if self.frontier_trace is not None or self.policy_wait_mode != 'legacy':
+                     for name in self.robot_names:
+                         goal = self.current_goal.get(name)
+-                        if (goal is not None and
+-                                np.linalg.norm(np.subtract(self.positions[name], goal)) < ARRIVE_THRESH):
++                        reached = (goal is not None and
++                                   np.linalg.norm(np.subtract(self.positions[name], goal)) < ARRIVE_THRESH)
++                        if reached:
+                             self._finish_frontier_attempt(name, 'reached')
++                        if self.policy_wait_mode != 'legacy' and (reached or goal is None):
++                            if reached:
++                                self.goals_reached += 1
++                                self.current_goal[name] = None
++                                self.current_goal_id[name] = None
++                                self.current_path[name] = None
++                            self._retire_policy_waypoint(name)
+                 rate = self._safe_sleep(rate)
+                 continue
+             frontier_ids = self.track_frontiers(frontiers)
+@@ -2396,13 +2452,14 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     action_kind, action_index = self._consume_policy_action(
+                         name, frontiers, frontier_ids, owner, i)
+                     if action_kind == 'wait':
+-                        if goal is not None:
+-                            self.goals_cleared_wait += 1
+-                            self._finish_frontier_attempt(name, 'wait')
+-                        goal = None
+-                        self.current_goal[name] = None
+-                        self.current_goal_id[name] = None
+-                        self.current_path[name] = None
++                        if not self._retain_on_policy_wait(name, pos, goal):
++                            if goal is not None:
++                                self.goals_cleared_wait += 1
++                                self._finish_frontier_attempt(name, 'wait')
++                            goal = None
++                            self.current_goal[name] = None
++                            self.current_goal_id[name] = None
++                            self.current_path[name] = None
+                     elif action_kind == 'select':
+                         selected_id = frontier_ids[action_index]
+                         same_goal = (goal is not None and
+@@ -2579,7 +2636,10 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                                       self.selection_mode, name, best[0], best[1],
+                                       "%d waypoints" % len(path_cells) if path_cells else "none, using beeline")
+ 
++                if self.policy_wait_mode != 'legacy':
++                    goal = self.current_goal.get(name)
+                 if goal is None:
++                    self._retire_policy_waypoint(name)
+                     self._hold_depth_interruption(name)
+                     continue
+ 
+@@ -2588,6 +2648,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+ 
+                 msg = Point(x=waypoint[0], y=waypoint[1], z=0.0)
+                 self.targets_pub[name].publish(msg)
++                if self.policy_wait_mode != 'legacy':
++                    self.policy_waypoints.add(name)
+                 if self.depth_active:
+                     self.depth_commanded_waypoints[name] = waypoint
+ 
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index 7adb25c..9c16389 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -29,6 +29,7 @@ import tensorflow.compat.v1 as tf
+ tf.disable_v2_behavior()
+ import tensorflow.compat.v1.keras.backend as K
+ 
++from policy_goal import POLICY_IDLE_Z
+ from motion_safety import (
+     clearance_guided_turn_direction, clearance_speed_scale,
+     frontal_clearance)
+@@ -104,6 +105,7 @@ class RobotAgent(object):
+         self.target_y = 0.0
+         self.have_target = False
+         self.navigation_hold = False
++        self.policy_idle = False
+         rospy.Subscriber('/%s/exploration_target' % robot_name, Point, self._target_cb)
+ 
+         self.mission_done = False
+@@ -139,6 +141,12 @@ class RobotAgent(object):
+         if msg.z == -1.0:
+             self.navigation_hold = True
+             return
++        if msg.z == POLICY_IDLE_Z:
++            if not self.policy_idle:
++                rospy.loginfo('[%s] retired policy waypoint', self.robot_name)
++            self.policy_idle = True
++            return
++        self.policy_idle = False
+         self.target_x = msg.x
+         self.target_y = msg.y
+         self.have_target = True
+@@ -325,6 +333,10 @@ def main():
+             agent.pub.publish(cmd)
+             x, y, _ = agent.get_pose()
+             pos = (x, y)
++        elif agent.policy_idle:
++            agent.pub.publish(Twist())
++            agent.prev_linear = agent.prev_angular = 0.0
++            stuck_check_pos = None
+         else:
+             pos, distance = agent.step(actor_model)
+ 
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/policy_goal.py b/turtlebot_ddpg/scripts/voronoi_exploration/policy_goal.py
+new file mode 100644
+index 0000000..da0a59e
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/policy_goal.py
+@@ -0,0 +1,20 @@
++"""Short policy goal retention using independent clearance checks."""
++
++import math
++
++
++WAIT_MODES = ('legacy', 'cancel', 'hold')
++POLICY_IDLE_Z = -2.0
++
++
++def wait_hold_gate(goal_age_s, hold_s, clearance_m, minimum_clearance_m):
++    """Return whether checking a young goal's route is worthwhile."""
++    if goal_age_s is None:
++        return 'no_active_goal'
++    if not math.isfinite(goal_age_s) or not 0 <= goal_age_s < hold_s:
++        return 'hold_elapsed'
++    if clearance_m is None or not math.isfinite(clearance_m):
++        return 'clearance_missing_or_stale'
++    if clearance_m <= minimum_clearance_m:
++        return 'clearance_low'
++    return 'check_route'
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/safety_metrics.py b/turtlebot_ddpg/scripts/voronoi_exploration/safety_metrics.py
+index 8855900..89e7107 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/safety_metrics.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/safety_metrics.py
+@@ -43,6 +43,12 @@ class ClearanceTelemetry(object):
+             self.below_threshold_samples += 1
+         self.minimum_clearance = min(self.minimum_clearance, clearance_m)
+ 
++    def recent_clearance(self, robot_name, now):
++        sample = self._last.get(robot_name)
++        if sample is not None and 0.0 <= now - sample[1] <= self.max_sample_gap:
++            return sample[0]
++        return None
++
+     def snapshot(self):
+         return {
+             'active_seconds': self.active_seconds,
+diff --git a/turtlebot_ddpg/tests/test_policy_goal.py b/turtlebot_ddpg/tests/test_policy_goal.py
+new file mode 100644
+index 0000000..bcf3dc1
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_policy_goal.py
+@@ -0,0 +1,24 @@
++import sys
++import unittest
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
++from policy_goal import wait_hold_gate
++from safety_metrics import ClearanceTelemetry
++
++
++class PolicyGoalTests(unittest.TestCase):
++    def test_wait_checks_route_only_for_a_young_clear_goal(self):
++        self.assertEqual(wait_hold_gate(1.5, 4.5, 0.50, 0.25), 'check_route')
++        self.assertEqual(wait_hold_gate(4.5, 4.5, 0.50, 0.25), 'hold_elapsed')
++        self.assertEqual(wait_hold_gate(-0.1, 4.5, 0.50, 0.25), 'hold_elapsed')
++        self.assertEqual(wait_hold_gate(None, 4.5, 0.50, 0.25), 'no_active_goal')
++        self.assertEqual(wait_hold_gate(1.5, 4.5, None, 0.25), 'clearance_missing_or_stale')
++        self.assertEqual(wait_hold_gate(1.5, 4.5, 0.25, 0.25), 'clearance_low')
++
++    def test_freshness_uses_the_same_bounded_telemetry_clock(self):
++        telemetry = ClearanceTelemetry(max_sample_gap=0.5)
++        telemetry.observe('robot1', 0.40, 5.0)
++        self.assertEqual(telemetry.recent_clearance('robot1', 5.4), 0.4)
++        self.assertIsNone(telemetry.recent_clearance('robot1', 5.6))
++        self.assertIsNone(telemetry.recent_clearance('robot1', 4.0))
