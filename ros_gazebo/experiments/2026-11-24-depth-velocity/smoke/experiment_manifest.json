@@ -1,0 +1,49 @@
+{
+  "input_sha256": {
+    "actor": "24c3c2edf94593484cf36a596054cc0d0273f922e3039e2fbe5fdd4d45cff212",
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "low_blocks": "03f51958eaf13866304609226b8234fb27accfc960a09f89794e018e2d5492df",
+    "rgb": "b3115535d34539e380d69335be76f7822ab2eeb9afab5a10674c951030217d21",
+    "run_clearance_study": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "run_depth_corridor_study": "56b96d3c9be0aca7b8b8bba7bd3d09eea2fa737202f61c3d723ddd86c98fe090",
+    "run_depth_velocity_study": "dbde9cec166ef47896d0887cf4901891c8d7f9d27c66c85d8b8925610e248574",
+    "run_matched_vision_training": "2fb2759e6fe0a76b645d1b9425e32faa75e6293ee2567509013ad8c6dcfc4cdd",
+    "run_policy_goal_retention": "17cf11a237080376a76df5bc785dab722cb708c65691b334416a58cf2a567f9f",
+    "run_rgb_clearance_guard_study": "6b3911a0e890f04f60186550eb7e641243838f72d15514032cd6349b7d243b5f",
+    "run_rgb_passage_study": "14b3f7791e6004cb79e96bf1d930664fe22e1cceb4d7dfc80b2460e90bcca1b1",
+    "run_wait_margin_study": "ac98b9d5db337da8fe230429e866d22a1e3444dab7191f0220b9ea0560be3f9b"
+  },
+  "maximum_age_s": 0.4,
+  "runs": [
+    {
+      "cue": "lidar",
+      "depth_velocity_mode": "observe",
+      "environment_seed": 67010,
+      "horizon": 28,
+      "layout": "hu_aligned",
+      "order": 1,
+      "rule_cue": "lidar",
+      "scene": "low_blocks",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "depth_velocity_mode": "limit",
+      "environment_seed": 67010,
+      "horizon": 28,
+      "layout": "hu_aligned",
+      "order": 2,
+      "rule_cue": "lidar",
+      "scene": "low_blocks",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    }
+  ],
+  "slow_m": 0.72,
+  "source_tree": "cca36097bcc4c2c1f1640813f1525eb70f3eddbe",
+  "stage": "smoke",
+  "stop_m": 0.42
+}

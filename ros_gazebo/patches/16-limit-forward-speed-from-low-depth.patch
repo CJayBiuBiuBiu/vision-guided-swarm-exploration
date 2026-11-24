@@ -1,0 +1,461 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 04ff3c2..3e98d65 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -67,6 +67,10 @@
+        doc="Scale forward DDPG speed when frontal laser clearance is small"/>
+   <arg name="safety_stop_range" default="0.20"/>
+   <arg name="safety_slow_range" default="0.35"/>
++  <arg name="depth_velocity_mode" default="off"
++       doc="off, observe low depth returns, or limit forward DDPG velocity"/>
++  <arg name="depth_velocity_trace_dir" default=""/>
++  <arg name="gazebo_lockstep" default="false"/>
+   <arg name="recovery_direction_mode" default="random"
+        doc="random baseline or clearance-guided laser recovery"/>
+   <arg name="recovery_success_distance" default="0.15"
+@@ -160,11 +164,12 @@
+ 
+   <include file="$(find turtlebot_ddpg)/launch/voronoi_multi_robot.launch">
+     <arg name="model" value="$(arg model)"/>
+-    <arg name="depth_camera" value="$(eval arg('depth_corridor_mode') != 'off')"/>
++    <arg name="depth_camera" value="$(eval arg('depth_corridor_mode') != 'off' or arg('depth_velocity_mode') != 'off')"/>
+     <arg name="gui" value="$(arg gui)"/>
+     <arg name="verbose" value="$(arg verbose)"/>
+     <arg name="world_name" value="$(arg world_name)"/>
+     <arg name="gazebo_seed" value="$(arg gazebo_seed)"/>
++    <arg name="gazebo_lockstep" value="$(arg gazebo_lockstep)"/>
+     <arg name="robot_count" value="$(arg robot_count)"/>
+     <arg name="robot1_x" value="$(arg robot1_x)"/>
+     <arg name="robot1_y" value="$(arg robot1_y)"/>
+@@ -201,6 +206,7 @@
+     <param name="depth_corridor_mode" value="$(arg depth_corridor_mode)"/>
+     <param name="depth_active_audit" value="$(arg depth_active_audit)"/>
+     <param name="depth_camera_model" value="$(arg model)"/>
++    <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="selection_mode" value="$(arg selection_mode)"/>
+     <param name="vision_enabled" value="$(arg vision_enabled)"/>
+     <param name="vision_scoring_mode" value="$(arg vision_scoring_mode)"/>
+@@ -297,6 +303,8 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
++    <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+   <node pkg="turtlebot_ddpg"
+         type="multi_robot_explorer_node.py"
+@@ -309,6 +317,8 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
++    <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+   <node pkg="turtlebot_ddpg"
+         type="multi_robot_explorer_node.py"
+@@ -321,6 +331,8 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
++    <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+   <node if="$(eval int(arg('robot_count')) >= 4)" pkg="turtlebot_ddpg"
+         type="multi_robot_explorer_node.py"
+@@ -332,6 +344,8 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
++    <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+   <node if="$(eval int(arg('robot_count')) >= 5)" pkg="turtlebot_ddpg"
+         type="multi_robot_explorer_node.py"
+@@ -343,6 +357,8 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
++    <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+   <node if="$(eval int(arg('robot_count')) >= 6)" pkg="turtlebot_ddpg"
+         type="multi_robot_explorer_node.py"
+@@ -354,6 +370,8 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
++    <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+   <node if="$(eval int(arg('robot_count')) >= 7)" pkg="turtlebot_ddpg"
+         type="multi_robot_explorer_node.py"
+@@ -365,6 +383,8 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
++    <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+ 
+   <node if="$(arg start_smoke_policy)"
+diff --git a/turtlebot_ddpg/launch/voronoi_multi_robot.launch b/turtlebot_ddpg/launch/voronoi_multi_robot.launch
+index 9297ddd..427b338 100644
+--- a/turtlebot_ddpg/launch/voronoi_multi_robot.launch
++++ b/turtlebot_ddpg/launch/voronoi_multi_robot.launch
+@@ -6,6 +6,8 @@
+   <arg name="verbose" default="false"/>
+   <arg name="gazebo_seed" default="0"
+        doc="Random seed passed to the Gazebo physics server"/>
++  <arg name="gazebo_lockstep" default="false"
++       doc="Synchronise simulated time with Gazebo sensor updates"/>
+   <arg name="robot_count" default="3"
+        doc="Number of spawned robots; supported research values are 3, 5, and 7"/>
+   <arg name="world_name"
+@@ -40,7 +42,8 @@
+     <arg name="debug" value="false"/>
+     <arg name="verbose" value="$(arg verbose)"/>
+     <arg name="world_name" value="$(arg world_name)"/>
+-    <arg name="extra_gazebo_args" value="--seed $(arg gazebo_seed)"/>
++    <arg name="extra_gazebo_args"
++         value="$(eval '--seed ' + str(arg('gazebo_seed')) + (' --lockstep' if arg('gazebo_lockstep') else ''))"/>
+   </include>
+ 
+   <!-- robot1 -->
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py b/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py
+index 2a06cb8..1893cc8 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/depth_corridor.py
+@@ -13,6 +13,26 @@ MAX_SAMPLE_AGE_S = 0.40
+ MAX_SENSOR_SKEW_S = 0.22
+ MAX_POSE_SKEW_S = 0.10
+ CORRIDOR_RADIUS_M = 0.175
++LOCAL_CAMERA_POSE = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0))
++
++
++def image_intrinsics(msg):
++    values = (msg.K[0], msg.K[4], msg.K[2], msg.K[5])
++    return (msg.height, msg.width, values) if np.isfinite(values).all() and min(values[:2]) > 0 else None
++
++
++def depth_image_points(msg, info, pose):
++    if (info is None or info[:2] != (msg.height, msg.width)
++            or msg.encoding != '32FC1' or msg.step < 4 * msg.width):
++        return None
++    dtype = np.dtype('>f4' if msg.is_bigendian else '<f4')
++    try:
++        depth = np.ndarray((msg.height, msg.width), dtype=dtype, buffer=msg.data,
++                           strides=(msg.step, 4))
++    except (ValueError, TypeError):
++        return None
++    half_resolution_intrinsics = tuple(value / 2 for value in info[2])
++    return depth_points(depth[::2, ::2], half_resolution_intrinsics, pose)
+ 
+ 
+ def depth_points(depth, intrinsics, pose):
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/depth_velocity.py b/turtlebot_ddpg/scripts/voronoi_exploration/depth_velocity.py
+new file mode 100644
+index 0000000..d3ff42d
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/depth_velocity.py
+@@ -0,0 +1,54 @@
++"""Forward speed limiting using low depth returns in the robot frame."""
++
++import math
++
++import numpy as np
++
++from depth_corridor import CORRIDOR_RADIUS_M, fresh_sample
++from motion_safety import clearance_speed_scale
++
++
++DEPTH_VELOCITY_MODES = ('off', 'observe', 'limit')
++DEPTH_STOP_M = 0.42
++DEPTH_SLOW_M = 0.72
++CONFIRM_GAP_S = 0.30
++CONFIRM_CHANGE_M = 0.15
++SUPPORT_SPREAD_M = 0.08
++
++
++def supported_clearance(points):
++    """Return the closest group of three low hits within the forward footprint."""
++    if not len(points):
++        return None
++    forward, lateral = points.T
++    distances = np.sort(forward[(forward > 0) & (np.abs(lateral) <= CORRIDOR_RADIUS_M)])
++    groups = np.flatnonzero(distances[2:] - distances[:-2] <= SUPPORT_SPREAD_M)
++    return float(distances[groups[0]]) if len(groups) else None
++
++
++class DepthVelocityLimiter:
++    def __init__(self):
++        self._history = ()
++
++    def observe(self, stamp, points):
++        history = self._history
++        previous, confirmed = history[-1] if history else (None, None)
++        if not math.isfinite(stamp) or stamp <= 0 or (previous is not None and stamp <= previous[0]):
++            return
++        clearance = supported_clearance(points)
++        if previous is not None and stamp - previous[0] <= CONFIRM_GAP_S:
++            if clearance is None and previous[1] is None:
++                confirmed = None
++            elif (clearance is not None and previous[1] is not None
++                  and abs(clearance - previous[1]) <= CONFIRM_CHANGE_M):
++                confirmed = (stamp, clearance)
++        self._history = (*history[-3:], ((stamp, clearance), confirmed))
++
++    def scale(self, now):
++        latest, confirmed = next(((frame, hit) for frame, hit in reversed(self._history)
++                                  if frame[0] <= now), (None, None))
++        fresh = fresh_sample(latest, now)
++        hit = fresh_sample(confirmed, now)
++        if not fresh or hit is None:
++            return 1.0, fresh, None
++        return clearance_speed_scale(hit[1], DEPTH_STOP_M, DEPTH_SLOW_M), fresh, hit
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 7522eba..cfe74ec 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -53,7 +53,8 @@ from rgb_passage import (
+     measure_passage, propose_passage, route_length, score_direction)
+ from depth_corridor import (
+     MAX_POSE_SKEW_S, MAX_SENSOR_SKEW_S, ActiveDepthConfirmation, corridor_hit,
+-    depth_points, fresh_sample, laser_points, reroute_exclusions)
++    depth_image_points, fresh_sample, image_intrinsics, laser_points, reroute_exclusions)
++from depth_velocity import DEPTH_VELOCITY_MODES
+ from camera_quality import (
+     CAMERA_RUN_PROFILES, MIXED_WINDOWS, CameraQualityGate, camera_features,
+     camera_input, mixed_window)
+@@ -468,6 +469,12 @@ class Coordinator(object):
+         self.depth_corridor_mode = rospy.get_param('~depth_corridor_mode', 'off')
+         if self.depth_corridor_mode not in ('off', 'observe', 'avoid', 'recheck'):
+             raise ValueError('depth_corridor_mode must be off, observe, avoid, or recheck')
++        self.depth_velocity_mode = rospy.get_param('~depth_velocity_mode', 'off')
++        if self.depth_velocity_mode not in DEPTH_VELOCITY_MODES:
++            raise ValueError('depth_velocity_mode must be off, observe, or limit')
++        if (self.depth_velocity_mode != 'off'
++                and rospy.get_param('~depth_camera_model', 'waffle_pi') != 'waffle_pi'):
++            raise ValueError('Local depth limiting uses the Waffle Pi camera geometry')
+         self.rgb_passage_mode = rospy.get_param('~rgb_passage_mode', 'off')
+         if self.rgb_passage_mode not in ('off', 'observe', 'rerank'):
+             raise ValueError('rgb_passage_mode must be off, observe, or rerank')
+@@ -866,7 +873,8 @@ class Coordinator(object):
+                 actor_uses_vision=self.actor_uses_vision, rules_use_vision=self.rules_use_vision,
+                 horizon_s=self.max_simulation_seconds, policy_wait_mode=self.policy_wait_mode,
+                 policy_wait_hold_s=self.policy_wait_hold_s,
+-                policy_wait_margin=self.policy_wait_margin, **cue_metadata)
++                policy_wait_margin=self.policy_wait_margin,
++                depth_velocity_mode=self.depth_velocity_mode, **cue_metadata)
+             rospy.on_shutdown(self._close_frontier_trace)
+         if self.depth_corridor_mode != 'off':
+             if self.frontier_trace is None:
+@@ -875,6 +883,8 @@ class Coordinator(object):
+             if self.depth_active:
+                 self.frontier_trace.record('depth_active_monitor',
+                                            applies=self.depth_corridor_mode == 'recheck')
++        if self.frontier_trace is not None and (
++                self.depth_corridor_mode != 'off' or self.depth_velocity_mode != 'off'):
+             rospy.Subscriber('/depth_corridor/contacts', ContactsState,
+                              self._depth_contact_cb, queue_size=32)
+         rospy.loginfo('[coordinator] robots=%s, selection_mode=%s, mapping_mode=%s, pose_source=%s, world_profile=%s, clustered_frontiers=%s, metrics=%s',
+@@ -941,9 +951,9 @@ class Coordinator(object):
+         self.passage_frames[name] = (stamp, None if evidence is None else (pose[0], *evidence))
+ 
+     def _depth_info_cb(self, msg, name):
+-        if msg.K[0] > 0 and msg.K[4] > 0:
+-            self.depth_intrinsics[name] = (msg.height, msg.width,
+-                                           (msg.K[0], msg.K[4], msg.K[2], msg.K[5]))
++        info = image_intrinsics(msg)
++        if info is not None:
++            self.depth_intrinsics[name] = info
+ 
+     def _nearest_sensor_pose(self, name, stamp):
+         if stamp <= 0.0:
+@@ -958,23 +968,13 @@ class Coordinator(object):
+         return None
+ 
+     def _depth_image_cb(self, msg, name):
+-        info = self.depth_intrinsics.get(name)
+-        if (info is None or info[:2] != (msg.height, msg.width)
+-                or msg.encoding != '32FC1' or msg.step < 4 * msg.width):
+-            return
+         stamp = msg.header.stamp.to_sec()
+         pose = self._nearest_sensor_pose(name, stamp)
+         if pose is None:
+             return
+-        dtype = np.dtype('>f4' if msg.is_bigendian else '<f4')
+-        try:
+-            depth = np.ndarray((msg.height, msg.width), dtype=dtype, buffer=msg.data,
+-                               strides=(msg.step, 4))
+-        except (ValueError, TypeError):
+-            return
+-        fx, fy, cx, cy = info[2]
+-        self.depth_returns[name] = (
+-            stamp, depth_points(depth[::2, ::2], (fx / 2, fy / 2, cx / 2, cy / 2), pose))
++        points = depth_image_points(msg, self.depth_intrinsics.get(name), pose)
++        if points is not None:
++            self.depth_returns[name] = (stamp, points)
+ 
+     def _depth_contact_cb(self, msg):
+         if not msg.states:
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index 9c16389..e1b795b 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -15,11 +15,13 @@ import math
+ import time
+ import random
+ import os
++import json
++from pathlib import Path
+ 
+ import rospy
+ import numpy as np
+ from geometry_msgs.msg import Twist, Point
+-from sensor_msgs.msg import LaserScan
++from sensor_msgs.msg import CameraInfo, Image, LaserScan
+ from gazebo_msgs.msg import ModelStates
+ from std_msgs.msg import Bool, Float32
+ 
+@@ -30,6 +32,8 @@ tf.disable_v2_behavior()
+ import tensorflow.compat.v1.keras.backend as K
+ 
+ from policy_goal import POLICY_IDLE_Z
++from depth_corridor import LOCAL_CAMERA_POSE, depth_image_points, image_intrinsics
++from depth_velocity import DEPTH_VELOCITY_MODES, DepthVelocityLimiter
+ from motion_safety import (
+     clearance_guided_turn_direction, clearance_speed_scale,
+     frontal_clearance)
+@@ -88,7 +92,8 @@ class RobotAgent(object):
+                  near_collision_clear_range=NEAR_COLLISION_CLEAR_RANGE,
+                  safety_shield_enabled=False,
+                  safety_stop_range=0.20,
+-                 safety_slow_range=0.35):
++                 safety_slow_range=0.35,
++                 depth_velocity_mode='off', depth_velocity_trace_dir=''):
+         self.robot_name = robot_name
+         robot_index = int(robot_name[-1]) if robot_name[-1:].isdigit() else 0
+         self.experiment_seed = int(experiment_seed) + robot_index
+@@ -132,10 +137,35 @@ class RobotAgent(object):
+         self.safety_slow_range = float(safety_slow_range)
+         clearance_speed_scale(
+             math.inf, self.safety_stop_range, self.safety_slow_range)
++        if depth_velocity_mode not in DEPTH_VELOCITY_MODES:
++            raise ValueError('depth_velocity_mode must be off, observe, or limit')
++        self.depth_velocity_mode = depth_velocity_mode
++        self.depth_velocity = None
++        self.depth_velocity_trace = None
++        if depth_velocity_mode != 'off':
++            self.depth_intrinsics = None
++            self.depth_velocity = DepthVelocityLimiter()
++            if depth_velocity_trace_dir:
++                path = Path(depth_velocity_trace_dir) / ('%s_depth_velocity.jsonl' % robot_name)
++                self.depth_velocity_trace = path.open('x', buffering=1)
++            topic = '/%s/corridor_depth/' % robot_name
++            rospy.Subscriber(topic + 'camera_info', CameraInfo, self._depth_info_cb, queue_size=1)
++            rospy.Subscriber(topic + 'image_raw', Image, self._depth_image_cb, queue_size=1,
++                             buff_size=262144)
+ 
+         self.prev_linear = 0.0
+         self.prev_angular = 0.0
+ 
++    def _depth_info_cb(self, msg):
++        info = image_intrinsics(msg)
++        if info is not None:
++            self.depth_intrinsics = info
++
++    def _depth_image_cb(self, msg):
++        points = depth_image_points(msg, self.depth_intrinsics, LOCAL_CAMERA_POSE)
++        if points is not None:
++            self.depth_velocity.observe(msg.header.stamp.to_sec(), points)
++
+     def _target_cb(self, msg):
+         # The coordinator sends z=-1 to retire a visual obstruction's waypoint.
+         if msg.z == -1.0:
+@@ -219,6 +249,18 @@ class RobotAgent(object):
+             linear *= clearance_speed_scale(
+                 front_clearance, self.safety_stop_range,
+                 self.safety_slow_range)
++        if self.depth_velocity is not None:
++            now = rospy.get_time()
++            scale, frame, hit = self.depth_velocity.scale(now)
++            before = linear
++            if self.depth_velocity_mode == 'limit':
++                linear *= scale
++            if self.depth_velocity_trace is not None:
++                record = dict(stamp_s=now, frame=frame, confirmed=hit, scale=scale,
++                              front_laser_m=front_clearance if math.isfinite(front_clearance) else None,
++                              before_mps=before, applied_mps=linear, angular_rps=angular,
++                              target_distance_m=distance, xy=pos)
++                self.depth_velocity_trace.write(json.dumps(record, allow_nan=False) + '\n')
+ 
+         cmd = Twist()
+         cmd.linear.x = linear
+@@ -270,7 +312,9 @@ def main():
+         near_collision_clear_range=near_collision_clear_range,
+         safety_shield_enabled=safety_shield_enabled,
+         safety_stop_range=safety_stop_range,
+-        safety_slow_range=safety_slow_range)
++        safety_slow_range=safety_slow_range,
++        depth_velocity_mode=rospy.get_param('~depth_velocity_mode', 'off'),
++        depth_velocity_trace_dir=rospy.get_param('~depth_velocity_trace_dir', ''))
+     rospy.loginfo('[%s] experiment_seed=%d (robot seed=%d)',
+                   robot_name, experiment_seed, agent.experiment_seed)
+     rospy.loginfo('[%s] near-collision hysteresis: event<=%.3fm, clear>=%.3fm',
+@@ -281,6 +325,7 @@ def main():
+                   safety_stop_range, safety_slow_range)
+     rospy.loginfo('[%s] recovery direction: mode=%s',
+                   robot_name, recovery_direction_mode)
++    rospy.loginfo('[%s] depth velocity mode=%s', robot_name, agent.depth_velocity_mode)
+ 
+     rospy.loginfo("[%s] waiting for first laser/model_states message...", robot_name)
+     agent.laser_ig.get_msg(timeout=10.0)
+diff --git a/turtlebot_ddpg/tests/test_depth_velocity.py b/turtlebot_ddpg/tests/test_depth_velocity.py
+new file mode 100644
+index 0000000..50868e1
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_depth_velocity.py
+@@ -0,0 +1,43 @@
++import sys
++import unittest
++from pathlib import Path
++
++import numpy as np
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
++from depth_velocity import DepthVelocityLimiter, supported_clearance
++
++
++class DepthVelocityTests(unittest.TestCase):
++    def test_rejects_side_returns_and_requires_a_nearby_group(self):
++        points = np.array([(0.25, 0.23), (0.33, 0.0), (0.55, 0.0),
++                           (0.58, 0.01), (0.59, -0.02)])
++        self.assertAlmostEqual(supported_clearance(points), 0.55)
++        self.assertIsNone(supported_clearance(points[:3]))
++
++    def test_requires_distinct_fresh_consistent_frames(self):
++        limiter = DepthVelocityLimiter()
++        hit = np.array([(0.40, 0.0), (0.41, 0.0), (0.42, 0.0)])
++        limiter.observe(1.0, hit)
++        limiter.observe(1.0, hit)
++        self.assertEqual(limiter.scale(1.12)[0], 1.0)
++        limiter.observe(1.125, hit)
++        self.assertEqual(limiter.scale(1.13)[0], 0.0)
++        self.assertEqual(limiter.scale(1.10)[0], 1.0)
++        limiter.observe(1.255, np.empty((0, 2)))
++        self.assertEqual(limiter.scale(1.24)[1][0], 1.125)
++        self.assertEqual(limiter.scale(1.67), (1.0, None, None))
++        limiter.observe(1.7, hit)
++        self.assertEqual(limiter.scale(1.7)[0], 1.0)
++
++    def test_two_clear_frames_release_the_limit(self):
++        limiter = DepthVelocityLimiter()
++        hit = np.array([(0.57, 0.00), (0.58, 0.01), (0.58, -0.01)])
++        empty = np.empty((0, 2))
++        limiter.observe(2.0, hit)
++        limiter.observe(2.125, hit)
++        self.assertAlmostEqual(limiter.scale(2.15)[0], 0.5)
++        limiter.observe(2.25, empty)
++        self.assertAlmostEqual(limiter.scale(2.26)[0], 0.5)
++        limiter.observe(2.375, empty)
++        self.assertEqual(limiter.scale(2.38)[0], 1.0)
