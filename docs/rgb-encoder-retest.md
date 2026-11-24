@@ -94,3 +94,40 @@ python3 scripts/summarize_rgb_encoder_retest.py "$RUN_DIR" "$SUMMARY_OUT" \
   --offline-predictions ros_gazebo/experiments/2026-11-24-rgb-encoder-audit/offline/predictions.csv
 python3 scripts/plot_rgb_encoder_retest.py "$RUN_DIR/summary.csv" "$SUMMARY_OUT"
 ```
+
+## Controlled close-obstacle diagnosis
+
+The retest left the aligned arm below LiDAR on mean coverage. The
+follow-up therefore measured the encoder directly with the robot
+stationary. Five scenes shared the same room, camera pose and lighting.
+The views showed no obstacle, one obstacle on either side or in the
+centre, and two obstacles flanking an open centre. The probe checked
+the defined obstacle sectors against synchronized LiDAR scans before
+reading the frozen camera models. The table shows the aligned model.
+
+| Placement | Sector | LiDAR | Aligned RGB |
+| --- | --- | ---: | ---: |
+| Clear room | Centre | 1.000 | 0.786 |
+| One obstacle in the centre | Centre | 0.285 | 0.662 |
+| One obstacle on the physical left | Blocked side | 0.308 | 0.486 |
+| One obstacle on the physical right | Blocked side | 0.311 | 0.546 |
+| Obstacles on both sides | Two blocked sides | 0.309 / 0.309 | 0.821 / 0.802 |
+| Obstacles on both sides | Open centre | 1.000 | 0.844 |
+
+The aligned model responds to a single nearby obstacle, but its score
+stays high compared with measured clearance. With both sides blocked,
+the three RGB scores differ by only 0.043 even though the LiDAR centre
+score exceeds either blocked side by about 0.69. The older encoder also
+gives the two blocked sides high scores and assigns a slightly higher
+score to one of them than to the open centre. This isolates a weak
+clearance response in the camera encoders before the rule fusion,
+frontier masks or MAPPO acts. It agrees with the low-clearance
+overestimation in the independent replay and live decision traces.
+The controlled scenes show the failure mode. They do not determine
+whether the training data, objective, or model architecture caused it.
+
+[Obstacle scores, synchronized sensor captures and scene geometry](../ros_gazebo/experiments/2026-11-24-rgb-encoder-retest/obstruction/)
+
+```sh
+python3 scripts/diagnose_rgb_near_obstruction.py "$ROS_PROJECT" "$STUDY/models" "$PROBE_OUT"
+```

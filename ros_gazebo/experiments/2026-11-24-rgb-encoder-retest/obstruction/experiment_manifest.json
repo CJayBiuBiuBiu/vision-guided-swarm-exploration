@@ -1,0 +1,40 @@
+{
+  "cases": {
+    "centre_blocked": {
+      "capture": "probe_centre_blocked_65390.vlnp6c_u",
+      "image_sha256": "df9db0edb217faae409289a5b662e8145be572331d03dd3211a843d526a63d57",
+      "sensors_sha256": "68cb7e7117a3787d5c5d39eb70a63ccccfb8a10a5f7a398b52da82ff6677203a",
+      "world_sha256": "3a8e75775cc342abd5dd45263ce6376113c99fa32b5dd02eac0db4f059c83279"
+    },
+    "centre_open": {
+      "capture": "probe_centre_open_65390.ctclgace",
+      "image_sha256": "2af3174cb2bbfb2a5c2f642cc31bc8c69a371031eda29ab23001655d9b5777da",
+      "sensors_sha256": "64f9913f23211d1b0611dfa2d864591624fa6c60eb0684aa3b56733c7e16208c",
+      "world_sha256": "49c7a982e613d83e94fb7817fdaba82666b339023675f272ea1cc8f680e6a07a"
+    },
+    "clear": {
+      "capture": "probe_clear_65390.7rxv9af9",
+      "image_sha256": "00a466c8058916315c28bc8a0ed55f7c7ee418954d18f5145004562aa38d33a2",
+      "sensors_sha256": "1ccb19573e4d7d6a5943c5e013a4549cd4aa1f15db00d7a0cd6f83c3511895ca",
+      "world_sha256": "2412819123942a529de95cc1506db7979e0a296b998d997931d5025f9ff94583"
+    },
+    "physical_left_blocked": {
+      "capture": "probe_physical_left_blocked_65390.eptnqbb2",
+      "image_sha256": "233a67fd3edf10ec214b316979315e6ed655d19662f9fa13e31c5e3e48c0c0b8",
+      "sensors_sha256": "e612cf81f51c27e33dc2d0ad3c47fe6fec94bd42016b3fe00377e72e97f475c2",
+      "world_sha256": "59c4b6c34c073afd7d0362bb40ca2e2d26fd00682a559b0e53015cbbd6ae1952"
+    },
+    "physical_right_blocked": {
+      "capture": "probe_physical_right_blocked_65390.ikxuhi76",
+      "image_sha256": "867a245ce3a6889a944d5aa2d4abac8804b5250499411360115ac3bed4138af9",
+      "sensors_sha256": "48d39959d2b0f90ea5ed9969dbcfd2d79cc846d026c8453611c38cffc7644cbf",
+      "world_sha256": "97427681da35747bd257787db95f30a46fcd51206019ec630d930d97629514e4"
+    }
+  },
+  "checkpoint_sha256": {
+    "legacy": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "robust_aligned": "4be795fe75a3f91d040bc1a71595cdd9b4885821b8381d89a74e6f71f02715b3"
+  },
+  "probe_seed": 65390,
+  "script_sha256": "160718ca1df78d779753a0056407ac4ac8a52227cb60f8fe5ba200c5442e690c"
+}
