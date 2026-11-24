@@ -1,0 +1,15 @@
+layout,run_id,model,frames,flip_reversal_mae
+all,all,legacy,715,0.021659751073185938
+all,all,robust,715,0.02739795630489474
+hu_aligned,all,legacy,359,0.022476610629892837
+hu_aligned,all,robust,359,0.027273937506374652
+hu_aligned,held_out_62102,legacy,179,0.021940550130394806
+hu_aligned,held_out_62102,robust,179,0.026286227881797422
+hu_aligned,held_out_62106,legacy,180,0.023009693015504765
+hu_aligned,held_out_62106,robust,180,0.02825615985525979
+hu_layout_c,all,legacy,356,0.02083600786852926
+hu_layout_c,all,robust,356,0.027523020205649545
+hu_layout_c,held_out_62103,legacy,177,0.023181014029544176
+hu_layout_c,held_out_62103,robust,177,0.028392748307373563
+hu_layout_c,held_out_62107,legacy,179,0.018517202893670932
+hu_layout_c,held_out_62107,robust,179,0.02666300973634702

@@ -1,0 +1,27 @@
+{
+  "inputs": {
+    "passage_left_open_far": {
+      "rgb_sha256": "794224ad063a901737fc975fc10777383f1f5a65931f7452cde3fc165c5532d0",
+      "sensor_sha256": "d67fc70327dc87ded7aeea01eca58798991711fb01046012265e516716067163"
+    },
+    "passage_left_open_near": {
+      "rgb_sha256": "67bc8d3f3884dcfad497de322754445f432a9c3481557e0720a5d35ba1bdb01d",
+      "sensor_sha256": "d700f7ac7ef2bcf20ed1fa6e1f48807c888538424c51967f01bdbc89d3d73ee4",
+      "world_sha256": "5f8bdc9b117aa04d1ef62dafe79f7b8c256ba50e862ea08215baf1a96cb47ccf"
+    },
+    "passage_right_open_far": {
+      "rgb_sha256": "ad8d27fe27cf17021db81aae4c703263a0f40b2e75499dab9a3def9ab10167cc",
+      "sensor_sha256": "beaeb2c6ef2bcb0949109b355717cb3de534ece9469362a7b130e47f3893a3b6"
+    },
+    "passage_right_open_near": {
+      "rgb_sha256": "e800ceaba5b80a87d872cf6b15186290b6346c116b14e8a8bf9a37e332bd6fb1",
+      "sensor_sha256": "6b5f361c3324c2b3be1c4a8d419d522ebf90c15500e6a81b46ff57a9821fabdc",
+      "world_sha256": "559cd91e8be279f7a484feb753304cd635f4ee384bcb1523fc018a2e63c67344"
+    }
+  },
+  "legacy_sha256": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+  "near_partition_y_m": 1.35,
+  "probe_seed": 65390,
+  "robust_sha256": "dde9e882d94d842879e136715ddb6ae2572550217cf1c3d3c272e9725f44c186",
+  "script_sha256": "fdd1e3bd145c1a6347590cae00d2e5a2a74f970c52936517311f4bd4069e6d38"
+}
