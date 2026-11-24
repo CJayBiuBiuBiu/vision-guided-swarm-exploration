@@ -1,0 +1,74 @@
+{
+  "image_stamp_s": 2.054,
+  "pose_stamp_s": 2.06,
+  "scan_stamp_s": 1.978,
+  "position": [
+    1.1098658275786231e-05,
+    4.299997952035158,
+    -0.0010057432410105552
+  ],
+  "quaternion": [
+    0.0011192194567048721,
+    0.0011216837593894023,
+    -0.7071053438602395,
+    0.7071064430887647
+  ],
+  "intrinsics": [
+    530.4669406576809,
+    530.4669406576809,
+    320.5,
+    240.5
+  ],
+  "range_max_m": 3.5,
+  "range_min_m": 0.11999999731779099,
+  "scan_angle_min_rad": -1.5707000494003296,
+  "scan_step_rad": 0.136582612991333,
+  "scan_ranges_m": [
+    2.9361510276794434,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    2.9378178119659424
+  ],
+  "targets_xy": {
+    "left": [
+      1.5,
+      0.0
+    ],
+    "right": [
+      -1.5,
+      0.0
+    ]
+  },
+  "scores": {
+    "left": {
+      "bearing_deg": 19.230460267548906,
+      "near": 1.0,
+      "far": 0.0
+    },
+    "right": {
+      "bearing_deg": -19.230901456530933,
+      "near": 1.0,
+      "far": 1.0
+    }
+  }
+}

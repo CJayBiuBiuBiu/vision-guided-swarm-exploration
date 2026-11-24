@@ -1,0 +1,11 @@
+case,side,center_x,kind,nominal_width_m,blocked_exit,traversable,old_far_score,old_open,entry_width_m,rear_width_m,width_rule_passable,lidar_at_horizon,rgb_sha256,sensors_sha256
+left_narrow,left,1.5,narrow,0.22,False,False,0.4,False,0.175,0.125,False,True,a820c56133d1d0582bdc1376839a53ae620199db9808788be7c816a76ac3ebdc,020c7012d133e372df7244db982e6096506f87488814ee88a5d992c506564bf7
+right_narrow,right,-1.5,narrow,0.22,False,False,0.26095874715579315,False,0.175,0.125,False,True,4c44c167c952f07eda986324a5fa781326774fd5be2022912b47f844a3813965,eb99e8b05327b404fbec3f0710b6518a501390e4f0699b73d3aa6fc4913faf95
+left_tight,left,1.5,tight,0.46,False,True,0.8,True,0.425,0.375,True,True,60a2bbcb336265a4754e0da69f2224a23c816516ce1b94c8a70add3632a7a53c,95654b620e585bab7d96aef144f38b911db0d645b906c5d6082084853f0d5a4e
+right_tight,right,-1.5,tight,0.46,False,True,0.8,True,0.425,0.375,True,True,af7f8162d99078616fc9116c0e6f471e8f41bd737a17437b5777a1dd991ebc05,07bc5236ebbc6b62adadfd2d02652aa4b2495e7ed5ab4e265d769de10b0fd69f
+left_wide,left,1.5,wide,0.9,False,True,1.0,True,0.85,0.8,True,True,fb80ff351a5b739b7a163a6a6806c6706cd0b365a97b1bf44417ac2956b82e75,816789f0528931c313c8243ab4ae8296f59149bd898c3df2b32c8e90787e6b0a
+right_wide,right,-1.5,wide,0.9,False,True,1.0,True,0.875,0.8,True,True,5bc0b275870cd424b6fed4062a1e7a02a96067e7b43f56085d79cb413a500bbc,46585cd9743cc57c82fbfc081e60c13d495bb8f59d8fd67b87d7f23255b452d3
+left_reference,left,1.5,reference,1.5,False,True,1.0,True,1.45,1.4,True,True,da74ef4c297779bfd747da9bc6a24766c8aa77dea0b44c9daa6ff58e626b3cb1,e205a0dfb82ddffa70a49d0192407c75d0570985fb68fe2d2f443253377fb72a
+right_reference,right,-1.5,reference,1.5,False,True,1.0,True,1.45,1.4,True,True,f49719d0a58eafa27f094969904a88b5cf3617c23d584813979bb7cecb0de242,c8910b3f3cf9f891801dd52021b9c5620da1203991eb8e4e64a911cec7b30e71
+left_blocked_exit,left,1.5,blocked_exit,0.9,True,False,0.0,False,0.85,0.0,False,True,7994bda182971e16ca0140dbeb02a9fdb5e46431faf16e1a64dd9965a20d63dd,83b7ef1783d067c3fbcc181bcd791537e49af1d455d449d7bf9bb6f9bb35534c
+right_blocked_exit,right,-1.5,blocked_exit,0.9,True,False,0.0,False,0.875,0.0,False,True,3dc0272996569202f03505696db2a0921ef1a501b35bce88ecd6efd490bb0655,a847827776ab81b739cbaf698964975df97ddbc89257f19bbcfc72202cd886b3

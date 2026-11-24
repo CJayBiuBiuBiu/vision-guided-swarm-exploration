@@ -1,0 +1,114 @@
+{
+  "measurement_plane_y": 0.1,
+  "required_width_m": 0.366,
+  "source_sha256": {
+    "capture_rgb_passage.py": "1ccc56d90a515fede45ff852d516301a2df1998f369455d93eae41358a16d9ba",
+    "probe_doorway_traversability.py": "47aed1c37dc5f84e57b6e1e963667def4215e76b66f1bc10876d080b788465a4",
+    "run_rgb_passage_study.py": "14b3f7791e6004cb79e96bf1d930664fe22e1cceb4d7dfc80b2460e90bcca1b1"
+  },
+  "source_tree": "cca36097bcc4c2c1f1640813f1525eb70f3eddbe",
+  "stationary_cases": [
+    {
+      "blocked_exit": false,
+      "case": "left_narrow",
+      "center_x": 1.5,
+      "kind": "narrow",
+      "nominal_width_m": 0.22,
+      "side": "left",
+      "traversable": false
+    },
+    {
+      "blocked_exit": false,
+      "case": "right_narrow",
+      "center_x": -1.5,
+      "kind": "narrow",
+      "nominal_width_m": 0.22,
+      "side": "right",
+      "traversable": false
+    },
+    {
+      "blocked_exit": false,
+      "case": "left_tight",
+      "center_x": 1.5,
+      "kind": "tight",
+      "nominal_width_m": 0.46,
+      "side": "left",
+      "traversable": true
+    },
+    {
+      "blocked_exit": false,
+      "case": "right_tight",
+      "center_x": -1.5,
+      "kind": "tight",
+      "nominal_width_m": 0.46,
+      "side": "right",
+      "traversable": true
+    },
+    {
+      "blocked_exit": false,
+      "case": "left_wide",
+      "center_x": 1.5,
+      "kind": "wide",
+      "nominal_width_m": 0.9,
+      "side": "left",
+      "traversable": true
+    },
+    {
+      "blocked_exit": false,
+      "case": "right_wide",
+      "center_x": -1.5,
+      "kind": "wide",
+      "nominal_width_m": 0.9,
+      "side": "right",
+      "traversable": true
+    },
+    {
+      "blocked_exit": false,
+      "case": "left_reference",
+      "center_x": 1.5,
+      "kind": "reference",
+      "nominal_width_m": 1.5,
+      "side": "left",
+      "traversable": true
+    },
+    {
+      "blocked_exit": false,
+      "case": "right_reference",
+      "center_x": -1.5,
+      "kind": "reference",
+      "nominal_width_m": 1.5,
+      "side": "right",
+      "traversable": true
+    },
+    {
+      "blocked_exit": true,
+      "case": "left_blocked_exit",
+      "center_x": 1.5,
+      "kind": "blocked_exit",
+      "nominal_width_m": 0.9,
+      "side": "left",
+      "traversable": false
+    },
+    {
+      "blocked_exit": true,
+      "case": "right_blocked_exit",
+      "center_x": -1.5,
+      "kind": "blocked_exit",
+      "nominal_width_m": 0.9,
+      "side": "right",
+      "traversable": false
+    }
+  ],
+  "world_sha256": {
+    "left_blocked_exit": "4ba883eeb5bb66099d51b13adb4be8c12b24445c67ce5a650403fc362b20e771",
+    "left_narrow": "f4a7716e17cfc09620b9a72f2062f05d230e48abcc3fb6b4ca245141059fd9f8",
+    "left_reference": "4bd114ed1342f8895c5b39acc92f74e8dc2d3767c1f56ecf3ae0a5c0148b6571",
+    "left_tight": "d203bfa416e8db86da1efe461fa43756fd324503e5e52a62eaebeb7c813281cf",
+    "left_wide": "d31446628bd3de5b98154d3f32674bd13032196f38407410d13d729ed8f9881f",
+    "right_blocked_exit": "13070533f4b5cab17b6dd2b8a6d54dbea6be2b6890371c00e768909a641dca6e",
+    "right_narrow": "8cfc7edb3c80286a63f958ed919faeec7b86737682a61ead4a500b8e43470f10",
+    "right_reference": "b5b35c68b3cb8cfb3fb191fd93db08661da258ecc1398378382af969d029c796",
+    "right_tight": "993141385fdd87ddf043cb95f720a632e95f194509cf59e6bbce42c6c5c57500",
+    "right_wide": "cbc7a174ea901ed9d52358a4b391b09949f8ba24633572fc085b81d37e00b0ce"
+  }
+}
