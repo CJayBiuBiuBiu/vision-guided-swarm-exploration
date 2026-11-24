@@ -1,0 +1,95 @@
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+index c4b1cce..554b773 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/directional_clearance.py
+@@ -11,7 +11,9 @@ LIDAR_OPENNESS = 'lidar_openness'
+ RGB_LIDAR_OPENNESS = 'rgb_lidar_openness'
+ MATCHED_CLEARANCE = 'matched_directional_clearance'
+ CLEARANCE_MODES = (RGB_OPENNESS, LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, MATCHED_CLEARANCE)
+-MATCHED_CUES = ('lidar', 'fusion', 'adaptive')
++MATCHED_CUES = ('lidar', 'fusion', 'adaptive', 'guarded_fusion')
++GUARD_CLEARANCE_LIMIT = 0.25
++GUARD_FULL_FUSION = 0.50
+ SCORE_MAX_AGE = 0.75
+ FUSION_MAX_SKEW = 0.25
+ FUSION_PAIRING_MODES = ('latest', 'buffered')
+@@ -109,13 +111,25 @@ def clearance_scores(mode, rgb, lidar, now, rgb_weight):
+                  for r, l in zip(rgb[1], lidar[1]))
+ 
+ 
++def guarded_clearance(lidar, rgb, rgb_weight):
++    """Keep low scan scores and blend gradually across the next score band."""
++    width = GUARD_FULL_FUSION - GUARD_CLEARANCE_LIMIT
++    guarded = []
++    for scan, image in zip(lidar, rgb):
++        gain = min(1.0, max(0.0, (scan - GUARD_CLEARANCE_LIMIT) / width))
++        weight = rgb_weight * gain
++        guarded.append((1.0 - weight) * scan + weight * image)
++    return tuple(guarded)
++
++
+ def matched_clearance_cues(match, latest_lidar, now, rgb_weight, trusted_rgb=False):
+     """Build both cues from one scan and return that scan's source stamp."""
+     if match.lidar is not None:
+         lidar, rgb = match.lidar, match.rgb
+         fusion = clearance_scores(RGB_LIDAR_OPENNESS, rgb, lidar, now, rgb_weight)
+         return {'lidar': lidar[1], 'fusion': fusion,
+-                'adaptive': fusion if trusted_rgb else lidar[1]}, lidar[0]
++                'adaptive': fusion if trusted_rgb else lidar[1],
++                'guarded_fusion': guarded_clearance(lidar[1], rgb[1], rgb_weight)}, lidar[0]
+     if _fresh(latest_lidar, now):
+         return dict.fromkeys(MATCHED_CUES, latest_lidar[1]), latest_lidar[0]
+     return dict.fromkeys(MATCHED_CUES), None
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 4b04196..2365976 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -435,7 +435,7 @@ class Coordinator(object):
+         if self.matched_clearance:
+             if (self.clearance_actor_cue not in MATCHED_CUES
+                     or self.clearance_rules_cue not in MATCHED_CUES):
+-                raise ValueError('Matched clearance cues must be lidar, fusion or adaptive')
++                raise ValueError('Matched clearance cues must be one of %s' % (MATCHED_CUES,))
+             if not (self.actor_uses_vision and self.rules_use_vision):
+                 raise ValueError('Matched clearance requires both clearance pathways enabled')
+         self.clearance_rgb_weight = float(rospy.get_param('~clearance_rgb_weight', 0.5))
+diff --git a/turtlebot_ddpg/tests/test_directional_clearance.py b/turtlebot_ddpg/tests/test_directional_clearance.py
+index 78b18ef..3c353b3 100644
+--- a/turtlebot_ddpg/tests/test_directional_clearance.py
++++ b/turtlebot_ddpg/tests/test_directional_clearance.py
+@@ -12,7 +12,7 @@ sys.path.insert(0, SCRIPT_DIR)
+ 
+ from directional_clearance import (
+     LIDAR_OPENNESS, RGB_LIDAR_OPENNESS, RGB_OPENNESS, clearance_scores,
+-    lidar_openness, match_fusion_samples, matched_clearance_cues)
++    guarded_clearance, lidar_openness, match_fusion_samples, matched_clearance_cues)
+ 
+ 
+ class LidarOpennessTests(unittest.TestCase):
+@@ -91,6 +91,7 @@ class ClearanceSourceTests(unittest.TestCase):
+         self.assertEqual(cues['lidar'], laser[0][1])
+         self.assertEqual(cues['fusion'], (0.5, 0.625, 0.75))
+         self.assertEqual(cues['adaptive'], cues['lidar'])
++        self.assertEqual(cues['guarded_fusion'], (0.0, 0.25, 0.75))
+         trusted, _ = matched_clearance_cues(match, laser[-1], 10.0, 0.5, trusted_rgb=True)
+         self.assertEqual(trusted['adaptive'], trusted['fusion'])
+ 
+@@ -99,9 +100,16 @@ class ClearanceSourceTests(unittest.TestCase):
+         match = match_fusion_samples((), (laser,), 10.1, 'buffered')
+         cues, stamp = matched_clearance_cues(match, laser, 10.1, 0.5)
+         self.assertEqual(stamp, laser[0])
+-        self.assertEqual(cues, {'lidar': laser[1], 'fusion': laser[1], 'adaptive': laser[1]})
++        self.assertEqual(cues, dict.fromkeys(('lidar', 'fusion', 'adaptive', 'guarded_fusion'), laser[1]))
+         for invalid in (None, (9.0, laser[1]), (10.2, laser[1])):
+             with self.subTest(sample=invalid):
+                 cues, stamp = matched_clearance_cues(match, invalid, 10.1, 0.5)
+                 self.assertIsNone(stamp)
+-                self.assertEqual(cues, {'lidar': None, 'fusion': None, 'adaptive': None})
++                self.assertEqual(cues, dict.fromkeys(('lidar', 'fusion', 'adaptive', 'guarded_fusion')))
++
++    def test_guard_preserves_low_scores_and_interpolates_to_full_fusion(self):
++        scan = (0.10, 0.25, 0.375)
++        self.assertEqual(guarded_clearance(scan, (1.0, 1.0, 1.0), 0.5),
++                         (0.10, 0.25, 0.53125))
++        self.assertEqual(guarded_clearance((0.5, 0.75, 1.0), (1.0, 0.0, 1.0), 0.5),
++                         (0.75, 0.375, 1.0))
