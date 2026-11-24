@@ -1,0 +1,19 @@
+{
+  "checkpoints_sha256": {
+    "robust_aligned": "4be795fe75a3f91d040bc1a71595cdd9b4885821b8381d89a74e6f71f02715b3",
+    "robust_raw": "2521881d77df922ae33db8feb5f15c71418db9544264942ee6153effc5fd5cfe"
+  },
+  "frames": 715,
+  "maximum_absolute_error": {
+    "robust_aligned": 0.0,
+    "robust_raw": 0.0
+  },
+  "original_checkpoint_sha256": "dde9e882d94d842879e136715ddb6ae2572550217cf1c3d3c272e9725f44c186",
+  "output_reorder": [
+    2,
+    1,
+    0
+  ],
+  "predictions_sha256": "5eb02866d0a945ac0bcbc45b61affb0d8a57ab36b4ab83fafafe5af1b7f2b02e",
+  "script_sha256": "c61803b902391f3816b1ba7b65b589edc24cf8b558a4cca1fa45579ee4408d54"
+}

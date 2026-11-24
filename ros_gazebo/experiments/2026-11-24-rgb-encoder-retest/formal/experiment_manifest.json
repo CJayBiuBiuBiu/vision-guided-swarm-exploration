@@ -1,0 +1,167 @@
+{
+  "inputs_sha256": {
+    "actor": "24c3c2edf94593484cf36a596054cc0d0273f922e3039e2fbe5fdd4d45cff212",
+    "cue_audit": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "exports": "f3c11d31bbafa29d08b97ed321220d4119127e605465b4c55b1099f31a2ee021",
+    "runner": "1d7ae163be62d58ee0e36c36ea46747aa853e83e7202214d468c8ee5b33332a0",
+    "shared_runner": "2fb2759e6fe0a76b645d1b9425e32faa75e6293ee2567509013ad8c6dcfc4cdd"
+  },
+  "rgb_sha256": {
+    "legacy": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "lidar": "3ddcf69b973bef4aebaaddddc15e537bc25cd82b8c024fe5a797f082bd6f8df5",
+    "robust_aligned": "4be795fe75a3f91d040bc1a71595cdd9b4885821b8381d89a74e6f71f02715b3",
+    "robust_raw": "2521881d77df922ae33db8feb5f15c71418db9544264942ee6153effc5fd5cfe"
+  },
+  "runs": [
+    {
+      "cue": "lidar",
+      "environment_seed": 66121,
+      "horizon": 90,
+      "layout": "hu_aligned",
+      "method": "lidar",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66121,
+      "horizon": 90,
+      "layout": "hu_aligned",
+      "method": "legacy",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66121,
+      "horizon": 90,
+      "layout": "hu_aligned",
+      "method": "robust_aligned",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66121,
+      "horizon": 90,
+      "layout": "hu_aligned",
+      "method": "robust_raw",
+      "order": 4,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66122,
+      "horizon": 90,
+      "layout": "hu_layout_c",
+      "method": "legacy",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66122,
+      "horizon": 90,
+      "layout": "hu_layout_c",
+      "method": "robust_raw",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66122,
+      "horizon": 90,
+      "layout": "hu_layout_c",
+      "method": "lidar",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66122,
+      "horizon": 90,
+      "layout": "hu_layout_c",
+      "method": "robust_aligned",
+      "order": 4,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66123,
+      "horizon": 90,
+      "layout": "hu_aligned",
+      "method": "robust_raw",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66123,
+      "horizon": 90,
+      "layout": "hu_aligned",
+      "method": "robust_aligned",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66123,
+      "horizon": 90,
+      "layout": "hu_aligned",
+      "method": "legacy",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66123,
+      "horizon": 90,
+      "layout": "hu_aligned",
+      "method": "lidar",
+      "order": 4,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66124,
+      "horizon": 90,
+      "layout": "hu_layout_c",
+      "method": "robust_aligned",
+      "order": 1,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66124,
+      "horizon": 90,
+      "layout": "hu_layout_c",
+      "method": "lidar",
+      "order": 2,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66124,
+      "horizon": 90,
+      "layout": "hu_layout_c",
+      "method": "robust_raw",
+      "order": 3,
+      "stage": "eval"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 66124,
+      "horizon": 90,
+      "layout": "hu_layout_c",
+      "method": "legacy",
+      "order": 4,
+      "stage": "eval"
+    }
+  ],
+  "source_tree": "92e578d8fa047e115a97c49a7f12ed3ea73d5dd6",
+  "world_sha256": {
+    "hu_aligned": "ce359b4f610a93165142bb39546dc4a7d631c36cd9c48a9b967ddfdd1e81d0c7",
+    "hu_layout_c": "dae9dcfc27d97f5b09182f27a42ee8a78c797b9da66ee14f448f212767188f44"
+  }
+}
