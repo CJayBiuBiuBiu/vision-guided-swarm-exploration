@@ -23,6 +23,7 @@ OPTIONS = tuple((cue, mode) for mode in MODES for cue in RULES)
 HOLD_SECONDS = 4.5
 SHIELD_CLEARANCE = 0.25
 SOURCE_TREE = "5f6db4736f0b1d220191298b07ee463e9ce9a6ff"
+ORIGINAL_RUNNER_SHA = "bf56e87271ce4115ffc05e63db4141fb896fec72058fdf766378b99dda8c641c"
 RGB_SHA = "b3115535d34539e380d69335be76f7822ab2eeb9afab5a10674c951030217d21"
 HU_ORDER = (0, 5, 2, 1, 4, 3)
 C_ORDER = (3, 0, 4, 1, 5, 2)
@@ -70,7 +71,7 @@ def audit_actions(directory):
                                           for row in active_choices))
 
 
-def audit_decisions(run, directory, log):
+def audit_decisions(run, directory, robot_logs):
     events = read_json_lines(directory / "decisions.jsonl")
     header = events[0]
     rules, mode = run["rule_cue"], run["wait_mode"]
@@ -115,7 +116,7 @@ def audit_decisions(run, directory, log):
                 held[result] += 1
         elif activity == "policy_waypoint_retired":
             retired += 1
-    received = len(re.findall(r"\[robot[123]\] retired policy waypoint", log))
+    received = sum(text.count(f"[{robot}] retired policy waypoint") for robot, text in robot_logs.items())
     if (pending or not assignments or assignments != sum(outcomes.values())
             or (mode == "legacy" and (retired or received))
             or received > retired or (rules == "guarded_fusion" and any(abs(value) > 1e-10 for value in low))):
@@ -138,13 +139,23 @@ def verify(run, package, actor, rgb, directory):
         raise ValueError(f"Trial inputs differ in {directory}")
     result = verify_metrics(directory, run, rules=run["rule_cue"])
     log = (directory / "launch.log").read_text(errors="replace")
+    robot_logs = {}
+    for number in (1, 2, 3):
+        robot = f"robot{number}"
+        matches = [path for path in directory.glob(f"ros_logs/*/{robot}_explorer-*.log")
+                   if (not path.parent.is_symlink()
+                       and re.fullmatch(fr"{robot}_explorer-\d+\.log", path.name))]
+        if len(matches) != 1:
+            raise ValueError(f"Missing or ambiguous node log for {robot} in {directory}")
+        robot_logs[robot] = matches[0].read_text(errors="replace")
     if (f"loaded mappo actor checkpoint {actor}" not in log
             or "reference coverage omitted from actor input" not in log
-            or any(f"[robot{number}] safety shield: enabled=True" not in log for number in (1, 2, 3))):
+            or any(f"[{robot}] safety shield: enabled=True" not in text
+                   for robot, text in robot_logs.items())):
         raise ValueError(f"Could not confirm the shared actor and speed shield in {directory}")
     if {row["control_progress_mode"] for row in csv_rows(directory / "metrics.csv")} != {"observed_free_area"}:
         raise ValueError(f"Unexpected progress mode in {directory}")
-    return dict(**run, **result, **audit_actions(directory), **audit_decisions(run, directory, log))
+    return dict(**run, **result, **audit_actions(directory), **audit_decisions(run, directory, robot_logs))
 
 
 def trial(run, package, actor, rgb, output):
@@ -153,6 +164,17 @@ def trial(run, package, actor, rgb, output):
     if marker.exists():
         directory = output / json.loads(marker.read_text())["directory"]
     else:
+        for existing in sorted(output.glob(name + ".*")):
+            status = existing / "exit_status.txt"
+            if status.is_file() and status.read_text().strip() == "0":
+                try:
+                    recovered = verify(run, package, actor, rgb, existing)
+                except (ValueError, KeyError, FileNotFoundError) as error:
+                    print(f"UNSEALED {existing}: {error}", flush=True)
+                else:
+                    preserve_json(marker, dict(directory=existing.name, result=recovered))
+                    print(f"RECOVERED {name} {existing}", flush=True)
+                    return recovered
         for _ in range(2):
             check_idle()
             directory = Path(tempfile.mkdtemp(prefix=name + ".", dir=output))
@@ -209,9 +231,18 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     with (Path.home() / ".vision_gazebo_experiment.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        preserve_json(output / "experiment_manifest.json", dict(
+        plan_path = output / "experiment_manifest.json"
+        fingerprints = {key: digest(path) for key, path in inputs.items()}
+        if (plan_path.exists() and json.loads(plan_path.read_text())["input_sha256"]["runner"]
+                == ORIGINAL_RUNNER_SHA):
+            preserve_json(output / "verification_revision.json", dict(
+                original_runner_sha256=ORIGINAL_RUNNER_SHA,
+                current_runner_sha256=fingerprints["runner"],
+                log_source="individual_robot_node_logs", preserved_schedule_sha256=digest(plan_path)))
+            fingerprints["runner"] = ORIGINAL_RUNNER_SHA
+        preserve_json(plan_path, dict(
             stage=args.stage, runs=runs, source_tree=tree, hold_seconds=HOLD_SECONDS,
-            input_sha256={key: digest(path) for key, path in inputs.items()},
+            input_sha256=fingerprints,
             world_sha256={layout: digest(package / "worlds" / (layout + "_arena.world"))
                           for layout, _, _ in blocks}))
         if args.audit_only and len(list(output.glob("*.complete.json"))) != len(runs):

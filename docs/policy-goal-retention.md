@@ -68,3 +68,10 @@ of 21 goals and deferred 14 WAIT actions with valid route and
 clearance checks. The formal comparisons use four different seeds.
 
 [Sealed smoke results and formal schedule](../ros_gazebo/experiments/2026-11-24-policy-goal-retention/)
+
+The ninth formal trajectory completed normally, but the merged
+launch stream omitted one robot's startup line. The verifier now
+uses each robot's own ROS log for the shield and retirement checks.
+It revalidated the eight earlier trajectories and recovered the
+ninth from its existing CSV and logs. The original schedule and
+raw attempts remain archived with a verifier revision record.
