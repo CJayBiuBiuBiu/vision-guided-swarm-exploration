@@ -56,6 +56,8 @@ command with `xvfb-run -a`.
 ```sh
 python3 scripts/run_policy_goal_retention.py smoke "$ROS_PROJECT" "$ACTOR" "$RGB" "$SMOKE_OUT"
 python3 scripts/run_policy_goal_retention.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT"
+python3 scripts/run_policy_goal_retention.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT" --audit-only
+python3 scripts/report_policy_goal_retention.py "$FORMAL_OUT" "$ANALYSIS_OUT"
 ```
 
 ## Implementation checks
@@ -75,3 +77,56 @@ uses each robot's own ROS log for the shield and retirement checks.
 It revalidated the eight earlier trajectories and recovered the
 ninth from its existing CSV and logs. The original schedule and
 raw attempts remain archived with a verifier revision record.
+
+## Results
+
+All 24 formal trajectories reached the fixed 60 s horizon and passed
+the audit. The four seed blocks share one frozen MAPPO actor, DDPG
+controller and speed shield. The table shows means over four runs
+per condition and pooled counts for goal arrival.
+
+| Frontier cue | WAIT handling | Coverage at 60 s | Tracked goals reached | Team path (m) | Near-collision events |
+| --- | --- | ---: | ---: | ---: | ---: |
+| LiDAR | Legacy | 45.38% | 0/225 (0.00%) | 30.36 | 170.75 |
+| LiDAR | Explicit cancellation | 31.23% | 7/238 (2.94%) | 15.80 | 92.25 |
+| LiDAR | Short hold | 36.46% | 21/147 (14.29%) | 21.04 | 122.75 |
+| Guarded RGB | Legacy | 45.97% | 4/227 (1.76%) | 31.11 | 174.00 |
+| Guarded RGB | Explicit cancellation | 25.26% | 6/225 (2.67%) | 14.04 | 89.50 |
+| Guarded RGB | Short hold | 38.55% | 14/160 (8.75%) | 22.00 | 125.50 |
+
+In all eight within-cue pairs, short hold increased final coverage
+relative to explicit cancellation. The mean increase was 5.23
+percentage points with LiDAR and 13.29 with guarded RGB. The two
+hold arms deferred 327 WAIT decisions across 200 assigned goals.
+The robots reached 28 of those retained goals. The low-level logs
+recorded receipt of all 739 waypoint retirements sent in the cancel
+and hold arms. Near-collision events increased from the cancel
+arms to the hold arms as team paths also grew. These counts record
+LiDAR crossings of the 0.18 m threshold with a 0.25 m reset.
+
+Legacy execution achieved higher coverage than short hold in
+every matched seed and cue. In 61 of the 65 legacy intervals with
+sufficient position samples, robots moved more than 0.05 m between
+a WAIT closure and the next assignment. The corresponding counts
+were 21 of 67 for explicit cancellation and 10 of 30 for short
+hold. Motion can include recovery. The trajectory analysis excludes
+intervals with fewer than two position samples at least 0.25 s after
+closure and before reassignment. A tracked arrival requires the
+coordinator to keep the goal active through arrival, so legacy
+coverage and tracked arrivals capture different outcomes.
+
+The actor chose WAIT in all 120 observed states with an active goal
+and only WAIT and CONTINUE available. The mean conditional softmax
+probability of WAIT was 51.13%. Deterministic action selection
+turned this small preference into recurring WAIT commands.
+
+With short hold, guarded RGB changed coverage relative to LiDAR
+by +1.65, +6.04, +3.66 and −3.00 percentage points in seed order.
+The mean paired difference was +2.09 points. The guarded RGB group
+also had a lower pooled tracked arrival rate. The study covers
+two simulated layouts and one training lineage. All runs ended
+below 90% coverage, leaving the 90% and 97% times unobserved.
+These results support short hold as an optional execution mode
+and motivate testing the actor's WAIT policy at longer horizons.
+
+[Per-run results, paired contrasts and figures](../ros_gazebo/experiments/2026-11-24-policy-goal-retention/)

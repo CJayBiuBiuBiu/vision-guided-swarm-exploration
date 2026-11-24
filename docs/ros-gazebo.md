@@ -86,6 +86,8 @@ and tests whether their direction scores agree with the planar scan. The [closed
 checks the corrected checkpoint with matched trials and a frozen actor.
 The [low-clearance study](rgb-low-clearance-study.md) compares training
 supervision, calibrated scores and a LiDAR-preserving fusion rule.
+The [goal-retention study](policy-goal-retention.md) audits MAPPO's WAIT
+decisions and compares explicit waypoint cancellation with a short hold.
 
 The RGB modes accept `learned_vision_checkpoint` as an absolute path. Use
 [`rgb_clearance_inference.pt`](../ros_gazebo/checkpoints/rgb_clearance_inference.pt)
