@@ -1,0 +1,5 @@
+scene,mode,runs,fresh_pct,reached_pct,block_contacts_mean,coverage_pct_mean,path_m_mean,reached_mean,assignments_mean,near_collision_events_mean,stuck_events_mean,recovery_successes_mean,block_contacts_total,controller_ticks_total,fresh_ticks_total,would_reduce_ticks_total,reduced_ticks_total,stopped_ticks_total,laser_full_speed_reduce_ticks_total,reached_total,assignments_total
+clear,limit,2,100.0,30.76923076923077,0.0,43.3608,20.79305,12.0,39.0,131.0,1.0,1.0,0,2459,2459,45,45,0,45,24,78
+clear,observe,2,100.0,25.0,0.0,44.8947,22.797150000000002,9.0,36.0,131.0,1.0,1.0,0,2527,2527,0,0,0,0,18,72
+low_blocks,limit,4,100.0,21.951219512195124,0.25,27.472525,14.1541,6.75,30.75,101.75,2.75,2.0,1,3738,3738,565,565,253,565,27,123
+low_blocks,observe,4,100.0,23.140495867768596,5.75,32.98995,16.449425,7.0,30.25,98.25,3.25,1.5,23,3844,3844,439,0,0,0,28,121

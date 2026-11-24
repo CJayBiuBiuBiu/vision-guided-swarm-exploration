@@ -75,6 +75,8 @@ The [depth corridor pilot](depth-corridor-study.md) compares camera depth
 with the horizontal scan on obstacles below the scan plane.
 The [active recheck study](active-depth-recheck.md) tests an additional
 waypoint check while a robot is following its current assignment.
+The [depth velocity study](depth-velocity-study.md) measures physical
+low-box contacts when depth directly limits the DDPG forward command.
 The [matched vision training study](matched-vision-training.md) trains two
 MAPPO actors independently with the same budget and observation mask.
 The [training extension](vision-training-extension.md) follows the same

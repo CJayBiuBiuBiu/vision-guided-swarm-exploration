@@ -1,0 +1,7 @@
+scene,seed,observed_contacts,limited_contacts,limited_ticks,block_contacts_delta,coverage_pct_delta,path_m_delta,reached_delta,assignments_delta,near_collision_events_delta,stuck_events_delta,recovery_successes_delta
+low_blocks,67011,7,0,56,-7.0,-0.5495,4.0039,7.0,12.0,23.0,-4.0,-1.0
+low_blocks,67012,4,0,160,-4.0,-2.1521,-0.7254,-3.0,-2.0,19.0,1.0,0.0
+clear,67013,0,0,1,0.0,4.4872,0.2994,11.0,3.0,4.0,0.0,0.0
+low_blocks,67014,3,0,84,-3.0,3.9835,-0.25,0.0,3.0,10.0,3.0,3.0
+low_blocks,67015,9,1,265,-8.0,-23.3516,-12.2098,-5.0,-11.0,-38.0,-2.0,0.0
+clear,67016,0,0,44,0.0,-7.555,-4.3076,-5.0,3.0,-4.0,0.0,0.0

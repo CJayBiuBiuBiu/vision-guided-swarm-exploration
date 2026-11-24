@@ -58,6 +58,7 @@ python3 scripts/run_depth_velocity_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB
 python3 scripts/run_depth_velocity_study.py smoke "$ROS_PROJECT" "$ACTOR" "$RGB" "$SMOKE_OUT"
 python3 scripts/run_depth_velocity_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT"
 python3 scripts/run_depth_velocity_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT" --audit-only
+python3 scripts/report_depth_velocity_study.py "$FORMAL_OUT" "$ANALYSIS_OUT"
 ```
 
 ## Smoke test
@@ -71,4 +72,34 @@ full speed, with seven full stops. Coverage was 17.95% and
 22.66%, respectively. This single seed checks the end-to-end
 sensor and velocity path.
 
-[Smoke results and formal schedule](../ros_gazebo/experiments/2026-11-24-depth-velocity/)
+## Formal results
+
+All 12 runs completed and every audited controller tick had fresh
+depth. Physical low-box contacts fell in all four matched seeds.
+The observation-only group recorded 23 contact episodes. The
+limiting group recorded one.
+
+| Scene | Seeds | Contact episodes, observe / limit | Mean coverage, observe / limit | Mean team path, observe / limit |
+| --- | ---: | ---: | ---: | ---: |
+| Low boxes | 4 | 23 / 1 | 32.99% / 27.47% | 16.45 m / 14.15 m |
+| No low boxes | 2 | 0 / 0 | 44.89% / 43.36% | 22.80 m / 20.79 m |
+
+In the low-box scenes, depth reduced forward speed on 565 ticks
+when the LiDAR shield permitted full speed. It brought the forward
+command to zero on 253 of those ticks. One seed accounted for
+157 stop ticks. Its coverage dropped from 36.31% to 12.96% and its
+path shortened from 19.14 m to 6.93 m. In the two reference runs
+with limiting enabled, depth reduced speed on 45 of 2,459 ticks,
+with zero full stops. Coverage changes in those paired runs were
++4.49 and −7.56 points.
+
+An exploratory timing audit linked 19 of the 23 observation-only
+contact episodes to a shadow speed-reduction decision by the
+same robot in the previous second. The remaining contact in the
+limiting arm involved a left wheel. Its preceding second had no
+qualifying reduction. The test shows a contact reduction for
+one simulated layout with three low boxes. It also identifies a
+coverage cost in some routes. The limiter remains an optional
+forward-velocity control.
+
+[Matched results, contact warnings and figure](../ros_gazebo/experiments/2026-11-24-depth-velocity/)
