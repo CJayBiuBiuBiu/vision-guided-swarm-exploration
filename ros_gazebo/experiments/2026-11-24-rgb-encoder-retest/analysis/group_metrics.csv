@@ -1,0 +1,13 @@
+layout,method,runs,coverage_pct_mean,path_m_mean,goals_reached_mean,near_collision_events_mean,stuck_events_mean,recovery_successes_mean,traced_reached_mean,traced_wait_mean,reached_90_count,reached_97_count
+all,legacy,4,66.9655,56.00515,3.25,291.0,6.5,4.0,3.25,73.5,0,0
+all,lidar,4,73.28540000000001,56.865425,2.75,286.0,5.25,2.5,2.75,70.25,0,0
+all,robust_aligned,4,67.58,59.12495,1.75,298.0,3.5,1.5,1.75,76.75,0,0
+all,robust_raw,4,67.09165,55.5208,1.75,277.25,3.5,2.0,1.75,76.25,0,0
+hu_aligned,legacy,2,69.32235,56.81695,5.0,291.5,6.0,4.5,5.0,69.5,0,0
+hu_aligned,lidar,2,76.28205,58.516850000000005,3.5,302.5,3.5,2.0,3.5,70.5,0,0
+hu_aligned,robust_aligned,2,67.94874999999999,58.29455,3.0,306.5,3.5,2.0,3.0,79.0,0,0
+hu_aligned,robust_raw,2,66.1172,53.9294,2.5,261.5,4.5,2.5,2.5,70.5,0,0
+hu_layout_c,legacy,2,64.60865,55.19335,1.5,290.5,7.0,3.5,1.5,77.5,0,0
+hu_layout_c,lidar,2,70.28875,55.214,2.0,269.5,7.0,3.0,2.0,70.0,0,0
+hu_layout_c,robust_aligned,2,67.21125,59.955349999999996,0.5,289.5,3.5,1.0,0.5,74.5,0,0
+hu_layout_c,robust_raw,2,68.0661,57.1122,1.0,293.0,2.5,1.5,1.0,82.0,0,0
