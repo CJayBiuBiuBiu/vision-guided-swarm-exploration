@@ -138,3 +138,103 @@ two decisions was 44 cells. The first crossing occurred at
 results check execution and the candidate lifetime mechanism;
 the locked twelve-run comparison determines the extent to
 which the behaviour generalises.
+
+## Formal results
+
+All twelve trials reached 120 s and passed the initial and
+repeat audits. Four distinct coverage-mask hashes identify the
+four layouts; the mask and policy fingerprints match across
+the three conditions within each layout.
+
+| Layout seed | Passive coverage | Active coverage | Gain-region coverage | Robots crossing (passive / active / gain) |
+| --- | ---: | ---: | ---: | ---: |
+| 71321 | 66.67% | 51.65% | 54.80% | 1 / 0 / 0 |
+| 71322 | 99.92% | 84.51% | 95.49% | 2 / 1 / 1 |
+| 71323 | 47.88% | 38.73% | 88.07% | 0 / 0 / 2 |
+| 71324 | 69.02% | 68.75% | 94.91% | 0 / 0 / 2 |
+| Mean | 70.87% | 60.91% | 83.32% | 0.75 / 0.25 / 1.25 |
+
+The gain-region mean exceeded passive width by 12.45 percentage
+points and active width by 22.41 points. It improved coverage in
+two of four passive comparisons and all four active comparisons.
+Three gain-region runs crossed the partition, compared with two
+passive and one active run. Five robots crossed across the four
+gain-region runs, compared with three and one, respectively.
+Two gain-region trials reached 90% at 92.251 and 99.503 s.
+The passive method reached 90% once and 97% once (109.264 and
+116.253 s in seed 71322). The gain-region and active conditions
+did not reach 97%.
+
+| Metric (mean over four layouts) | Passive | Active | Gain-region |
+| --- | ---: | ---: | ---: |
+| Team path (m) | 40.55 | 31.51 | 47.92 |
+| Stuck events | 4.50 | 5.00 | 5.25 |
+| Near-collision events | 1.50 | 1.25 | 0.75 |
+| Reached goals | 16.25 | 12.00 | 16.75 |
+
+The gain-region strategy explored more area with longer paths
+and slightly more stuck events in this sample. Near-collision
+events count threshold crossings in the clearance telemetry;
+they are not physical contact counts.
+
+### Intervention evidence
+
+The active-width condition initiated 16 observations and obtained
+one usable current frontier score. Nine inspections lost a
+candidate, three timed out, three failed pose or target stability,
+and one redirected. The gain-region condition initiated 15
+observations. Twelve obtained an anchor score and eight obtained
+a usable score for at least one current owned candidate; the
+latter is comparable with the active-width score count. Four
+observations redirected, four had insufficient gain, four had
+no corresponding region candidate at the end, and three stopped
+when map updates depleted the potential. Six encountered a
+temporary lack of associated candidates (24 control ticks in
+total), and none of those six redirected in the formal runs.
+The separate smoke example exercised a successful redirect
+after temporary disappearance.
+
+Four inspected and one direct gain-region decisions actually
+changed goals. Four of the five redirected attempts reached
+their goals. The estimated gains at the five interventions
+exceeded the corresponding preferences by 72 cells in aggregate;
+this is a sum of local estimates, not a unique-area measurement.
+
+Two same-robot traces show a crossing during the new assignment:
+
+- Seed 71323, robot 3: RGB-based redirect at 97.256 s, first
+  crossing at 101.252 s, and goal arrival at 105.504 s. The
+  selected goal was on the opposite side of the partition.
+- Seed 71324, robot 3: RGB-based redirect at 67.505 s, first
+  crossing at 69.252 s, and goal arrival at 73.006 s. The
+  selected goal was again beyond the partition.
+
+These traces establish execution of the changed goals through
+an opening. The matched aggregate comparisons remain subject
+to Gazebo rollout variation and do not identify a counterfactual
+effect of each individual decision.
+
+Three bounded continuation segments were issued and reached
+within the controller's 0.50 m arrival tolerance, in seeds
+71323 and 71324. The segments were 0.80, 1.00 and 1.00 m,
+respectively, all with fresh camera and known-free grid evidence.
+Neither older arm executed a continuation segment. All 145 ROS
+tests, three existing coordinator integration checks and 55
+main repository tests passed.
+
+### Interpretation and scope
+
+This is the first matched study in this project in which
+information-aware visual selection improved final coverage over
+the earlier active-width version in all four held-out scenarios,
+and produced traced crossings during applied visual redirects.
+The strategy remains an opt-in experimental mode. The four
+layouts share a partition-and-opening family, the observations
+use exact simulated pose, the comparison freezes one MAPPO
+lineage, and the gain and spatial association changes are
+combined. Broader layout families, repeated seeds, independent
+training lineages and separated component ablations are needed
+to establish generalisation and attribute the improvement.
+
+[Matched results, plots, world files, manifests, intervention
+traces and audit logs](../ros_gazebo/experiments/2026-11-25-gain-passage/)

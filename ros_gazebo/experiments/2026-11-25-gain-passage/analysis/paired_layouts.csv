@@ -1,0 +1,9 @@
+scene,seed,control,control_first_crossing_s,gain_first_crossing_s,coverage_pct_delta,path_m_delta,robots_crossing_delta,goals_reached_delta,stuck_events_delta,near_collision_events_delta,applied_reranks_delta,inspection_redirects_delta,continuations_issued_delta,continuation_segments_arrived_delta
+gain_narrow_east,71321,passive,109.25,,-11.8644,-4.8203,-1.0,-4.0,-2.0,1.0,0.0,0.0,0.0,0.0
+gain_narrow_east,71321,active,,,3.1477,2.5747,0.0,-4.0,-2.0,0.0,0.0,0.0,0.0,0.0
+gain_narrow_west,71322,passive,57.253,45.26,-4.4262,3.2558,-1.0,-2.0,7.0,-1.0,0.0,1.0,0.0,0.0
+gain_narrow_west,71322,active,41.503,45.26,10.9836,17.5477,0.0,7.0,1.0,-1.0,0.0,0.0,0.0,0.0
+gain_west_exit,71323,passive,,67.501,40.1961,19.4972,2.0,2.0,-5.0,-2.0,0.0,2.0,1.0,1.0
+gain_west_exit,71323,active,,67.501,49.3464,34.2285,2.0,10.0,-2.0,0.0,0.0,2.0,1.0,1.0
+gain_east_exit,71324,passive,,69.252,25.8928,11.5475,2.0,6.0,3.0,-1.0,1.0,1.0,2.0,2.0
+gain_east_exit,71324,active,,69.252,26.1607,11.2908,2.0,6.0,4.0,-1.0,1.0,1.0,2.0,2.0

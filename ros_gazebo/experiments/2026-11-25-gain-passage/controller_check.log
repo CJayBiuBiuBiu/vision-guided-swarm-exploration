@@ -1,0 +1,8 @@
+test_aligned_inspection_redirects_to_rebound_candidate (__main__.suite.<locals>.CoordinatorPassageTests) ... ok
+test_safe_continuation_and_wait_recheck (__main__.suite.<locals>.CoordinatorPassageTests) ... ok
+test_unknown_corridor_and_step_budget_stop_extension (__main__.suite.<locals>.CoordinatorPassageTests) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.002s
+
+OK

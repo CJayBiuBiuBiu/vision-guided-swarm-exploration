@@ -1,0 +1,24 @@
+START gain_narrow_east_71321_passive /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_narrow_east_71321_passive.bb2ln8xf
+VERIFIED gain_narrow_east_71321_passive coverage=66.67% crossing=1 inspections=0/0 redirects=0 continuations=0 gain=0
+START gain_narrow_east_71321_active /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_narrow_east_71321_active.uojc4ci4
+VERIFIED gain_narrow_east_71321_active coverage=51.65% crossing=0 inspections=0/3 redirects=0 continuations=0 gain=0
+START gain_narrow_east_71321_gain_region /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_narrow_east_71321_gain_region.yokkgb8n
+VERIFIED gain_narrow_east_71321_gain_region coverage=54.80% crossing=0 inspections=1/3 redirects=0 continuations=0 gain=0
+START gain_narrow_west_71322_active /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_narrow_west_71322_active.oiwxxtrs
+VERIFIED gain_narrow_west_71322_active coverage=84.51% crossing=1 inspections=1/6 redirects=1 continuations=0 gain=0
+START gain_narrow_west_71322_gain_region /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_narrow_west_71322_gain_region.mqfs3eg9
+VERIFIED gain_narrow_west_71322_gain_region coverage=95.49% crossing=1 inspections=3/3 redirects=1 continuations=0 gain=7
+START gain_narrow_west_71322_passive /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_narrow_west_71322_passive.ee9a2icb
+VERIFIED gain_narrow_west_71322_passive coverage=99.92% crossing=2 inspections=0/0 redirects=0 continuations=0 gain=0
+START gain_west_exit_71323_gain_region /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_west_exit_71323_gain_region.g2665ul_
+VERIFIED gain_west_exit_71323_gain_region coverage=88.07% crossing=2 inspections=3/3 redirects=2 continuations=1 gain=52
+START gain_west_exit_71323_passive /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_west_exit_71323_passive.uh5qkqvu
+VERIFIED gain_west_exit_71323_passive coverage=47.88% crossing=0 inspections=0/0 redirects=0 continuations=0 gain=0
+START gain_west_exit_71323_active /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_west_exit_71323_active.2_rnwtq7
+VERIFIED gain_west_exit_71323_active coverage=38.73% crossing=0 inspections=0/1 redirects=0 continuations=0 gain=0
+START gain_east_exit_71324_gain_region /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_east_exit_71324_gain_region.bq7ef1hv
+VERIFIED gain_east_exit_71324_gain_region coverage=94.91% crossing=2 inspections=5/6 redirects=1 continuations=2 gain=13
+START gain_east_exit_71324_active /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_east_exit_71324_active.e359svdc
+VERIFIED gain_east_exit_71324_active coverage=68.75% crossing=0 inspections=0/6 redirects=0 continuations=0 gain=0
+START gain_east_exit_71324_passive /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/formal/gain_east_exit_71324_passive.vc7a6k5i
+VERIFIED gain_east_exit_71324_passive coverage=69.02% crossing=0 inspections=0/0 redirects=0 continuations=0 gain=0

@@ -3,6 +3,7 @@
 import argparse
 from collections import Counter, defaultdict
 import json
+import math
 from pathlib import Path
 from statistics import mean, median, stdev
 
@@ -82,10 +83,15 @@ def inspection_results(formal, rows):
             elif activity in ("gain_inspection_result", "passage_inspection_result"):
                 started = inspections.pop(robot)
                 count += 1
+                gain_mode = activity == "gain_inspection_result"
+                observed = (event["anchor_score"] is not None if gain_mode else event["score"] is not None)
+                candidate_scored = (any(candidate["score"] is not None for candidate in event["candidates"])
+                                    if gain_mode else observed)
                 yield dict(scene=row["scene"], seed=row["environment_seed"],
                            strategy=row["passage_strategy"], robot=robot,
                            start_s=started["elapsed_sim_s"], duration_s=event["duration_s"],
-                           reason=event["reason"], preferred=event["preferred"],
+                           reason=event["reason"], anchor_or_original_score=observed,
+                           current_candidate_scored=candidate_scored, preferred=event["preferred"],
                            alternative=event["alternative"], selected=event["selected"],
                            base_gain_cells=event.get("base_gain_cells"), missing_ticks=event.get("missing_ticks"),
                            selected_gain_cells=next((candidate["gain_cells"] for candidate in event.get("candidates", [])
@@ -132,6 +138,23 @@ def redirects(formal, rows, geometries):
                            first_robot_crossing_s=crossing,
                            crossed_before=(crossing is not None and crossing < event["elapsed_sim_s"]),
                            crossed_after=(crossing is not None and crossing >= event["elapsed_sim_s"]))
+
+
+def continuations(formal, rows):
+    for row in rows:
+        events, _ = run_data(formal, row)
+        for event in events:
+            if event["event"] != "passage_continuation_decision":
+                continue
+            target = event["target_xy"]
+            yield dict(scene=row["scene"], seed=row["environment_seed"],
+                       strategy=row["passage_strategy"], robot=event["robot"],
+                       elapsed_s=event["elapsed_sim_s"], frontier_id=event["frontier_id"],
+                       completed_segments=event["step"], gain_cells=event.get("gain_cells"),
+                       clear_distance_m=None if event["score"] is None else event["score"]["clear_to_m"],
+                       origin_xy=json.dumps(event["origin_xy"]),
+                       target_xy=None if target is None else json.dumps(target),
+                       extension_m=None if target is None else math.dist(event["origin_xy"], target))
 
 
 def plot(rows, output):
@@ -191,9 +214,23 @@ def main():
     inspections = list(inspection_results(args.formal, rows))
     if inspections:
         write_csv(args.output / "inspection_results.csv", inspections)
+        diagnostics = []
+        for strategy in STRATEGIES:
+            subset = [item for item in inspections if item["strategy"] == strategy]
+            runs = [row for row in rows if row["passage_strategy"] == strategy]
+            diagnostics.append(dict(
+                strategy=strategy, started=sum(int(row["inspections_started"]) for row in runs),
+                finished=len(subset), anchor_or_original_scores=sum(item["anchor_or_original_score"] for item in subset),
+                current_candidate_scores=sum(item["current_candidate_scored"] for item in subset),
+                total_robot_seconds=sum(item["duration_s"] for item in subset),
+                redirect_count=sum(item["reason"] == "redirected" for item in subset)))
+        write_csv(args.output / "inspection_diagnostics.csv", diagnostics)
     redirect_rows = list(redirects(args.formal, rows, geometries))
     if redirect_rows:
         write_csv(args.output / "redirect_trajectories.csv", redirect_rows)
+    segments = list(continuations(args.formal, rows))
+    if segments:
+        write_csv(args.output / "continuation_trace.csv", segments)
     plot(rows, args.output)
 
 

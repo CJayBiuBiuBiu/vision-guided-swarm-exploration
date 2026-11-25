@@ -1,0 +1,7 @@
+scene,seed,strategy,robot,source,redirect_s,original_frontier,selected_frontier,goal_x,goal_y,partition_y,baseline_gain_cells,selected_gain_cells,outcome,outcome_s,team_area_gain_m2,first_robot_crossing_s,crossed_before,crossed_after
+gain_narrow_west,71322,active,robot3,passage_inspection_result,98.751,21,28,-0.6999999999999993,-1.6999999999999997,-0.63,,,reached,104.003,4.079999999999998,41.503,True,False
+gain_narrow_west,71322,gain_region,robot1,gain_inspection_result,102.75500000000001,38,37,3.9000000000000012,-2.6999999999999997,-0.63,3,10,stuck,112.004,1.6800000000000068,45.26,True,False
+gain_west_exit,71323,gain_region,robot1,gain_inspection_result,88.006,8,33,-3.0999999999999996,-2.0999999999999996,0.61,5,35,reached,92.256,1.720000000000006,67.501,True,False
+gain_west_exit,71323,gain_region,robot3,gain_inspection_result,97.256,36,34,1.9000000000000004,-1.0999999999999996,0.61,23,45,reached,105.504,6.839999999999996,101.252,False,True
+gain_east_exit,71324,gain_region,robot3,gain_passage_decision,2.761,10,2,1.1000000000000005,2.9000000000000004,-0.36,34,39,reached,11.009,9.0,69.252,False,True
+gain_east_exit,71324,gain_region,robot3,gain_inspection_result,67.505,23,25,-0.5,-1.9,-0.36,34,42,reached,73.006,2.759999999999998,69.252,False,True

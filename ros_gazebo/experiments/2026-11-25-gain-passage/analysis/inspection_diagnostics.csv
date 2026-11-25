@@ -1,0 +1,4 @@
+strategy,started,finished,anchor_or_original_scores,current_candidate_scores,total_robot_seconds,redirect_count
+passive,0,0,0,0,0,0
+active,16,16,1,1,22.19099999999998,1
+gain_region,15,15,12,8,25.218000000000014,4

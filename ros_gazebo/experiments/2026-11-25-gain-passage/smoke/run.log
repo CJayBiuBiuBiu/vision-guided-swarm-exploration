@@ -1,0 +1,6 @@
+START gain_smoke_71310_passive /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/smoke/gain_smoke_71310_passive._3w78nn5
+VERIFIED gain_smoke_71310_passive coverage=42.96% crossing=0 inspections=0/0 redirects=0 continuations=0 gain=0
+START gain_smoke_71310_active /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/smoke/gain_smoke_71310_active.ny_9ppqc
+VERIFIED gain_smoke_71310_active coverage=49.92% crossing=0 inspections=0/3 redirects=0 continuations=0 gain=0
+START gain_smoke_71310_gain_region /home/cjay/vision_swarm_passage_gain_20261125.aMjEw6/smoke/gain_smoke_71310_gain_region.n3iez22t
+VERIFIED gain_smoke_71310_gain_region coverage=62.16% crossing=1 inspections=4/4 redirects=2 continuations=0 gain=44
