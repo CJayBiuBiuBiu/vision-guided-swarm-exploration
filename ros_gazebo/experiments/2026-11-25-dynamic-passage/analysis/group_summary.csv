@@ -1,0 +1,3 @@
+mode,runs,runs_with_crossing,coverage_mean,robots_crossing_total,reached_total,assignments_total,near_collision_events_total,passage_decisions_total,fresh_frame_pairs_total,preferred_scored_total,preferred_bottleneck_total,would_rerank_total,applied_reranks_total,reranked_targets_reached_total
+observe,4,2,70.011275,3,64,148,3,148,138,54,50,1,0,0
+rerank,4,1,59.99535,1,51,148,4,148,137,64,45,1,1,1

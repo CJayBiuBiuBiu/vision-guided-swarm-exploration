@@ -85,6 +85,8 @@ The [RGB passage study](rgb-passage-study.md) projects visible floor beyond
 the scan horizon and evaluates its use in frontier selection.
 The [doorway traversability probe](doorway-traversability.md) measures
 the apparent entry width and the space beyond the opening.
+The [dynamic passage study](dynamic-passage-study.md) evaluates live RGB
+width guidance in unseen layouts with scan-built navigation maps.
 The [RGB encoder audit](rgb-encoder-audit.md) compares the checkpoints
 and tests whether their direction scores agree with the planar scan. The [closed-loop retest](rgb-encoder-retest.md)
 checks the corrected checkpoint with matched trials and a frozen actor.

@@ -1,0 +1,9 @@
+scene,seed,mode,no_preferred_path,no_scored_alternative,insufficient_clear_gain,no_alternative_path,extra_route_too_long,eligible
+offset_narrow_east,71111,observe,0,13,3,0,0,0
+offset_narrow_east,71111,rerank,0,8,2,0,0,0
+south_narrow_west,71112,rerank,0,8,1,0,0,0
+south_narrow_west,71112,observe,0,7,4,0,0,0
+east_blocked_exit,71113,observe,0,9,1,0,0,1
+east_blocked_exit,71113,rerank,0,3,0,0,0,1
+west_blocked_exit,71114,rerank,0,22,0,0,0,0
+west_blocked_exit,71114,observe,0,11,1,0,0,0

@@ -67,6 +67,7 @@ python3 scripts/run_dynamic_passage_study.py formal "$ROS_PROJECT" "$ACTOR" "$RG
 python3 scripts/run_dynamic_passage_study.py smoke "$ROS_PROJECT" "$ACTOR" "$RGB" "$SMOKE_OUT"
 python3 scripts/run_dynamic_passage_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT"
 python3 scripts/run_dynamic_passage_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT" --audit-only
+python3 scripts/report_dynamic_passage_study.py "$FORMAL_OUT" "$ANALYSIS_OUT"
 ```
 
 ## Field-of-view correction and smoke results
@@ -90,4 +91,44 @@ The smoke runs completed and verified the moving-camera and
 selection traces. The observation arm crossed once, and the
 reranking arm had zero crossings.
 
-[Smoke summaries and revised schedule](../ros_gazebo/experiments/2026-11-25-dynamic-passage/)
+## Results on the four held-out layouts
+
+All eight formal runs reached 90 s and passed the audit. Each
+layout had a distinct coverage-mask hash shared by its two
+conditions. The same settings and simulation seed were used
+within each pair. The table shows final coverage and the number
+of robots that crossed the partition within the trial.
+
+| Layout | Seed | Coverage, observe / rerank | Robots crossing, observe / rerank |
+| --- | ---: | ---: | ---: |
+| Offset narrow east | 71111 | 78.06% / 70.89% | 1 / 1 |
+| South narrow west | 71112 | 67.14% / 58.99% | 0 / 0 |
+| East blocked exit | 71113 | 72.31% / 47.66% | 2 / 0 |
+| West blocked exit | 71114 | 62.53% / 62.45% | 0 / 0 |
+
+Mean coverage was 70.01% in observation mode and 60.00% in
+reranking mode. Two observation runs and one reranking run
+recorded a crossing. Three pairs recorded zero applied changes.
+Their coverage differences show variability even when passage
+scoring leaves the frontier commands unchanged.
+
+The traces contain 296 frontier decisions, 275 fresh frame pairs
+and 95 preferred directions with confirmed bottleneck evidence.
+In 81 of those 95 decisions, the robot had no simultaneously scored
+alternative. Twelve further decisions had alternatives with less
+than 0.75 m of extra visible clear distance. Two proposals met the
+full rule, one per condition in the east blocked-exit layout.
+
+The reranker changed robot 1 from frontier 4 to frontier 3 in
+that layout. The visual estimate increased clear distance from
+3.75 to 5.75 m and the mapped route grew by 0.48 m. Robot 1
+reached that new frontier. Its position was still on the original
+side of the wall, 2.68 m from the partition centre line. The
+reranking run ended with zero crossings. This provides a traced
+example of successfully changing and reaching a local goal in an
+unknown map. The paired data leave a repeatable crossing or
+coverage benefit unestablished. The main execution gap is the
+availability of alternatives and the transition from a local
+approach goal to a gate crossing.
+
+[World geometry, matched results and decision traces](../ros_gazebo/experiments/2026-11-25-dynamic-passage/)

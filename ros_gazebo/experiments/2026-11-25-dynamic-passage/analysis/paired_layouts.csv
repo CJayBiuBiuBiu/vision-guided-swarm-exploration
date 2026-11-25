@@ -1,0 +1,5 @@
+scene,seed,observe_first_crossing_s,rerank_first_crossing_s,observe_post_crossing_gain_pp,rerank_post_crossing_gain_pp,coverage_pct_delta,path_m_delta,robots_crossing_delta,reached_delta,assignments_delta,near_collision_events_delta,passage_decisions_delta,fresh_frame_pairs_delta,preferred_scored_delta,preferred_bottleneck_delta,would_rerank_delta,applied_reranks_delta,reranked_targets_reached_delta
+offset_narrow_east,71111,37.751,68.251,23.467699999999994,14.838700000000003,-7.1774,-7.3482,0.0,1.0,0.0,1.0,0.0,1.0,2.0,-6.0,0.0,0.0,0.0
+south_narrow_west,71112,,,,,-8.1488,-3.1981,0.0,-5.0,1.0,0.0,1.0,-1.0,4.0,-2.0,0.0,0.0,0.0
+east_blocked_exit,71113,54.252,,23.829099999999997,,-24.6508,-4.9987,-2.0,-8.0,-5.0,0.0,-5.0,-6.0,-6.0,-7.0,0.0,1.0,1.0
+west_blocked_exit,71114,,,,,-0.0867,4.2999,0.0,-1.0,4.0,0.0,4.0,5.0,10.0,10.0,0.0,0.0,0.0
