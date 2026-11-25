@@ -1,0 +1,10 @@
+probe_left_blocked_exit_65390.complete	23	{"bearing_deg": 19.230369987455397, "clear_to_m": 4.75, "starts_m": 1.25, "bottleneck_m": 5.0, "bottleneck_width_m": 0.0}
+probe_left_narrow_65390.complete	23	{"bearing_deg": 19.2304621385474, "clear_to_m": 4.5, "starts_m": 1.25, "bottleneck_m": 4.75, "bottleneck_width_m": 0.2}
+probe_left_reference_65390.complete	23	{"bearing_deg": 19.2304640095422, "clear_to_m": 5.75, "starts_m": 1.25, "bottleneck_m": null, "bottleneck_width_m": null}
+probe_left_tight_65390.complete	23	{"bearing_deg": 19.230462606296438, "clear_to_m": 5.75, "starts_m": 1.25, "bottleneck_m": null, "bottleneck_width_m": null}
+probe_left_wide_65390.complete	23	{"bearing_deg": 19.230275020296563, "clear_to_m": 5.75, "starts_m": 1.25, "bottleneck_m": null, "bottleneck_width_m": null}
+probe_right_blocked_exit_65390.complete	23	{"bearing_deg": -19.231089071713246, "clear_to_m": 4.75, "starts_m": 1.25, "bottleneck_m": 5.0, "bottleneck_width_m": 0.0}
+probe_right_narrow_65390.complete	23	{"bearing_deg": -19.230995498216387, "clear_to_m": 4.5, "starts_m": 1.25, "bottleneck_m": 4.75, "bottleneck_width_m": 0.15000000000000002}
+probe_right_reference_65390.complete	23	{"bearing_deg": -19.230995498216387, "clear_to_m": 5.75, "starts_m": 1.25, "bottleneck_m": null, "bottleneck_width_m": null}
+probe_right_tight_65390.complete	23	{"bearing_deg": -19.231091936352538, "clear_to_m": 5.75, "starts_m": 1.25, "bottleneck_m": null, "bottleneck_width_m": null}
+probe_right_wide_65390.complete	23	{"bearing_deg": -19.230901456530933, "clear_to_m": 5.75, "starts_m": 1.25, "bottleneck_m": null, "bottleneck_width_m": null}

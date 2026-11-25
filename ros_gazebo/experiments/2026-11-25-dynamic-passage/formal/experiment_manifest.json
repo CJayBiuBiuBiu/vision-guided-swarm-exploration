@@ -1,0 +1,134 @@
+{
+  "input_sha256": {
+    "actor": "24c3c2edf94593484cf36a596054cc0d0273f922e3039e2fbe5fdd4d45cff212",
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "rgb": "b3115535d34539e380d69335be76f7822ab2eeb9afab5a10674c951030217d21",
+    "run_clearance_study": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "run_dynamic_passage_study": "1b815a9c81f035c5f0e654c32f119c5661395ce15bc6ac91e9a4c76170e13cfc",
+    "run_matched_vision_training": "2fb2759e6fe0a76b645d1b9425e32faa75e6293ee2567509013ad8c6dcfc4cdd",
+    "run_policy_goal_retention": "17cf11a237080376a76df5bc785dab722cb708c65691b334416a58cf2a567f9f",
+    "run_rgb_clearance_guard_study": "6b3911a0e890f04f60186550eb7e641243838f72d15514032cd6349b7d243b5f",
+    "run_rgb_passage_study": "14b3f7791e6004cb79e96bf1d930664fe22e1cceb4d7dfc80b2460e90bcca1b1",
+    "run_wait_margin_study": "ac98b9d5db337da8fe230429e866d22a1e3444dab7191f0220b9ea0560be3f9b"
+  },
+  "reference_mask_input_sha256": {
+    "east_blocked_exit": "7bac7add8996c54daf63293aaf673a2ce504aa46ef8ff5e9120b458eec1725f1",
+    "offset_narrow_east": "ce9c95b85f2bf6ada7171a08e800aa612dc95c10a195b693b27de631ed9a26ba",
+    "south_narrow_west": "abf92a5e89a4d262d52c71c6f7bbacae761135e12b9290902b19625b77d97f70",
+    "west_blocked_exit": "5688d6a4fb7df40e4a8d4a468f6dd9deba7101a0e2db650321429603bd878bb7"
+  },
+  "runs": [
+    {
+      "cue": "lidar",
+      "environment_seed": 71111,
+      "horizon": 90,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "observe",
+      "rule_cue": "lidar",
+      "scene": "offset_narrow_east",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71111,
+      "horizon": 90,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "rerank",
+      "rule_cue": "lidar",
+      "scene": "offset_narrow_east",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71112,
+      "horizon": 90,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "rerank",
+      "rule_cue": "lidar",
+      "scene": "south_narrow_west",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71112,
+      "horizon": 90,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "observe",
+      "rule_cue": "lidar",
+      "scene": "south_narrow_west",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71113,
+      "horizon": 90,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "observe",
+      "rule_cue": "lidar",
+      "scene": "east_blocked_exit",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71113,
+      "horizon": 90,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "rerank",
+      "rule_cue": "lidar",
+      "scene": "east_blocked_exit",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71114,
+      "horizon": 90,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "rerank",
+      "rule_cue": "lidar",
+      "scene": "west_blocked_exit",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71114,
+      "horizon": 90,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "observe",
+      "rule_cue": "lidar",
+      "scene": "west_blocked_exit",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    }
+  ],
+  "source_tree": "74d3a374a5963516344088ce4bca6e9016519906",
+  "stage": "formal",
+  "world_sha256": {
+    "east_blocked_exit": "fceddacb30cfff51e78b372fe2612dd07297ce2f681c2fd3778a38f41f71cf2d",
+    "offset_narrow_east": "467d07dade68a3b8848d4da9f7018cea38ecfe186c771721d5652131fd0a151d",
+    "south_narrow_west": "86c382b2bbd7099854c4cf82d60ebe8c768dbbb625e6a0e9f78f8578c0b26577",
+    "west_blocked_exit": "6fd98d49319f1ae8f6ea347b35b1cf9db1ed19e6e855034a2d3cdc337f85443f"
+  }
+}
