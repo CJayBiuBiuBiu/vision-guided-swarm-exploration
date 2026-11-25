@@ -1,0 +1,624 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 28bffad..e218827 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -15,6 +15,7 @@
+        doc="research, hu_aligned, hu_layout_b, or hu_layout_c; selects matching coordinator geometry"/>
+   <arg name="reference_obstacles_path" default=""/>
+   <arg name="rgb_passage_geometry" default="continuation"/>
++  <arg name="rgb_passage_strategy" default="passive"/>
+   <arg name="world_name"
+        default="$(find turtlebot_ddpg)/worlds/voronoi_exploration_arena.world"/>
+   <arg name="robot1_x" default="-2.0"/>
+@@ -206,6 +207,7 @@
+     <rosparam param="robot_names" subst_value="true">$(arg robot_names)</rosparam>
+     <param name="rgb_passage_mode" value="$(arg rgb_passage_mode)"/>
+     <param name="rgb_passage_geometry" value="$(arg rgb_passage_geometry)"/>
++    <param name="rgb_passage_strategy" value="$(arg rgb_passage_strategy)"/>
+     <param name="reference_obstacles_path" value="$(arg reference_obstacles_path)" type="str"/>
+     <param name="depth_corridor_mode" value="$(arg depth_corridor_mode)"/>
+     <param name="depth_active_audit" value="$(arg depth_active_audit)"/>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/active_passage.py b/turtlebot_ddpg/scripts/voronoi_exploration/active_passage.py
+new file mode 100644
+index 0000000..9316a7b
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/active_passage.py
+@@ -0,0 +1,109 @@
++"""Bounded camera inspection and scan-map-validated passage continuation."""
++
++import math
++
++import numpy as np
++
++from rgb_passage import MAX_IMAGE_AGE_S, MAX_POSE_DRIFT_M, paired_width_score
++
++
++INSPECTION_Z = -3.0
++SCAN_TIMEOUT_S = 4.0
++SCAN_COOLDOWN_S = 12.0
++SCAN_MAX_EXTRA_ROUTE_M = 1.20
++SCAN_MIN_TURN = math.radians(25)
++SCAN_MAX_TURN = math.radians(100)
++SCAN_ALIGNMENT = math.radians(8)
++SCAN_REBIND_M = 0.60
++SCAN_COMMAND_AGE_S = 0.8
++CONTINUATION_STEP_M = 1.2
++CONTINUATION_MAX_STEPS = 2
++CONTINUATION_MAX_AGE_S = 45.0
++CONTINUATION_HOLD_S = 4.5
++
++
++def angle_delta(target, yaw):
++    return math.atan2(math.sin(target - yaw), math.cos(target - yaw))
++
++
++def heading(position, target):
++    return math.atan2(target[1] - position[1], target[0] - position[0])
++
++
++def scan_turn(target, yaw, clearance, minimum_clearance, age):
++    """Rotate in place only while the command and all-around clearance are valid."""
++    if not (0 <= age <= SCAN_COMMAND_AGE_S and math.isfinite(clearance)
++            and clearance > minimum_clearance):
++        return 0.0
++    error = angle_delta(target, yaw)
++    if abs(error) <= math.radians(3):
++        return 0.0
++    return max(-0.80, min(0.80, 1.8 * error))
++
++
++def inspection_candidate(position, yaw, preferred_length, candidates):
++    """Choose one affordable, currently unobserved candidate within a bounded turn."""
++    options = []
++    for index, target, length, score in candidates:
++        turn = abs(angle_delta(heading(position, target), yaw))
++        if (score is None and length is not None
++                and length <= preferred_length + SCAN_MAX_EXTRA_ROUTE_M
++                and SCAN_MIN_TURN <= turn <= SCAN_MAX_TURN):
++            options.append((turn, length, index))
++    return min(options)[2] if options else None
++
++
++def rebind_candidate(frontiers, ids, owner, robot_index, original_id, anchor, excluded=None):
++    """Keep an owned frontier associated by location when scan mapping moves its cluster."""
++    candidates = [index for index, fid in enumerate(ids)
++                  if owner[index] == robot_index and index != excluded
++                  and np.linalg.norm(frontiers[index] - anchor) <= SCAN_REBIND_M]
++    if not candidates:
++        return None
++    return min(candidates, key=lambda index: (ids[index] != original_id,
++                                             np.linalg.norm(frontiers[index] - anchor), index))
++
++
++def fresh_score(frames, now, position, target, after=None, align=False):
++    selected = [(stamp, frame) for stamp, frame in frames
++                if frame is not None and 0 <= now - stamp <= MAX_IMAGE_AGE_S
++                and (after is None or stamp >= after)
++                and np.linalg.norm(np.asarray(position) - frame[0][:2]) <= MAX_POSE_DRIFT_M]
++    if align:
++        selected = [(stamp, frame) for stamp, frame in selected
++                    if abs(angle_delta(heading(frame[0], target), frame[1])) <= SCAN_ALIGNMENT]
++    if len(selected) != 2:
++        return None, []
++    return paired_width_score(tuple(frame for _, frame in selected), target), [
++        stamp for stamp, _ in selected]
++
++
++def corridor_is_free(grid, xs, ys, origin, target):
++    """Require the complete sampled body footprint to lie in observed free cells."""
++    origin, target = np.asarray(origin), np.asarray(target)
++    delta = target - origin
++    length = np.linalg.norm(delta)
++    if length <= 1e-9:
++        return False
++    resolution = float(xs[1] - xs[0])
++    direction = delta / length
++    sideways = np.asarray([-direction[1], direction[0]])
++    samples = (origin + np.linspace(0, length, max(2, int(math.ceil(length / (resolution / 2))) + 1))[:, None, None]
++               * direction[None, None, :] + np.asarray([-0.183, 0.0, 0.183])[None, :, None]
++               * sideways[None, None, :])
++    ix = np.floor((samples[..., 0] - xs[0] + resolution / 2) / resolution).astype(int)
++    iy = np.floor((samples[..., 1] - ys[0] + resolution / 2) / resolution).astype(int)
++    if ((ix < 0) | (ix >= len(xs)) | (iy < 0) | (iy >= len(ys))).any():
++        return False
++    return bool((grid[iy, ix] == 1).all())
++
++
++def continuation_point(grid, xs, ys, position, direction, clear_distance):
++    """Extend a direction only through camera-visible, scan-confirmed free space."""
++    position, direction = np.asarray(position), np.asarray(direction)
++    maximum = min(CONTINUATION_STEP_M, clear_distance - 0.25)
++    for distance in np.arange(maximum, 0.65, -0.20):
++        target = position + direction * distance
++        if corridor_is_free(grid, xs, ys, position, target):
++            return target
++    return None
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 4c84ba1..888f21c 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -52,6 +52,11 @@ from rgb_passage import (
+     MAX_BLOCKED_SCORE, MAX_IMAGE_AGE_S, MAX_POSE_DRIFT_M, MIN_OPEN_SCORE,
+     MAX_EXTRA_ROUTE_M, measure_passage, measure_projected_width, paired_width_score,
+     propose_passage, route_length, score_direction, width_alternative)
++from active_passage import (
++    INSPECTION_Z, SCAN_TIMEOUT_S, SCAN_COOLDOWN_S, SCAN_MAX_EXTRA_ROUTE_M,
++    CONTINUATION_MAX_AGE_S, CONTINUATION_MAX_STEPS, CONTINUATION_HOLD_S,
++    angle_delta, continuation_point, corridor_is_free, fresh_score, heading, inspection_candidate,
++    rebind_candidate)
+ from depth_corridor import (
+     MAX_POSE_SKEW_S, MAX_SENSOR_SKEW_S, ActiveDepthConfirmation, corridor_hit,
+     depth_image_points, fresh_sample, image_intrinsics, laser_points, reroute_exclusions)
+@@ -479,6 +484,16 @@ class Coordinator(object):
+             raise ValueError('Local depth limiting uses the Waffle Pi camera geometry')
+         self.rgb_passage_mode = rospy.get_param('~rgb_passage_mode', 'off')
+         self.rgb_passage_geometry = rospy.get_param('~rgb_passage_geometry', 'continuation')
++        self.rgb_passage_strategy = rospy.get_param('~rgb_passage_strategy', 'passive')
++        if self.rgb_passage_strategy not in ('passive', 'active'):
++            raise ValueError('RGB passage strategy must be passive or active')
++        self.active_passage = self.rgb_passage_strategy == 'active'
++        if self.active_passage and (
++                self.rgb_passage_mode != 'rerank' or self.rgb_passage_geometry != 'projected_width'):
++            raise ValueError('Active passage requires projected-width reranking')
++        self.passage_inspections = {}
++        self.passage_last_inspection = {}
++        self.passage_continuations = {}
+         if self.rgb_passage_mode not in ('off', 'observe', 'rerank'):
+             raise ValueError('rgb_passage_mode must be off, observe, or rerank')
+         if self.rgb_passage_geometry not in ('continuation', 'projected_width'):
+@@ -877,7 +892,8 @@ class Coordinator(object):
+                                     clearance_rules_cue=self.clearance_rules_cue)
+             if self.rgb_passage_mode != 'off':
+                 cue_metadata.update(rgb_passage_mode=self.rgb_passage_mode,
+-                                    rgb_passage_geometry=self.rgb_passage_geometry)
++                                    rgb_passage_geometry=self.rgb_passage_geometry,
++                                    rgb_passage_strategy=self.rgb_passage_strategy)
+             if self.camera_quality_gate is not None:
+                 cue_metadata.update(clearance_camera_profile=self.clearance_camera_profile)
+             self.frontier_trace = FrontierDecisionTrace(
+@@ -1203,6 +1219,7 @@ class Coordinator(object):
+         # different robot approaching from another angle can still claim it.
+         rospy.logwarn("[coordinator] blacklisting stuck area near (%.2f, %.2f)", msg.x, msg.y)
+         self.stuck_events[name] += 1
++        self.passage_continuations.pop(name, None)
+         if self.blacklist.add(msg.x, msg.y, self._control_now()):
+             self.unique_stuck_regions += 1
+         for name in self.robot_names:
+@@ -1645,6 +1662,38 @@ class Coordinator(object):
+                             choices.append((-scores[index]['clear_to_m'], length, index))
+         proposed = min(choices)[2] if choices else preferred
+         selected = proposed if self.rgb_passage_mode == 'rerank' else preferred
++        if self.active_passage and preferred_path and selected == preferred and (
++                scores.get(preferred) is not None and scores[preferred]['bottleneck_m'] is not None
++                and now - self.passage_last_inspection.get(name, -math.inf) >= SCAN_COOLDOWN_S):
++            maximum = route_length(preferred_path, GRID_RES)
++            candidates = []
++            for index in candidate_indices[1:]:
++                if scores.get(index) is not None:
++                    continue
++                path = self._plan_path(start_cell, self._cell_index(*frontiers[index]))
++                if path:
++                    candidates.append((index, frontiers[index], route_length(path, GRID_RES), None))
++            other = inspection_candidate(position, self.yaws[name], maximum, candidates)
++            if other is not None:
++                self.passage_last_inspection[name] = now
++                state = dict(start=now, origin=position.copy(), preferred=int(frontier_ids[preferred]),
++                             alternative=int(frontier_ids[other]), target=frontiers[other].copy(),
++                             preferred_xy=frontiers[preferred].copy(),
++                             score=scores[preferred], route_m=maximum)
++                self.passage_inspections[name] = state
++                elapsed, _ = self._frontier_trace_snapshot()
++                self.frontier_trace.record(
++                    'passage_inspection_start', robot=name, elapsed_sim_s=elapsed,
++                    control_stamp=now, origin_xy=position.tolist(), preferred=state['preferred'],
++                    alternative=state['alternative'], target_xy=state['target'].tolist(),
++                    preferred_xy=state['preferred_xy'].tolist(),
++                    preferred_score=state['score'], image_stamps=[stamp for stamp, _ in fresh],
++                    preferred_route_m=maximum)
++                self.targets_pub[name].publish(Point(x=heading(position, state['target']), z=INSPECTION_Z))
++                self.policy_waypoints.add(name)
++                return None, None
++        if self.active_passage and selected != preferred:
++            self._start_passage_continuation(name, position, frontiers[selected])
+         elapsed, _ = self._frontier_trace_snapshot()
+         self.frontier_trace.record(
+             'passage_width_decision', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
+@@ -1657,6 +1706,120 @@ class Coordinator(object):
+                         for index in candidate_indices])
+         return selected, paths[selected]
+ 
++    def _advance_passage_inspection(self, name, pos, frontiers, ids, owner, robot_index):
++        state = self.passage_inspections[name]
++        now = self._control_now()
++        preferred = rebind_candidate(frontiers, ids, owner, robot_index,
++                                     state['preferred'], state['preferred_xy'])
++        alternative = rebind_candidate(frontiers, ids, owner, robot_index,
++                                       state['alternative'], state['target'], excluded=preferred)
++        start_cell = self._cell_index(*pos)
++        base_path = (None if preferred is None else
++                     self._plan_path(start_cell, self._cell_index(*frontiers[preferred])))
++        score, stamps = None, []
++        path, reason = None, 'candidate_lost'
++        if base_path and alternative is not None:
++            target = frontiers[alternative]
++            original_bearing = heading(state['origin'], state['preferred_xy'])
++            rebound_bearing = heading(state['origin'], frontiers[preferred])
++            if (np.linalg.norm(pos - state['origin']) <= MAX_POSE_DRIFT_M
++                    and abs(angle_delta(original_bearing, rebound_bearing)) <= math.radians(15)):
++                score, stamps = fresh_score(
++                    self.passage_width_frames.get(name, ()), now, pos, target,
++                    after=state['start'], align=True)
++                if score is None and now - state['start'] < SCAN_TIMEOUT_S:
++                    self.targets_pub[name].publish(Point(x=heading(pos, target), z=INSPECTION_Z))
++                    return True, None
++                reason = 'timeout' if score is None else 'insufficient_clear_gain'
++                if width_alternative(state['score'], score):
++                    goal_cell = self._cell_index(*target)
++                    if self.grid[goal_cell[1], goal_cell[0]] != 2:
++                        path = self._plan_path(start_cell, goal_cell)
++                    reason = 'route_rejected'
++                    if (path and route_length(path, GRID_RES)
++                            <= route_length(base_path, GRID_RES) + SCAN_MAX_EXTRA_ROUTE_M):
++                        reason = 'redirected'
++            else:
++                reason = 'pose_or_target_drift'
++        self.passage_inspections.pop(name, None)
++        selected = alternative if reason == 'redirected' else preferred if base_path else None
++        if reason == 'redirected':
++            self._start_passage_continuation(name, pos, frontiers[selected])
++        elapsed, _ = self._frontier_trace_snapshot()
++        self.frontier_trace.record(
++            'passage_inspection_result', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++            duration_s=now - state['start'], reason=reason, image_stamps=stamps,
++            preferred=state['preferred'], alternative=state['alternative'], score=score,
++            resolved_preferred=int(ids[preferred]) if preferred is not None else None,
++            resolved_alternative=int(ids[alternative]) if alternative is not None else None,
++            preferred_xy=None if preferred is None else frontiers[preferred].tolist(),
++            alternative_xy=None if alternative is None else frontiers[alternative].tolist(),
++            preferred_route_m=route_length(base_path, GRID_RES) if base_path else None,
++            alternative_route_m=route_length(path, GRID_RES) if path else None,
++            selected=int(ids[selected]) if selected is not None else None)
++        if selected is None:
++            self._retire_policy_waypoint(name)
++            return False, None
++        return False, (selected, path if selected == alternative else base_path)
++
++    def _start_passage_continuation(self, name, position, target):
++        delta = np.asarray(target) - position
++        length = np.linalg.norm(delta)
++        if length > 0.50:
++            self.passage_continuations[name] = dict(
++                direction=delta / length, start=self._control_now(), steps=0)
++
++    def _continue_passage(self, name, position):
++        state = self.passage_continuations.get(name)
++        if state is None:
++            return None
++        now = self._control_now()
++        target = None
++        score, stamps = None, []
++        if (state['steps'] < CONTINUATION_MAX_STEPS
++                and now - state['start'] < CONTINUATION_MAX_AGE_S):
++            direction = state['direction']
++            score, stamps = fresh_score(
++                self.passage_width_frames.get(name, ()), now, position, position + 5 * direction)
++            if score is not None:
++                grid = self.grid.copy()
++                target = continuation_point(grid, self.xs, self.ys, position, direction, score['clear_to_m'])
++                if target is not None:
++                    path = astar_grid(grid, self._cell_index(*position), self._cell_index(*target))
++                    if not path:
++                        target = None
++        elapsed, _ = self._frontier_trace_snapshot()
++        self.frontier_trace.record(
++            'passage_continuation_decision', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++            frontier_id=int(self.current_goal_id[name]), origin_xy=position.tolist(),
++            direction=state['direction'].tolist(), image_stamps=stamps, score=score, step=state['steps'],
++            target_xy=None if target is None else target.tolist())
++        if target is None:
++            self.passage_continuations.pop(name, None)
++            return None
++        state['steps'] += 1
++        goal = tuple(target)
++        self.current_goal[name] = goal
++        self.current_path[name] = [(self.xs[ix], self.ys[iy]) for ix, iy in path]
++        self.goal_set_time[name] = now
++        return goal
++
++    def _keep_passage_on_wait(self, name, position, goal):
++        state = self.passage_continuations.get(name)
++        if state is None or state['steps'] == 0 or goal is None:
++            return False
++        now = self._control_now()
++        age = now - self.goal_set_time[name]
++        clearance = self.clearance_telemetry.recent_clearance(name, now)
++        keep = (0 <= age < CONTINUATION_HOLD_S and clearance is not None
++                and clearance > self.near_collision_clear_range
++                and corridor_is_free(self.grid.copy(), self.xs, self.ys, position, goal))
++        elapsed, _ = self._frontier_trace_snapshot()
++        self.frontier_trace.record(
++            'passage_continuation_wait', robot=name, elapsed_sim_s=elapsed,
++            keep=keep, age_s=age, clearance_m=clearance)
++        return keep
++
+     def _depth_target(self, name, position, preferred, alternatives, frontiers, frontier_ids,
+                       selected_path, selection_source):
+         now = rospy.Time.now().to_sec()
+@@ -2284,6 +2447,13 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     # goals; otherwise fallback has no effect until the low-level
+                     # controller independently reports a failure.
+                     for name in self.robot_names:
++                        if name in self.passage_inspections:
++                            self.passage_inspections.pop(name)
++                            self._retire_policy_waypoint(name)
++                            elapsed, _ = self._frontier_trace_snapshot()
++                            self.frontier_trace.record('passage_inspection_cancel', robot=name,
++                                                       elapsed_sim_s=elapsed, reason='stall_fallback')
++                        self.passage_continuations.pop(name, None)
+                         self._finish_frontier_attempt(name, 'stall_fallback_reset')
+                         self.current_goal[name] = None
+                         self.current_goal_id[name] = None
+@@ -2404,6 +2574,12 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             self._write_metrics(coverage, all_frontiers, frontiers,
+                                 observed_free_area=observed_free_area)
+             if len(frontiers) == 0:
++                for name in tuple(self.passage_inspections):
++                    self.passage_inspections.pop(name, None)
++                    self._retire_policy_waypoint(name)
++                    elapsed, _ = self._frontier_trace_snapshot()
++                    self.frontier_trace.record('passage_inspection_cancel', robot=name,
++                                               elapsed_sim_s=elapsed, reason='no_frontiers')
+                 for name in self.depth_interrupted:
+                     self._hold_depth_interruption(name)
+                 if self.frontier_trace is not None or self.policy_wait_mode != 'legacy':
+@@ -2456,8 +2632,20 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             for i, name in enumerate(self.robot_names):
+                 pos = np.array(self.positions[name])
+                 goal = self.current_goal.get(name)
++                inspection_choice = None
++                if name in self.passage_inspections:
++                    waiting, inspection_choice = self._advance_passage_inspection(
++                        name, pos, frontiers, frontier_ids, owner, i)
++                    if waiting:
++                        continue
++                if goal is None and inspection_choice is None:
++                    self.passage_continuations.pop(name, None)
+ 
+                 reached = goal is not None and np.linalg.norm(pos - np.array(goal)) < ARRIVE_THRESH
++                if reached and name in self.passage_continuations:
++                    continuation = self._continue_passage(name, pos)
++                    if continuation is not None:
++                        goal, reached = continuation, False
+                 if reached:
+                     self.goals_reached += 1
+                     self._finish_frontier_attempt(name, 'reached')
+@@ -2499,14 +2687,23 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                         goal_cell = self._cell_index(*goal)
+                         blocked = self.grid[goal_cell[1], goal_cell[0]] == 2
+                         if not blocked:
+-                            replanned = self._plan_path(start_cell, goal_cell)
++                            continuation = self.passage_continuations.get(name)
++                            strict = continuation is not None and continuation['steps']
++                            replanned = (astar_grid(self.grid.copy(), start_cell, goal_cell)
++                                         if strict else self._plan_path(start_cell, goal_cell))
++                            blocked = bool(strict and not replanned)
+                             if replanned:
+                                 self.current_path[name] = [
+                                     (self.xs[ix], self.ys[iy])
+                                     for ix, iy in replanned]
+ 
++                continuing = self.passage_continuations.get(name)
++                if goal is not None and continuing is not None and continuing['steps'] and not reached:
++                    blocked = blocked or not corridor_is_free(
++                        self.grid.copy(), self.xs, self.ys, pos, goal)
+                 invalid_goal = reached or not still_owned or blocked
+                 if invalid_goal:
++                    self.passage_continuations.pop(name, None)
+                     if not reached:
+                         self._finish_frontier_attempt(
+                             name, 'blocked' if blocked else 'ownership_changed')
+@@ -2523,13 +2720,14 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 policy_controls_selection = (
+                     interruption is None and self.selection_mode in POLICY_SELECTION_MODES and
+                     not analytic_override_active)
+-                policy_index = None
+-                if policy_controls_selection:
++                policy_index = None if inspection_choice is None else inspection_choice[0]
++                if policy_controls_selection and inspection_choice is None:
+                     action_kind, action_index = self._consume_policy_action(
+                         name, frontiers, frontier_ids, owner, i)
+                     if action_kind in ('wait', 'recheck_continue'):
+-                        if not self._retain_on_policy_wait(
++                        if not self._keep_passage_on_wait(name, pos, goal) and not self._retain_on_policy_wait(
+                                 name, pos, goal, recheck=action_kind == 'recheck_continue'):
++                            self.passage_continuations.pop(name, None)
+                             if goal is not None:
+                                 self.goals_cleared_wait += 1
+                                 self._finish_frontier_attempt(name, 'wait')
+@@ -2549,7 +2747,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                             policy_index = action_index
+                     # CONTINUE intentionally keeps the existing target.
+ 
+-                should_select = (
++                should_select = inspection_choice is not None or (
+                     policy_index is not None if policy_controls_selection
+                     else goal is None)
+                 if should_select:
+@@ -2637,10 +2835,15 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                             if best_index is None:
+                                 self._hold_depth_interruption(name)
+                                 continue
+-                        if self.rgb_passage_mode != 'off':
++                        if inspection_choice is not None:
++                            best_index, selected_path = inspection_choice
++                            selection_source = 'passage_inspection'
++                        elif self.rgb_passage_mode != 'off':
+                             best_index, selected_path = self._passage_target(
+                                 name, pos, best_index, np.flatnonzero(owner == i),
+                                 frontiers, frontier_ids, start_cell, selected_path)
++                            if best_index is None:
++                                continue
+                         best = frontiers[best_index]
+                         if self.depth_active:
+                             self.depth_confirmations[name].reset()
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index e1b795b..eabee39 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -32,6 +32,7 @@ tf.disable_v2_behavior()
+ import tensorflow.compat.v1.keras.backend as K
+ 
+ from policy_goal import POLICY_IDLE_Z
++from active_passage import INSPECTION_Z, scan_turn
+ from depth_corridor import LOCAL_CAMERA_POSE, depth_image_points, image_intrinsics
+ from depth_velocity import DEPTH_VELOCITY_MODES, DepthVelocityLimiter
+ from motion_safety import (
+@@ -111,6 +112,7 @@ class RobotAgent(object):
+         self.have_target = False
+         self.navigation_hold = False
+         self.policy_idle = False
++        self.inspection_command = None
+         rospy.Subscriber('/%s/exploration_target' % robot_name, Point, self._target_cb)
+ 
+         self.mission_done = False
+@@ -167,6 +169,12 @@ class RobotAgent(object):
+             self.depth_velocity.observe(msg.header.stamp.to_sec(), points)
+ 
+     def _target_cb(self, msg):
++        if msg.z == INSPECTION_Z:
++            self.inspection_command = (float(msg.x), rospy.get_time())
++            self.have_target = True
++            self.policy_idle = self.navigation_hold = False
++            return
++        self.inspection_command = None
+         # The coordinator sends z=-1 to retire a visual obstruction's waypoint.
+         if msg.z == -1.0:
+             self.navigation_hold = True
+@@ -212,6 +220,8 @@ class RobotAgent(object):
+                 'expected 24 filtered laser beams for %s, got %d' %
+                 (self.robot_name, ranges.size))
+         min_range = float(np.min(ranges))
++        self.last_min_range = min_range
++        self.last_scan_stamp = laser_msg.header.stamp.to_sec()
+         self.min_clearance_pub.publish(Float32(data=min_range))
+         if (not self.near_collision_active and
+                 min_range <= self.near_collision_range):
+@@ -240,6 +250,20 @@ class RobotAgent(object):
+                           dtype=np.float32)
+         return state.reshape(1, STATE_DIM), (x, y), distance, front_clearance
+ 
++    def inspect(self):
++        command = self.inspection_command
++        self.build_state()  # Keep scan clearance and collision telemetry live while turning.
++        _, _, yaw = self.get_pose()
++        cmd = Twist()
++        now = rospy.get_time()
++        if command is not None and 0 <= now - self.last_scan_stamp <= 0.4:
++            target, issued = command
++            cmd.angular.z = scan_turn(target, yaw, self.last_min_range,
++                                      self.near_collision_clear_range, now - issued)
++        self.pub.publish(cmd)
++        self.prev_linear = 0.0
++        self.prev_angular = cmd.angular.z
++
+     def step(self, actor_model):
+         state, pos, distance, front_clearance = self.build_state()
+         action = actor_model.predict(state, verbose=0)
+@@ -378,6 +402,9 @@ def main():
+             agent.pub.publish(cmd)
+             x, y, _ = agent.get_pose()
+             pos = (x, y)
++        elif agent.inspection_command is not None:
++            agent.inspect()
++            stuck_check_pos = None
+         elif agent.policy_idle:
+             agent.pub.publish(Twist())
+             agent.prev_linear = agent.prev_angular = 0.0
+diff --git a/turtlebot_ddpg/tests/test_active_passage.py b/turtlebot_ddpg/tests/test_active_passage.py
+new file mode 100644
+index 0000000..a34bac9
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_active_passage.py
+@@ -0,0 +1,82 @@
++"""Regression checks for bounded active passage sensing."""
++
++import math
++import sys
++import unittest
++from pathlib import Path
++
++import numpy as np
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
++from active_passage import (angle_delta, continuation_point, corridor_is_free,
++                            fresh_score, inspection_candidate, rebind_candidate, scan_turn)
++from rgb_passage import BEARINGS_DEG, WIDTH_DISTANCES_M
++
++
++class ActivePassageTests(unittest.TestCase):
++    def test_scan_command_limits(self):
++        self.assertEqual(scan_turn(math.pi, 0, 1.0, 0.25, 0.1), 0.8)
++        self.assertEqual(scan_turn(-math.pi / 2, 0, 1.0, 0.25, 0.1), -0.8)
++        self.assertEqual(scan_turn(0.01, 0, 1.0, 0.25, 0.1), 0)
++        self.assertEqual(scan_turn(1, 0, 0.24, 0.25, 0.1), 0)
++        self.assertEqual(scan_turn(1, 0, float('nan'), 0.25, 0.1), 0)
++        self.assertEqual(scan_turn(1, 0, 1, 0.25, 0.81), 0)
++
++    def test_angle_wrap(self):
++        self.assertAlmostEqual(angle_delta(-math.pi + 0.1, math.pi - 0.1), 0.2)
++
++    def test_candidate_requires_affordable_unseen_direction(self):
++        cases = [(1, (1, 0), 1, None),
++                 (2, (0, 2), 1, {'clear_to_m': 4}),
++                 (3, (1, 1), 2.3, None),
++                 (4, (1, -1), 1.6, None),
++                 (5, (-1, 0), 1.2, None)]
++        self.assertEqual(inspection_candidate((0, 0), 0, 1, cases), 4)
++        self.assertIsNone(inspection_candidate((0, 0), 0, 1, cases[:3]))
++
++    def test_rebind_preserves_owned_spatial_identity(self):
++        frontiers = np.array([(0, 0), (0.3, 0.1), (1, 0), (0.2, 0)])
++        ids, owner = [20, 21, 22, 23], [1, 0, 0, 0]
++        self.assertEqual(rebind_candidate(frontiers, ids, owner, 0, 20, (0, 0)), 3)
++        self.assertEqual(rebind_candidate(frontiers, ids, owner, 0, 21, (0, 0)), 1)
++        self.assertEqual(rebind_candidate(frontiers, ids, owner, 0, 20, (0, 0), excluded=3), 1)
++        self.assertIsNone(rebind_candidate(frontiers, ids, owner, 0, 20, (-1, 0)))
++
++    def test_fresh_aligned_pair_after_scan(self):
++        widths = np.ones((len(BEARINGS_DEG), len(WIDTH_DISTANCES_M)))
++        frame = (np.array([0., 0., 0.]), math.pi / 2, widths)
++        frames = [(1.1, frame), (1.25, frame)]
++        score, stamps = fresh_score(frames, 1.3, (0, 0), (0, 4), after=1, align=True)
++        self.assertEqual(stamps, [1.1, 1.25])
++        self.assertEqual(score['clear_to_m'], 5.75)
++        for now, pos, target, after in [(1.6, (0, 0), (0, 4), 1),
++                                        (1.3, (0.3, 0), (0, 4), 1),
++                                        (1.3, (0, 0), (1, 4), 1),
++                                        (1.3, (0, 0), (0, 4), 1.2)]:
++            self.assertEqual(fresh_score(frames, now, pos, target, after, align=True), (None, []))
++
++    def setUp(self):
++        self.axis = np.arange(-2, 2.01, 0.2)
++        self.grid = np.ones((len(self.axis), len(self.axis)), dtype=np.uint8)
++
++    def test_continuation_respects_visible_distance(self):
++        target = continuation_point(self.grid, self.axis, self.axis, (0, 0), (1, 0), 1.1)
++        np.testing.assert_allclose(target, (0.85, 0))
++        self.assertIsNone(continuation_point(self.grid, self.axis, self.axis, (0, 0), (1, 0), 0.8))
++
++    def test_unseen_or_occupied_map_cells_block_corridor(self):
++        self.assertTrue(corridor_is_free(self.grid, self.axis, self.axis, (0, 0), (1.2, 0)))
++        for value in (0, 2):
++            self.grid[11, 12] = value
++            self.assertFalse(corridor_is_free(self.grid, self.axis, self.axis, (0, 0), (1.2, 0)))
++            self.assertIsNone(continuation_point(self.grid, self.axis, self.axis, (0, 0), (1, 0), 5.75))
++
++    def test_continuation_shortens_before_new_unknown(self):
++        self.grid[:, 16:] = 0
++        target = continuation_point(self.grid, self.axis, self.axis, (0, 0), (1, 0), 5.75)
++        np.testing.assert_allclose(target, (1.0, 0))
++        self.assertFalse(corridor_is_free(self.grid, self.axis, self.axis, (1.8, 0), (2.4, 0)))
++
++
++if __name__ == '__main__':
++    unittest.main()

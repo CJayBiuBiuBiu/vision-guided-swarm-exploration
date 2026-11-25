@@ -1,0 +1,4 @@
+START inspection_smoke_71210_passive /home/cjay/vision_swarm_active_passage_20261125.PaUZs3/smoke/inspection_smoke_71210_passive.dbo_t5qq
+VERIFIED inspection_smoke_71210_passive coverage=58.53% crossing=1 inspections=0/0 redirects=0 continuations=0
+START inspection_smoke_71210_active /home/cjay/vision_swarm_active_passage_20261125.PaUZs3/smoke/inspection_smoke_71210_active.qm0ywy4v
+VERIFIED inspection_smoke_71210_active coverage=41.91% crossing=0 inspections=1/4 redirects=0 continuations=0

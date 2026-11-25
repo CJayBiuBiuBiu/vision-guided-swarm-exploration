@@ -1,0 +1,143 @@
+{
+  "input_sha256": {
+    "actor": "24c3c2edf94593484cf36a596054cc0d0273f922e3039e2fbe5fdd4d45cff212",
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "rgb": "b3115535d34539e380d69335be76f7822ab2eeb9afab5a10674c951030217d21",
+    "run_active_passage_study": "3173b728bf0d01dca9b01b610824c1a694349de38219a7e5fa1a9e376e2ecd8c",
+    "run_clearance_study": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "run_dynamic_passage_study": "1b815a9c81f035c5f0e654c32f119c5661395ce15bc6ac91e9a4c76170e13cfc",
+    "run_matched_vision_training": "2fb2759e6fe0a76b645d1b9425e32faa75e6293ee2567509013ad8c6dcfc4cdd",
+    "run_policy_goal_retention": "17cf11a237080376a76df5bc785dab722cb708c65691b334416a58cf2a567f9f",
+    "run_rgb_clearance_guard_study": "6b3911a0e890f04f60186550eb7e641243838f72d15514032cd6349b7d243b5f",
+    "run_rgb_passage_study": "14b3f7791e6004cb79e96bf1d930664fe22e1cceb4d7dfc80b2460e90bcca1b1",
+    "run_wait_margin_study": "ac98b9d5db337da8fe230429e866d22a1e3444dab7191f0220b9ea0560be3f9b"
+  },
+  "reference_mask_input_sha256": {
+    "east_exit_obstructed": "9c1afad2c75640faac2d08bbdee0aaf5f985b2b7be21a071cfe4ca15ee003efb",
+    "far_wide_west": "5314843b4dbb67b083824d746861e51863b09fd3a82dc52213f78b0580f3e18f",
+    "near_wide_east": "e62e48a6452df19a6b149ce4b6ebbc001ad79f94921d60380847ab2eaae54f3b",
+    "west_exit_obstructed": "a3b1c80f33937781edecb588d022e19ac80e74d06f5e0607cff5a7b64b78980f"
+  },
+  "runs": [
+    {
+      "cue": "lidar",
+      "environment_seed": 71221,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "rerank",
+      "passage_strategy": "passive",
+      "rule_cue": "lidar",
+      "scene": "near_wide_east",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71221,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "rerank",
+      "passage_strategy": "active",
+      "rule_cue": "lidar",
+      "scene": "near_wide_east",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71222,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "rerank",
+      "passage_strategy": "active",
+      "rule_cue": "lidar",
+      "scene": "far_wide_west",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71222,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "rerank",
+      "passage_strategy": "passive",
+      "rule_cue": "lidar",
+      "scene": "far_wide_west",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71223,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "rerank",
+      "passage_strategy": "passive",
+      "rule_cue": "lidar",
+      "scene": "west_exit_obstructed",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71223,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "rerank",
+      "passage_strategy": "active",
+      "rule_cue": "lidar",
+      "scene": "west_exit_obstructed",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71224,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "rerank",
+      "passage_strategy": "active",
+      "rule_cue": "lidar",
+      "scene": "east_exit_obstructed",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71224,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "rerank",
+      "passage_strategy": "passive",
+      "rule_cue": "lidar",
+      "scene": "east_exit_obstructed",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    }
+  ],
+  "source_tree": "13dacd0b3b00f0cf1ed6b67ce192350fb8a856e0",
+  "stage": "formal",
+  "world_sha256": {
+    "east_exit_obstructed": "c7312360f7ce4378ed527dd27adadf811aadbe6be284cb24b3886638db195484",
+    "far_wide_west": "a602553d65aee25a1071aa733d02eafd41b01b74f7342197487921c0ad8282d2",
+    "near_wide_east": "68a404bc9fbcda1b39f343f0696b3cf65c3a65a6256239e9aba5061d4d074d37",
+    "west_exit_obstructed": "a1d50848659fc91b49b3b33ff4a0b166b75f9eebce8d1d3686970a86ace471e9"
+  }
+}
