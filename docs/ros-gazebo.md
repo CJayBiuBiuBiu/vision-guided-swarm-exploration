@@ -89,6 +89,8 @@ The [dynamic passage study](dynamic-passage-study.md) evaluates live RGB
 width guidance in unseen layouts with scan-built navigation maps.
 The [active passage study](active-passage-study.md) adds bounded camera
 inspection and camera-supported route continuation.
+The [information-aware passage study](gain-passage-study.md) prioritises
+scan-unknown space and associates camera inspections with spatial regions.
 The [RGB encoder audit](rgb-encoder-audit.md) compares the checkpoints
 and tests whether their direction scores agree with the planar scan. The [closed-loop retest](rgb-encoder-retest.md)
 checks the corrected checkpoint with matched trials and a frozen actor.

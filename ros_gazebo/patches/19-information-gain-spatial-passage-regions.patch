@@ -1,0 +1,450 @@
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index 888f21c..bd44efc 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -57,6 +57,9 @@ from active_passage import (
+     CONTINUATION_MAX_AGE_S, CONTINUATION_MAX_STEPS, CONTINUATION_HOLD_S,
+     angle_delta, continuation_point, corridor_is_free, fresh_score, heading, inspection_candidate,
+     rebind_candidate)
++from passage_information import (
++    MIN_GAIN_CELLS, map_evidence, region_indices, select_gain, select_inspection,
++    unknown_corridor_cells, useful_gain)
+ from depth_corridor import (
+     MAX_POSE_SKEW_S, MAX_SENSOR_SKEW_S, ActiveDepthConfirmation, corridor_hit,
+     depth_image_points, fresh_sample, image_intrinsics, laser_points, reroute_exclusions)
+@@ -485,9 +488,10 @@ class Coordinator(object):
+         self.rgb_passage_mode = rospy.get_param('~rgb_passage_mode', 'off')
+         self.rgb_passage_geometry = rospy.get_param('~rgb_passage_geometry', 'continuation')
+         self.rgb_passage_strategy = rospy.get_param('~rgb_passage_strategy', 'passive')
+-        if self.rgb_passage_strategy not in ('passive', 'active'):
+-            raise ValueError('RGB passage strategy must be passive or active')
+-        self.active_passage = self.rgb_passage_strategy == 'active'
++        if self.rgb_passage_strategy not in ('passive', 'active', 'gain_region'):
++            raise ValueError('RGB passage strategy must be passive, active, or gain_region')
++        self.gain_passage = self.rgb_passage_strategy == 'gain_region'
++        self.active_passage = self.rgb_passage_strategy != 'passive'
+         if self.active_passage and (
+                 self.rgb_passage_mode != 'rerank' or self.rgb_passage_geometry != 'projected_width'):
+             raise ValueError('Active passage requires projected-width reranking')
+@@ -1636,6 +1640,9 @@ class Coordinator(object):
+ 
+     def _width_target(self, name, position, preferred, owned, frontiers, frontier_ids,
+                       start_cell, preferred_path):
++        if self.gain_passage:
++            return self._gain_target(
++                name, position, preferred, owned, frontiers, frontier_ids, start_cell, preferred_path)
+         now = self._control_now()
+         frames = self.passage_width_frames.get(name, ())
+         fresh = tuple((stamp, frame) for stamp, frame in frames
+@@ -1706,7 +1713,155 @@ class Coordinator(object):
+                         for index in candidate_indices])
+         return selected, paths[selected]
+ 
++    def _gain_row(self, grid, origin, index, frontiers, ids, score, path):
++        xy = frontiers[index]
++        return dict(index=int(index), frontier_id=int(ids[index]), xy=xy.tolist(), score=score,
++                    potential_cells=unknown_corridor_cells(grid, self.xs, self.ys, origin, xy),
++                    gain_cells=(None if score is None else
++                                unknown_corridor_cells(grid, self.xs, self.ys, origin, xy, score)),
++                    route_m=route_length(path, GRID_RES) if path else None)
++
++    def _gain_target(self, name, position, preferred, owned, frontiers, ids,
++                     start_cell, preferred_path):
++        now = self._control_now()
++        frames = self.passage_width_frames.get(name, ())
++        base_score, stamps = fresh_score(frames, now, position, frontiers[preferred])
++        grid = self.grid.copy()
++        paths = {preferred: preferred_path}
++        base = self._gain_row(grid, position, preferred, frontiers, ids, base_score, preferred_path)
++        rows = [base]
++        selected = preferred
++        inspection = None
++        if base_score is not None and preferred_path:
++            for index in owned:
++                if index == preferred:
++                    continue
++                score, _ = fresh_score(frames, now, position, frontiers[index])
++                row = self._gain_row(grid, position, index, frontiers, ids, score, None)
++                gain = row['potential_cells'] if score is None else row['gain_cells']
++                if useful_gain(gain, base['gain_cells']):
++                    goal_cell = self._cell_index(*frontiers[index])
++                    if grid[goal_cell[1], goal_cell[0]] != 2:
++                        path = self._plan_path(start_cell, goal_cell)
++                        if path:
++                            paths[index] = path
++                            row['route_m'] = route_length(path, GRID_RES)
++                rows.append(row)
++            proposed = select_gain(rows, preferred, base['gain_cells'],
++                                   base['route_m'] + MAX_EXTRA_ROUTE_M)
++            if proposed is not None:
++                selected = proposed
++            elif now - self.passage_last_inspection.get(name, -math.inf) >= SCAN_COOLDOWN_S:
++                inspection = select_inspection(rows, preferred, base['gain_cells'],
++                                               base['route_m'] + SCAN_MAX_EXTRA_ROUTE_M,
++                                               position, self.yaws[name])
++        elapsed, _ = self._frontier_trace_snapshot()
++        details = dict(robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++                       origin_xy=position.tolist(), image_stamps=stamps, yaw=self.yaws[name],
++                       preferred=int(ids[preferred]), candidates=rows,
++                       map=map_evidence(grid, self.xs, self.ys))
++        if inspection is not None:
++            anchor = frontiers[inspection].copy()
++            self.passage_last_inspection[name] = now
++            self.passage_inspections[name] = dict(
++                start=now, origin=position.copy(), preferred=int(ids[preferred]),
++                alternative=int(ids[inspection]), target=anchor,
++                preferred_xy=frontiers[preferred].copy(), score=base_score,
++                route_m=base['route_m'], ticks=0, missing_ticks=0)
++            self.frontier_trace.record('gain_inspection_start', **details,
++                                       alternative=int(ids[inspection]), anchor_xy=anchor.tolist())
++            self.targets_pub[name].publish(Point(x=heading(position, anchor), z=INSPECTION_Z))
++            self.policy_waypoints.add(name)
++            return None, None
++        if selected != preferred:
++            self._start_passage_continuation(name, position, frontiers[selected])
++        self.frontier_trace.record('gain_passage_decision', **details, selected=int(ids[selected]))
++        return selected, paths[selected]
++
++    def _advance_gain_inspection(self, name, pos, frontiers, ids, owner, robot_index):
++        state = self.passage_inspections[name]
++        now = self._control_now()
++        grid = self.grid.copy()
++        base_gain = unknown_corridor_cells(
++            grid, self.xs, self.ys, state['origin'], state['preferred_xy'], state['score'])
++        potential = unknown_corridor_cells(grid, self.xs, self.ys, pos, state['target'])
++        preferred_matches = region_indices(
++            frontiers, owner, robot_index, state['origin'], state['preferred_xy'])
++        preferred = preferred_matches[0] if preferred_matches else None
++        alternative_matches = region_indices(
++            frontiers, owner, robot_index, state['origin'], state['target'], excluded=preferred)
++        state['ticks'] += 1
++        state['missing_ticks'] += not bool(alternative_matches)
++        score, stamps = None, []
++        rows, paths = [], {}
++        reason = 'timeout'
++        within_pose = np.linalg.norm(pos - state['origin']) <= MAX_POSE_DRIFT_M
++        if not within_pose:
++            reason = 'pose_drift'
++        elif not useful_gain(potential, base_gain):
++            reason = 'region_gain_depleted'
++        else:
++            frames = self.passage_width_frames.get(name, ())
++            score, stamps = fresh_score(frames, now, pos, state['target'],
++                                        after=state['start'], align=True)
++            if score is None and now - state['start'] < SCAN_TIMEOUT_S:
++                self.targets_pub[name].publish(Point(x=heading(pos, state['target']), z=INSPECTION_Z))
++                return True, None
++            if score is not None:
++                reason = 'region_unavailable' if not alternative_matches else 'insufficient_gain'
++                for index in alternative_matches:
++                    candidate_score, candidate_stamps = fresh_score(
++                        frames, now, pos, frontiers[index], after=state['start'])
++                    if candidate_stamps != stamps:
++                        candidate_score = None
++                    row = self._gain_row(grid, pos, index, frontiers, ids, candidate_score, None)
++                    if candidate_score is not None and useful_gain(row['gain_cells'], base_gain):
++                        goal_cell = self._cell_index(*frontiers[index])
++                        if grid[goal_cell[1], goal_cell[0]] != 2:
++                            path = self._plan_path(self._cell_index(*pos), goal_cell)
++                            if path:
++                                paths[index] = path
++                                row['route_m'] = route_length(path, GRID_RES)
++                    rows.append(row)
++        selected = select_gain(rows, preferred, base_gain, state['route_m'] + SCAN_MAX_EXTRA_ROUTE_M)
++        chosen = selected
++        fallback_path = None
++        if selected is not None:
++            reason = 'redirected'
++            self._start_passage_continuation(name, pos, frontiers[selected])
++        else:
++            for index in preferred_matches:
++                goal_cell = self._cell_index(*frontiers[index])
++                if grid[goal_cell[1], goal_cell[0]] == 2:
++                    continue
++                fallback_path = self._plan_path(self._cell_index(*pos), goal_cell)
++                if fallback_path:
++                    preferred = index
++                    chosen = index
++                    break
++        self.passage_inspections.pop(name)
++        elapsed, _ = self._frontier_trace_snapshot()
++        self.frontier_trace.record(
++            'gain_inspection_result', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++            duration_s=now - state['start'], reason=reason, image_stamps=stamps,
++            original_origin_xy=state['origin'].tolist(), origin_xy=pos.tolist(),
++            anchor_xy=state['target'].tolist(), preferred_anchor_xy=state['preferred_xy'].tolist(),
++            preferred=int(state['preferred']), alternative=int(state['alternative']),
++            base_score=state['score'], anchor_score=score, base_gain_cells=base_gain,
++            anchor_potential_cells=potential, base_route_m=state['route_m'], candidates=rows,
++            preferred_resolved=None if preferred is None else int(ids[preferred]),
++            preferred_resolved_xy=None if preferred is None else frontiers[preferred].tolist(),
++            fallback_route_m=route_length(fallback_path, GRID_RES) if fallback_path else None,
++            selected=None if chosen is None else int(ids[chosen]), ticks=state['ticks'],
++            missing_ticks=state['missing_ticks'], map=map_evidence(grid, self.xs, self.ys))
++        if chosen is None:
++            self._retire_policy_waypoint(name)
++            return False, None
++        return False, (chosen, paths[chosen] if selected is not None else fallback_path)
++
+     def _advance_passage_inspection(self, name, pos, frontiers, ids, owner, robot_index):
++        if getattr(self, 'gain_passage', False):
++            return self._advance_gain_inspection(name, pos, frontiers, ids, owner, robot_index)
+         state = self.passage_inspections[name]
+         now = self._control_now()
+         preferred = rebind_candidate(frontiers, ids, owner, robot_index,
+@@ -1776,6 +1931,7 @@ class Coordinator(object):
+         now = self._control_now()
+         target = None
+         score, stamps = None, []
++        gain_cells = None
+         if (state['steps'] < CONTINUATION_MAX_STEPS
+                 and now - state['start'] < CONTINUATION_MAX_AGE_S):
+             direction = state['direction']
+@@ -1783,7 +1939,11 @@ class Coordinator(object):
+                 self.passage_width_frames.get(name, ()), now, position, position + 5 * direction)
+             if score is not None:
+                 grid = self.grid.copy()
+-                target = continuation_point(grid, self.xs, self.ys, position, direction, score['clear_to_m'])
++                if getattr(self, 'gain_passage', False):
++                    gain_cells = unknown_corridor_cells(
++                        grid, self.xs, self.ys, position, position + 0.65 * direction, score)
++                if gain_cells is None or gain_cells >= MIN_GAIN_CELLS:
++                    target = continuation_point(grid, self.xs, self.ys, position, direction, score['clear_to_m'])
+                 if target is not None:
+                     path = astar_grid(grid, self._cell_index(*position), self._cell_index(*target))
+                     if not path:
+@@ -1793,7 +1953,7 @@ class Coordinator(object):
+             'passage_continuation_decision', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
+             frontier_id=int(self.current_goal_id[name]), origin_xy=position.tolist(),
+             direction=state['direction'].tolist(), image_stamps=stamps, score=score, step=state['steps'],
+-            target_xy=None if target is None else target.tolist())
++            gain_cells=gain_cells, target_xy=None if target is None else target.tolist())
+         if target is None:
+             self.passage_continuations.pop(name, None)
+             return None
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/passage_information.py b/turtlebot_ddpg/scripts/voronoi_exploration/passage_information.py
+new file mode 100644
+index 0000000..5ad11e0
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/passage_information.py
+@@ -0,0 +1,102 @@
++"""Estimate scan-unknown area supported by a paired RGB corridor measurement."""
++
++import base64
++import math
++import zlib
++
++import numpy as np
++
++from active_passage import (
++    SCAN_MAX_TURN, SCAN_MIN_TURN, angle_delta, heading,
++)
++
++
++MIN_GAIN_CELLS = 6
++MIN_ADVANTAGE_CELLS = 4
++REGION_RADIUS_M = 1.20
++REGION_BEARING_RAD = math.radians(15)
++CORRIDOR_HALF_WIDTH_M = 0.25
++GAIN_RANGE_M = 5.75
++GAIN_MARGIN_M = 0.25
++
++
++def unknown_corridor_cells(grid, xs, ys, origin, target, score=None):
++    """Count unique unknown cell centres after the target, before observed obstacles.
++
++    With no RGB score this is an optimistic inspection potential, not confirmed
++    visual information. The calculation never modifies occupancy or permits motion.
++    """
++    origin, target = np.asarray(origin), np.asarray(target)
++    delta = target - origin
++    distance = float(np.linalg.norm(delta))
++    if distance <= 1e-9:
++        return 0
++    forward = delta / distance
++    sideways = np.array([-forward[1], forward[0]])
++    x, y = np.meshgrid(xs - origin[0], ys - origin[1])
++    longitudinal = x * forward[0] + y * forward[1]
++    lateral = x * sideways[0] + y * sideways[1]
++    corridor = np.abs(lateral) <= CORRIDOR_HALF_WIDTH_M + 1e-9
++    clear_to = GAIN_RANGE_M if score is None else score['clear_to_m']
++    start = 1.0 if score is None else score['starts_m']
++    obstacles = longitudinal[corridor & (longitudinal >= 0.35 - 1e-9) & (grid == 2)]
++    if obstacles.size:
++        clear_to = min(clear_to, float(obstacles.min()))
++    end = clear_to - GAIN_MARGIN_M
++    first = max(start, distance - GAIN_MARGIN_M)
++    return int(np.count_nonzero(corridor & (longitudinal >= first - 1e-9)
++                                & (longitudinal <= end + 1e-9) & (grid == 0)))
++
++
++def useful_gain(cells, baseline):
++    return cells >= MIN_GAIN_CELLS and cells >= baseline + MIN_ADVANTAGE_CELLS
++
++
++def select_gain(rows, preferred, baseline, route_cap):
++    """Choose the highest measured gain among reachable, affordable alternatives."""
++    eligible = [row for row in rows if row['index'] != preferred and row['score'] is not None
++                and useful_gain(row['gain_cells'], baseline) and row['route_m'] is not None
++                and row['route_m'] <= route_cap + 1e-9]
++    if not eligible:
++        return None
++    return min(eligible, key=lambda row: (-row['gain_cells'], row['route_m'],
++                                         -row['score']['clear_to_m'], row['index']))['index']
++
++
++def select_inspection(rows, preferred, baseline, route_cap, origin, yaw):
++    """Spend bounded rotation time only when an unobserved region may add information."""
++    choices = []
++    for row in rows:
++        turn = abs(angle_delta(heading(origin, row['xy']), yaw))
++        if (row['index'] != preferred and row['score'] is None
++                and useful_gain(row['potential_cells'], baseline) and row['route_m'] is not None
++                and row['route_m'] <= route_cap + 1e-9 and SCAN_MIN_TURN <= turn <= SCAN_MAX_TURN):
++            choices.append((-row['potential_cells'], turn, row['route_m'], row['index']))
++    return min(choices)[-1] if choices else None
++
++
++def region_indices(frontiers, owner, robot_index, origin, anchor, excluded=None):
++    """Associate a fixed world-coordinate inspection ray with current owned frontiers."""
++    bearing = heading(origin, anchor)
++    matches = [index for index, xy in enumerate(frontiers)
++               if owner[index] == robot_index and index != excluded
++               and np.linalg.norm(xy - anchor) <= REGION_RADIUS_M
++               and abs(angle_delta(heading(origin, xy), bearing)) <= REGION_BEARING_RAD]
++    return sorted(matches, key=lambda index: (float(np.linalg.norm(frontiers[index] - anchor)), index))
++
++
++def map_evidence(grid, xs, ys):
++    """Compact exact observed-map snapshot for replay of every ranking decision."""
++    return dict(shape=list(grid.shape), origin=[float(xs[0]), float(ys[0])],
++                resolution=float(xs[1] - xs[0]),
++                cells=base64.b64encode(zlib.compress(grid.astype(np.uint8).tobytes())).decode('ascii'))
++
++
++def restore_map(record):
++    grid = np.frombuffer(zlib.decompress(base64.b64decode(record['cells'])), dtype=np.uint8)
++    grid = grid.reshape(record['shape'])
++    if not np.isin(grid, (0, 1, 2)).all():
++        raise ValueError('Invalid scan-map values')
++    ny, nx = grid.shape
++    res = record['resolution']
++    return grid, record['origin'][0] + np.arange(nx) * res, record['origin'][1] + np.arange(ny) * res
+diff --git a/turtlebot_ddpg/tests/test_passage_information.py b/turtlebot_ddpg/tests/test_passage_information.py
+new file mode 100644
+index 0000000..db28f27
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_passage_information.py
+@@ -0,0 +1,112 @@
++"""Regression checks for information-aware passage selection and anchor lifetime."""
++
++import math
++import sys
++import unittest
++from pathlib import Path
++from unittest.mock import Mock
++
++import numpy as np
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
++from exploration_coordinator import Coordinator
++from passage_information import (map_evidence, region_indices, restore_map, select_gain,
++                                 select_inspection, unknown_corridor_cells)
++from rgb_passage import BEARINGS_DEG, WIDTH_DISTANCES_M
++
++
++def score(clear_to):
++    return dict(clear_to_m=clear_to, starts_m=1.0, bottleneck_m=None, bottleneck_width_m=None)
++
++
++class PassageInformationTests(unittest.TestCase):
++    def setUp(self):
++        self.axis = np.arange(-3, 3.01, 0.2)
++        self.grid = np.ones((len(self.axis), len(self.axis)), dtype=np.uint8)
++
++    def test_unknown_gain_is_capped_by_visual_evidence_and_grid(self):
++        self.grid[:, 22:] = 0
++        potential = unknown_corridor_cells(self.grid, self.axis, self.axis, (0, 0), (1, 0))
++        visible = unknown_corridor_cells(self.grid, self.axis, self.axis, (0, 0), (1, 0), score(2.0))
++        self.assertGreater(potential, visible)
++        self.assertGreater(visible, 0)
++        self.assertEqual(unknown_corridor_cells(self.grid, self.axis, self.axis,
++                                                (0, 0), (1, 0), score(1.0)), 0)
++        self.grid[15, 20] = 2
++        self.assertEqual(unknown_corridor_cells(self.grid, self.axis, self.axis,
++                                                (0, 0), (1, 0), score(4.0)), 0)
++
++    def test_seen_open_corridor_has_no_novel_gain(self):
++        self.assertEqual(unknown_corridor_cells(self.grid, self.axis, self.axis,
++                                                (0, 0), (1, 0), score(5.75)), 0)
++
++    def test_gain_ranking_rejects_known_open_space_and_long_routes(self):
++        rows = [
++            dict(index=0, score=score(4), gain_cells=3, route_m=1.0),
++            dict(index=1, score=score(5.75), gain_cells=0, route_m=1.1),
++            dict(index=2, score=score(3.0), gain_cells=8, route_m=1.4),
++            dict(index=3, score=score(5.75), gain_cells=20, route_m=2.0),
++        ]
++        self.assertEqual(select_gain(rows, 0, 3, 1.6), 2)
++        self.assertIsNone(select_gain(rows, 0, 5, 1.6))
++
++    def test_inspection_prioritises_potential_novelty_over_small_turn(self):
++        rows = [
++            dict(index=0, xy=[1, 0], score=score(2), potential_cells=5, route_m=1.0),
++            dict(index=1, xy=[1, 1], score=None, potential_cells=10, route_m=1.3),
++            dict(index=2, xy=[0, 1], score=None, potential_cells=20, route_m=1.5),
++            dict(index=3, xy=[-1, 0], score=None, potential_cells=30, route_m=1.5),
++        ]
++        self.assertEqual(select_inspection(rows, 0, 2, 2.2, (0, 0), 0), 2)
++
++    def test_region_is_spatial_and_ownership_bounded(self):
++        points = np.array([[0, 2.1], [0.2, 1.1], [0.9, 1], [0, 1]])
++        self.assertEqual(region_indices(points, [0, 0, 0, 1], 0, (0, 0), (0, 1)), [1, 0])
++        self.assertEqual(region_indices(points, [0, 0, 0, 1], 0, (0, 0), (0, 1), excluded=1), [0])
++
++    def test_map_snapshot_round_trips(self):
++        self.grid[3:7, 5:8] = 2
++        self.grid[8:10] = 0
++        decoded, xs, ys = restore_map(map_evidence(self.grid, self.axis, self.axis))
++        np.testing.assert_array_equal(decoded, self.grid)
++        np.testing.assert_allclose(xs, self.axis)
++        np.testing.assert_allclose(ys, self.axis)
++
++    def test_inspection_survives_missing_frontier_then_redirects(self):
++        coord = Coordinator.__new__(Coordinator)
++        origin = np.array([0., 0.])
++        coord.grid = self.grid
++        coord.grid[22:, :] = 0
++        coord.xs = coord.ys = self.axis
++        coord._cell_index = lambda x, y: (int(round((x + 3) / .2)), int(round((y + 3) / .2)))
++        coord._control_now = Mock(return_value=10.0)
++        coord._frontier_trace_snapshot = Mock(return_value=(10.0, 1.0))
++        coord.frontier_trace = Mock()
++        coord.targets_pub = {'robot1': Mock()}
++        coord.passage_continuations = {}
++        coord._plan_path = Mock(return_value=[(15, 15), (15, 16)])
++        coord.passage_inspections = {'robot1': dict(
++            start=9., origin=origin, preferred=10, alternative=11,
++            preferred_xy=np.array([1., 0.]), target=np.array([0., 1.]),
++            score=score(2.0), route_m=1., ticks=0, missing_ticks=0)}
++        coord.passage_width_frames = {}
++        waiting, choice = coord._advance_gain_inspection(
++            'robot1', origin, np.array([[1., 0.]]), [10], [0], 0)
++        self.assertTrue(waiting)
++        self.assertIsNone(choice)
++        self.assertEqual(coord.passage_inspections['robot1']['missing_ticks'], 1)
++        widths = np.ones((len(BEARINGS_DEG), len(WIDTH_DISTANCES_M)))
++        sample = (np.array([0., 0., 0.]), math.pi / 2, widths)
++        coord.passage_width_frames['robot1'] = [(10.8, sample), (10.9, sample)]
++        coord._control_now.return_value = 11.0
++        waiting, choice = coord._advance_gain_inspection(
++            'robot1', origin, np.array([[1., 0.], [0., 1.2]]), [12, 99], [0, 0], 0)
++        self.assertFalse(waiting)
++        self.assertEqual(choice[0], 1)
++        self.assertEqual(coord.frontier_trace.record.call_args.kwargs['selected'], 99)
++        self.assertEqual(coord.frontier_trace.record.call_args.kwargs['reason'], 'redirected')
++        self.assertEqual(coord.frontier_trace.record.call_args.kwargs['missing_ticks'], 1)
++
++
++if __name__ == '__main__':
++    unittest.main()
