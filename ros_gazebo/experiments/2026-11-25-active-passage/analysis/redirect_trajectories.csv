@@ -1,0 +1,3 @@
+scene,seed,strategy,robot,source,redirect_s,original_frontier,selected_frontier,goal_x,goal_y,partition_y,outcome,outcome_s,first_robot_crossing_s,robot_crossed_before_redirect,robot_crossed_after_redirect
+near_wide_east,71221,active,robot1,passage_inspection_result,94.255,41,45,-3.0999999999999996,-2.3,0.29,reached,98.50399999999999,78.751,True,False
+far_wide_west,71222,active,robot2,passage_inspection_result,21.507,17,13,1.1000000000000005,1.7000000000000002,-0.52,reached,26.253,,False,False

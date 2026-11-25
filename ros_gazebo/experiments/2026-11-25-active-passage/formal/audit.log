@@ -1,0 +1,8 @@
+VERIFIED near_wide_east_71221_passive coverage=51.85% crossing=0 inspections=0/0 redirects=0 continuations=0
+VERIFIED near_wide_east_71221_active coverage=97.34% crossing=2 inspections=2/8 redirects=1 continuations=0
+VERIFIED far_wide_west_71222_active coverage=66.64% crossing=0 inspections=1/3 redirects=1 continuations=0
+VERIFIED far_wide_west_71222_passive coverage=87.46% crossing=1 inspections=0/0 redirects=0 continuations=0
+VERIFIED west_exit_obstructed_71223_passive coverage=90.87% crossing=2 inspections=0/0 redirects=0 continuations=0
+VERIFIED west_exit_obstructed_71223_active coverage=50.42% crossing=0 inspections=1/3 redirects=0 continuations=0
+VERIFIED east_exit_obstructed_71224_active coverage=78.63% crossing=1 inspections=0/6 redirects=0 continuations=0
+VERIFIED east_exit_obstructed_71224_passive coverage=62.28% crossing=0 inspections=0/0 redirects=0 continuations=0

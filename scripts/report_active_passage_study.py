@@ -11,6 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from run_active_passage_study import STRATEGIES, schedule
+from run_dynamic_passage_study import crossing_audit
 from run_matched_vision_training import csv_rows, write_csv
 from run_policy_goal_retention import read_json_lines
 
@@ -73,6 +74,45 @@ def inspection_results(formal, rows):
             raise ValueError(f"Unreconciled inspection trace {name}")
 
 
+
+def redirects(formal, rows, geometries):
+    """Locate actual redirects and arrivals relative to independently scored crossings."""
+    for row in rows:
+        name = f"{row['scene']}_{row['environment_seed']}_{row['passage_strategy']}"
+        marker = json.loads((formal / f"{name}.complete.json").read_text())
+        directory = formal / marker["directory"]
+        events = read_json_lines(directory / "decisions.jsonl")
+        metrics = csv_rows(directory / "metrics.csv")
+        geometry = geometries[row["scene"]]
+        times = {}
+        for robot in ("robot1", "robot2", "robot3"):
+            positions = [dict(item, robot_positions_json=json.dumps({
+                robot: json.loads(item["robot_positions_json"])[robot]})) for item in metrics]
+            times[robot] = crossing_audit(positions, geometry)["first_crossing_s"]
+        outcomes = {event["attempt_id"]: event for event in events if event["event"] == "outcome"}
+        pending = {}
+        for event in events:
+            kind, robot = event["event"], event.get("robot")
+            if ((kind == "passage_width_decision" and event["selected"] != event["preferred"])
+                    or (kind == "passage_inspection_result" and event["reason"] == "redirected")):
+                pending[robot] = event
+            elif kind == "assigned" and robot in pending:
+                choice = pending.pop(robot)
+                outcome = outcomes[event["attempt_id"]]
+                crossing = times[robot]
+                yield dict(scene=row["scene"], seed=row["environment_seed"],
+                           strategy=row["passage_strategy"], robot=robot,
+                           source=choice["event"], redirect_s=event["elapsed_sim_s"],
+                           original_frontier=choice["preferred"], selected_frontier=event["selected_frontier_id"],
+                           goal_x=event["selected_xy"][0], goal_y=event["selected_xy"][1],
+                           partition_y=geometry["wall_y"], outcome=outcome["outcome"],
+                           outcome_s=outcome["elapsed_sim_s"], first_robot_crossing_s=crossing,
+                           robot_crossed_before_redirect=(crossing is not None
+                                                          and crossing < event["elapsed_sim_s"]),
+                           robot_crossed_after_redirect=(crossing is not None
+                                                         and crossing >= event["elapsed_sim_s"]))
+
+
 def plot(rows, output):
     plt.rcParams.update({"axes.grid": False, "axes.spines.top": False, "axes.spines.right": False,
                          "pdf.fonttype": 42})
@@ -90,7 +130,8 @@ def plot(rows, output):
         axes[2].bar(xs, [int(r["robots_crossing"]) for r in subset], width=0.28, color=color)
     seeds = [row["environment_seed"] for row in rows if row["passage_strategy"] == STRATEGIES[0]]
     for axis in axes:
-        axis.set_xticks(range(len(seeds)), seeds, rotation=30, ha="right")
+        axis.set_xticks(range(len(seeds)))
+        axis.set_xticklabels(seeds, rotation=30, ha="right")
         axis.set_xlabel("Unseen layout seed")
     axes[0].set_ylabel("Final coverage (%)")
     axes[0].set_ylim(0, 100)
@@ -116,7 +157,7 @@ def main():
     args = parser.parse_args()
     rows = csv_rows(args.formal / "summary.csv")
     manifest = json.loads((args.formal / "experiment_manifest.json").read_text())
-    runs, _ = schedule("formal")
+    runs, geometries = schedule("formal")
     if (manifest["runs"] != runs or len(rows) != len(runs)
             or any(any(row[key] != str(value) for key, value in run.items()) for row, run in zip(rows, runs))):
         raise ValueError("Summary does not match the locked paired schedule")
@@ -126,6 +167,9 @@ def main():
     inspection_rows = list(inspection_results(args.formal, rows))
     if inspection_rows:
         write_csv(args.output / "inspection_results.csv", inspection_rows)
+    redirect_rows = list(redirects(args.formal, rows, geometries))
+    if redirect_rows:
+        write_csv(args.output / "redirect_trajectories.csv", redirect_rows)
     plot(rows, args.output)
 
 

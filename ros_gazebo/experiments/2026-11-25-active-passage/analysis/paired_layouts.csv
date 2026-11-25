@@ -1,0 +1,5 @@
+scene,seed,passive_first_crossing_s,active_first_crossing_s,coverage_pct_delta,path_m_delta,robots_crossing_delta,goals_reached_delta,stuck_events_delta,near_collision_events_delta,applied_reranks_delta,inspection_redirects_delta,continuations_issued_delta,continuation_segments_arrived_delta
+near_wide_east,71221,,49.5,45.4839,10.0834,2.0,5.0,-5.0,0.0,0.0,1.0,0.0,0.0
+far_wide_west,71222,43.001,,-20.8197,-15.5981,-1.0,-10.0,-1.0,-3.0,0.0,1.0,0.0,0.0
+west_exit_obstructed,71223,24.508,,-40.4522,-16.8353,-2.0,-10.0,5.0,0.0,0.0,0.0,0.0,0.0
+east_exit_obstructed,71224,,66.251,16.3495,19.0367,1.0,1.0,-5.0,0.0,0.0,0.0,0.0,0.0

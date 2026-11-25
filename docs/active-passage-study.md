@@ -111,5 +111,70 @@ the two attempted inspections still lost a candidate; neither
 returned a usable score. The passive run covered 59.71% and
 crossed the partition with one robot. The active run covered
 41.10% and had no crossing. This remains an experimental opt-in
-strategy. The eight-run held-out comparison was then started
-using the locked revised protocol.
+strategy. The eight-run held-out comparison then used the locked
+revised protocol.
+
+## Formal held-out results
+
+All eight 120 s runs completed and passed both initial and
+independent repeat audits. Each layout had a distinct reference
+mask; the two conditions used identical masks and model hashes
+within each pair.
+
+| Layout | Seed | Coverage, passive / active | Robots crossing, passive / active |
+| --- | ---: | ---: | ---: |
+| Near wide east | 71221 | 51.85% / 97.34% | 0 / 2 |
+| Far wide west | 71222 | 87.46% / 66.64% | 1 / 0 |
+| West exit obstructed | 71223 | 90.87% / 50.42% | 2 / 0 |
+| East exit obstructed | 71224 | 62.28% / 78.63% | 0 / 1 |
+| Mean | | 73.12% / 73.26% | 0.75 / 0.75 |
+
+The average paired coverage difference was +0.14 percentage
+points. Both methods crossed in two of the four runs, with three
+robots crossing in total in each arm. Mean team path length was
+44.57 m for passive and 43.74 m for active. Mean stuck events
+were 5.00 and 3.50, and mean near-collision events 1.75 and
+1.00, respectively. Near-collision events measure the configured
+clearance threshold, rather than physical contacts. With four
+paired layouts and substantial variation, these descriptive
+differences leave a repeatable benefit unestablished.
+
+The active arm initiated and completed 20 inspections, obtaining
+four new paired scores. Two scores supported redirects and two
+gave insufficient clear-distance gains. Twelve inspections
+lost a candidate, three failed the pose or bearing stability
+gate, and one timed out. One inspection rebound a frontier ID.
+The aggregate inspection duration was 20.75 robot-seconds.
+Both actual redirects reached their new frontier. In the first
+layout, robot 1 already crossed at 78.751 s before it received
+the redirected goal at 94.255 s. In the second layout, robot 2
+reached the redirected approach frontier at 26.253 s, but
+remained on the original side of the partition. Neither
+redirect therefore establishes that active camera guidance
+caused a crossing.
+
+The continuation logic ran at two approach-goal arrivals.
+Both had fresh directional scores, but the scan-map constraints
+rejected the proposed extensions. No continuation segment
+was issued in the eight formal trials. Three deterministic
+controller-level checks separately exercise a rebound redirect,
+a known-free extension followed by a clearance recheck,
+and rejection of unknown space and exhausted extension budget.
+All passed, as did the 138 ROS-side tests and the 55 main
+repository tests. Run the controller check against a prepared
+workspace with:
+
+```sh
+python3 scripts/check_active_passage_controller.py "$ROS_PROJECT/turtlebot_ddpg"
+```
+
+The traces identify two remaining obstacles to reliable
+vision-guided exploration. Candidate identity changes before
+many active observations finish, and maximising visible clear
+distance can redirect a robot toward already explored space.
+The next design should evaluate the expected unseen area
+beyond a candidate and associate that expectation with a
+world-coordinate approach region. These results support keeping
+the active strategy opt-in while that mechanism is evaluated.
+
+[Paired results, figures, world files, manifests and audit logs](../ros_gazebo/experiments/2026-11-25-active-passage/)
