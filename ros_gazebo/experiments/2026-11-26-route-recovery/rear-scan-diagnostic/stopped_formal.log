@@ -1,0 +1,6 @@
+START staggered_partitions_71421_legacy /home/cjay/vision_swarm_route_recovery_20261125.LZsYh2/formal/staggered_partitions_71421_legacy.zqr1arci
+VERIFIED staggered_partitions_71421_legacy coverage=76.60% crossing=1 stuck=8 reported=0 far_goals_retired=0 path=40.60m
+START staggered_partitions_71421_guarded /home/cjay/vision_swarm_route_recovery_20261125.LZsYh2/formal/staggered_partitions_71421_guarded.qh497kp0
+VERIFIED staggered_partitions_71421_guarded coverage=69.69% crossing=1 stuck=7 reported=7 far_goals_retired=5 path=28.75m
+START staggered_partitions_71422_guarded /home/cjay/vision_swarm_route_recovery_20261125.LZsYh2/formal/staggered_partitions_71422_guarded.9_ekpmla
+Terminated

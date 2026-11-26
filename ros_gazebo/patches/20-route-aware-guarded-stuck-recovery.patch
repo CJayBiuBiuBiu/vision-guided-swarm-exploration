@@ -1,0 +1,767 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index e218827..07843fa 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -74,6 +74,7 @@
+        doc="off, observe low depth returns, or limit forward DDPG velocity"/>
+   <arg name="depth_velocity_trace_dir" default=""/>
+   <arg name="gazebo_lockstep" default="false"/>
++  <arg name="route_recovery_mode" default="legacy"/>
+   <arg name="recovery_direction_mode" default="random"
+        doc="random baseline or clearance-guided laser recovery"/>
+   <arg name="recovery_success_distance" default="0.15"
+@@ -289,6 +290,7 @@
+     <param name="tail_completion_coverage" value="$(arg tail_completion_coverage)"/>
+     <param name="stuck_blacklist_ttl" value="$(arg stuck_blacklist_ttl)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_success_distance" value="$(arg recovery_success_distance)"/>
+     <param name="near_collision_range" value="$(arg near_collision_range)"/>
+     <param name="near_collision_clear_range"
+@@ -309,6 +311,7 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -323,6 +326,7 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -337,6 +341,7 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -350,6 +355,7 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -363,6 +369,7 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -376,6 +383,7 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -389,6 +397,7 @@
+     <param name="safety_stop_range" value="$(arg safety_stop_range)"/>
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
++    <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index bd44efc..e271419 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -30,6 +30,7 @@ import threading
+ from collections import Counter, deque
+ from contextlib import nullcontext
+ from pathlib import Path
++from queue import Empty, SimpleQueue
+ 
+ import rospy
+ import numpy as np
+@@ -57,6 +58,8 @@ from active_passage import (
+     CONTINUATION_MAX_AGE_S, CONTINUATION_MAX_STEPS, CONTINUATION_HOLD_S,
+     angle_delta, continuation_point, corridor_is_free, fresh_score, heading, inspection_candidate,
+     rebind_candidate)
++from route_recovery import (
++    RECOVERY_PAUSE_S, TARGET_COOLDOWN_S, RouteFailureMemory, available_owner)
+ from passage_information import (
+     MIN_GAIN_CELLS, map_evidence, region_indices, select_gain, select_inspection,
+     unknown_corridor_cells, useful_gain)
+@@ -312,13 +315,16 @@ _NEIGHBORS_8 = [(1, 0), (-1, 0), (0, 1), (0, -1),
+ 
+ 
+ def astar_grid(grid, start_cell, goal_cell, max_expansions=20000,
+-               allow_unknown=False, unknown_cost=2.0):
++               allow_unknown=False, unknown_cost=2.0, cell_penalty=None):
+     """8-connected A* over `grid`. A cell is passable if grid[iy,ix]==1
+     (explored free space), plus the goal cell itself is always allowed even
+     if it's still unknown (it's a frontier point, right at the edge of
+     sensed territory). Returns a list of (ix, iy) cells from start to goal,
+     or None if unreachable."""
+     ny, nx = grid.shape
++    if cell_penalty is not None and (cell_penalty.shape != grid.shape or
++                                     not np.isfinite(cell_penalty).all() or np.any(cell_penalty < 0)):
++        raise ValueError('invalid A* route penalty')
+ 
+     def in_bounds(c):
+         return 0 <= c[0] < nx and 0 <= c[1] < ny
+@@ -362,6 +368,8 @@ def astar_grid(grid, start_cell, goal_cell, max_expansions=20000,
+             step_cost = 1.41421356 if dx and dy else 1.0
+             if allow_unknown and grid[neighbor[1], neighbor[0]] == 0:
+                 step_cost *= unknown_cost
++            if cell_penalty is not None:
++                step_cost += float(cell_penalty[neighbor[1], neighbor[0]])
+             tentative_g = g_score[current] + step_cost
+             if tentative_g < g_score.get(neighbor, float('inf')):
+                 came_from[neighbor] = current
+@@ -618,6 +626,18 @@ class Coordinator(object):
+             starts_training=starts_training)
+         self.stuck_blacklist_ttl = float(rospy.get_param(
+             '~stuck_blacklist_ttl', 90.0))
++        self.route_recovery_mode = rospy.get_param('~route_recovery_mode', 'legacy')
++        if self.route_recovery_mode not in ('legacy', 'guarded'):
++            raise ValueError('route_recovery_mode must be legacy or guarded')
++        self.guarded_route_recovery = self.route_recovery_mode == 'guarded'
++        if self.guarded_route_recovery and (
++                self.mapping_mode != 'laser_scan' or self.selection_mode not in EXECUTION_SELECTION_MODES
++                or rospy.get_param('~policy_wait_mode', 'legacy') == 'legacy'
++                or not rospy.get_param('~frontier_trace_path', '')):
++            raise ValueError('Guarded route recovery requires traced scan-map execution with waypoint retirement')
++        self.route_failures = RouteFailureMemory()
++        self.route_recovery_events = SimpleQueue()
++        self.route_pause_until = {}
+         self.recovery_direction_mode = rospy.get_param(
+             '~recovery_direction_mode', 'random')
+         if self.recovery_direction_mode not in ('random', 'clearance'):
+@@ -890,7 +910,7 @@ class Coordinator(object):
+         self._open_metrics_file()
+         rospy.on_shutdown(self._close_metrics_file)
+         if trace_path:
+-            cue_metadata = {}
++            cue_metadata = dict(route_recovery_mode=self.route_recovery_mode)
+             if self.matched_clearance:
+                 cue_metadata.update(clearance_actor_cue=self.clearance_actor_cue,
+                                     clearance_rules_cue=self.clearance_rules_cue)
+@@ -1211,6 +1231,12 @@ class Coordinator(object):
+                 msg.frontier_id, name)
+             self.policy_select_owner_rejected += 1
+             return None, None
++        if not self._route_target_available(name, frontiers[index]):
++            elapsed, _ = self._frontier_trace_snapshot()
++            self.frontier_trace.record('route_target_rejected', robot=name,
++                                       elapsed_sim_s=elapsed, control_stamp=self._control_now(),
++                                       frontier_id=int(frontier_ids[index]), target_xy=frontiers[index].tolist())
++            return None, None
+         self.policy_select_accepted += 1
+         return 'select', index
+ 
+@@ -1222,6 +1248,9 @@ class Coordinator(object):
+         # frontier-eligible so coverage% and completion stay honest, and a
+         # different robot approaching from another angle can still claim it.
+         rospy.logwarn("[coordinator] blacklisting stuck area near (%.2f, %.2f)", msg.x, msg.y)
++        if self.guarded_route_recovery:
++            self.route_recovery_events.put((name, (float(msg.x), float(msg.y)), self._control_now()))
++            return
+         self.stuck_events[name] += 1
+         self.passage_continuations.pop(name, None)
+         if self.blacklist.add(msg.x, msg.y, self._control_now()):
+@@ -1234,6 +1263,64 @@ class Coordinator(object):
+                 self.current_goal_id[name] = None
+                 self.current_path[name] = None
+ 
++    def _drain_route_recovery_events(self):
++        while True:
++            try:
++                name, position, reported = self.route_recovery_events.get_nowait()
++            except Empty:
++                return
++            now = self._control_now()
++            goal = self.current_goal.get(name)
++            goal_id = self.current_goal_id.get(name)
++            self.stuck_events[name] += 1
++            self.route_failures.record(name, position, goal, now)
++            self.route_pause_until[name] = now + RECOVERY_PAUSE_S
++            self.last_consumed_policy_action[name] = max(
++                self.last_consumed_policy_action[name], self.route_pause_until[name])
++            self.passage_continuations.pop(name, None)
++            if name in self.passage_inspections:
++                self.passage_inspections.pop(name)
++                elapsed, _ = self._frontier_trace_snapshot()
++                self.frontier_trace.record('passage_inspection_cancel', robot=name,
++                                           elapsed_sim_s=elapsed, reason='route_recovery')
++            if self.blacklist.add(*position, now):
++                self.unique_stuck_regions += 1
++            elapsed, _ = self._frontier_trace_snapshot()
++            self.frontier_trace.record(
++                'route_recovery', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++                report_stamp=reported, stuck_xy=list(position),
++                goal_id=None if goal_id is None else int(goal_id),
++                goal_xy=None if goal is None else list(goal),
++                goal_distance_m=None if goal is None else math.dist(position, goal),
++                pause_until=self.route_pause_until[name], memory_until=now + TARGET_COOLDOWN_S)
++            if goal is not None:
++                self._finish_frontier_attempt(name, 'stuck')
++            self.current_goal[name] = None
++            self.current_goal_id[name] = None
++            self.current_path[name] = None
++            self._retire_policy_waypoint(name)
++            # Preserve the existing shared stuck-position exclusion for nearby teammate goals.
++            for other in self.robot_names:
++                if other == name:
++                    continue
++                other_goal = self.current_goal.get(other)
++                if other_goal is not None and math.dist(position, other_goal) < STUCK_BLACKLIST_RADIUS:
++                    self._finish_frontier_attempt(other, 'stuck')
++                    self.passage_continuations.pop(other, None)
++                    self.current_goal[other] = None
++                    self.current_goal_id[other] = None
++                    self.current_path[other] = None
++
++    def _route_target_available(self, name, target):
++        return (not getattr(self, 'guarded_route_recovery', False) or
++                self.route_failures.available(name, target, self._control_now()))
++
++    def _route_available_indices(self, name, frontiers, indices):
++        if not getattr(self, 'guarded_route_recovery', False):
++            return indices
++        return np.asarray([index for index in indices
++                           if self._route_target_available(name, frontiers[index])], dtype=np.int64)
++
+     def _near_collision_cb(self, msg, name):
+         if msg.data:
+             self.near_collision_events[name] += 1
+@@ -1500,6 +1587,17 @@ class Coordinator(object):
+         return not any(self.grid[iy, ix] == 2
+                        for ix, iy in bresenham_cells(start, end))
+ 
++    def _plan_robot_path(self, name, start_cell, goal_cell):
++        if not getattr(self, 'guarded_route_recovery', False):
++            return self._plan_path(start_cell, goal_cell)
++        grid = self.grid.copy()
++        if grid[goal_cell[1], goal_cell[0]] == 2:
++            return None
++        grid[start_cell[1], start_cell[0]] = 1
++        penalties = self.route_failures.penalties(name, self.xs, self.ys, self._control_now())
++        return astar_grid(grid, start_cell, goal_cell, allow_unknown=True,
++                          unknown_cost=2.0, cell_penalty=penalties)
++
+     def _plan_path(self, start_cell, goal_cell):
+         """Plan conservatively in known maps and risk-aware in unknown maps."""
+         # Laser callbacks run on ROS subscriber threads. Plan against a stable
+@@ -1575,7 +1673,7 @@ class Coordinator(object):
+             if reason == 'check_route':
+                 goal_cell = self._cell_index(*goal)
+                 if self.grid[goal_cell[1], goal_cell[0]] != 2:
+-                    path = self._plan_path(self._cell_index(*pos), goal_cell)
++                    path = self._plan_robot_path(name, self._cell_index(*pos), goal_cell)
+                 reason = 'valid_route' if path else 'blocked_or_disconnected'
+         keep = bool(path and self.current_goal.get(name) == goal)
+         if self.frontier_trace is not None:
+@@ -1622,7 +1720,7 @@ class Coordinator(object):
+                 if index == preferred:
+                     continue
+                 score = score_direction(frame, frontiers[index])
+-                paths[index] = (self._plan_path(start_cell, self._cell_index(*frontiers[index]))
++                paths[index] = (self._plan_robot_path(name, start_cell, self._cell_index(*frontiers[index]))
+                                 if try_alternatives and score is not None
+                                 and score['far'] >= MIN_OPEN_SCORE else None)
+             candidates = {index: (frontiers[index], path) for index, path in paths.items()}
+@@ -1661,7 +1759,7 @@ class Coordinator(object):
+                 for index in candidate_indices[1:]:
+                     if not width_alternative(scores[preferred], scores[index]):
+                         continue
+-                    path = self._plan_path(start_cell, self._cell_index(*frontiers[index]))
++                    path = self._plan_robot_path(name, start_cell, self._cell_index(*frontiers[index]))
+                     if path:
+                         paths[index] = path
+                         length = route_length(path, GRID_RES)
+@@ -1677,7 +1775,7 @@ class Coordinator(object):
+             for index in candidate_indices[1:]:
+                 if scores.get(index) is not None:
+                     continue
+-                path = self._plan_path(start_cell, self._cell_index(*frontiers[index]))
++                path = self._plan_robot_path(name, start_cell, self._cell_index(*frontiers[index]))
+                 if path:
+                     candidates.append((index, frontiers[index], route_length(path, GRID_RES), None))
+             other = inspection_candidate(position, self.yaws[name], maximum, candidates)
+@@ -1742,7 +1840,7 @@ class Coordinator(object):
+                 if useful_gain(gain, base['gain_cells']):
+                     goal_cell = self._cell_index(*frontiers[index])
+                     if grid[goal_cell[1], goal_cell[0]] != 2:
+-                        path = self._plan_path(start_cell, goal_cell)
++                        path = self._plan_robot_path(name, start_cell, goal_cell)
+                         if path:
+                             paths[index] = path
+                             row['route_m'] = route_length(path, GRID_RES)
+@@ -1818,7 +1916,7 @@ class Coordinator(object):
+                     if candidate_score is not None and useful_gain(row['gain_cells'], base_gain):
+                         goal_cell = self._cell_index(*frontiers[index])
+                         if grid[goal_cell[1], goal_cell[0]] != 2:
+-                            path = self._plan_path(self._cell_index(*pos), goal_cell)
++                            path = self._plan_robot_path(name, self._cell_index(*pos), goal_cell)
+                             if path:
+                                 paths[index] = path
+                                 row['route_m'] = route_length(path, GRID_RES)
+@@ -1834,7 +1932,7 @@ class Coordinator(object):
+                 goal_cell = self._cell_index(*frontiers[index])
+                 if grid[goal_cell[1], goal_cell[0]] == 2:
+                     continue
+-                fallback_path = self._plan_path(self._cell_index(*pos), goal_cell)
++                fallback_path = self._plan_robot_path(name, self._cell_index(*pos), goal_cell)
+                 if fallback_path:
+                     preferred = index
+                     chosen = index
+@@ -1870,7 +1968,7 @@ class Coordinator(object):
+                                        state['alternative'], state['target'], excluded=preferred)
+         start_cell = self._cell_index(*pos)
+         base_path = (None if preferred is None else
+-                     self._plan_path(start_cell, self._cell_index(*frontiers[preferred])))
++                     self._plan_robot_path(name, start_cell, self._cell_index(*frontiers[preferred])))
+         score, stamps = None, []
+         path, reason = None, 'candidate_lost'
+         if base_path and alternative is not None:
+@@ -1889,7 +1987,7 @@ class Coordinator(object):
+                 if width_alternative(state['score'], score):
+                     goal_cell = self._cell_index(*target)
+                     if self.grid[goal_cell[1], goal_cell[0]] != 2:
+-                        path = self._plan_path(start_cell, goal_cell)
++                        path = self._plan_robot_path(name, start_cell, goal_cell)
+                     reason = 'route_rejected'
+                     if (path and route_length(path, GRID_RES)
+                             <= route_length(base_path, GRID_RES) + SCAN_MAX_EXTRA_ROUTE_M):
+@@ -1944,6 +2042,8 @@ class Coordinator(object):
+                         grid, self.xs, self.ys, position, position + 0.65 * direction, score)
+                 if gain_cells is None or gain_cells >= MIN_GAIN_CELLS:
+                     target = continuation_point(grid, self.xs, self.ys, position, direction, score['clear_to_m'])
++                if target is not None and not self._route_target_available(name, target):
++                    target = None
+                 if target is not None:
+                     path = astar_grid(grid, self._cell_index(*position), self._cell_index(*target))
+                     if not path:
+@@ -1991,8 +2091,8 @@ class Coordinator(object):
+         evaluated = []
+         proposed, proposed_path = None, None
+         for index in candidates:
+-            path = selected_path if index == preferred else self._plan_path(
+-                start, self._cell_index(*frontiers[index]))
++            path = selected_path if index == preferred else self._plan_robot_path(
++                name, start, self._cell_index(*frontiers[index]))
+             path_xy = [(self.xs[ix], self.ys[iy]) for ix, iy in path] if path else None
+             waypoint = self._next_waypoint(position, frontiers[index], path_xy)
+             depth_hit = None if depth is None else corridor_hit(depth[1], position, waypoint, 3)
+@@ -2135,6 +2235,9 @@ class Coordinator(object):
+                 token.reachable = bool(np.isfinite(features['actor_cost'][i, j]))
+                 token.selectable = bool(
+                     token.assigned and token.reachable and
++                    self._route_target_available(name, frontier) and
++                    (not self.guarded_route_recovery or
++                     self._control_now() >= self.route_pause_until.get(name, -math.inf)) and
+                     (active_goal_id is None or token.id == active_goal_id))
+                 tokens.append(token)
+             observation.frontiers = tokens
+@@ -2548,6 +2651,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 rate = self._safe_sleep(rate)
+                 continue
+ 
++            if self.guarded_route_recovery:
++                self._drain_route_recovery_events()
+             if self.vision_enabled and self.clearance_mode:
+                 self._refresh_directional_clearance()
+             if (self.vision_enabled and
+@@ -2784,18 +2889,31 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                 self.adaptive_execution_weight = 0.0
+                 owner = self.voronoi_owner(
+                     frontiers, self.robot_names, robot_positions)
++            if self.guarded_route_recovery:
++                available = np.asarray([
++                    [self._route_target_available(name, point) for point in frontiers]
++                    for name in self.robot_names], dtype=bool)
++                owner = available_owner(owner, effective_ownership_costs, available)
+             self._publish_policy_observations(
+                 control_coverage if reference_control else 0.0,
+                 frontiers, frontier_ids, owner,
+                 execution_features)
+ 
+             for i, name in enumerate(self.robot_names):
++                if (self.guarded_route_recovery
++                        and self._control_now() < self.route_pause_until.get(name, -math.inf)):
++                    self._retire_policy_waypoint(name)
++                    continue
+                 pos = np.array(self.positions[name])
+                 goal = self.current_goal.get(name)
+                 inspection_choice = None
+                 if name in self.passage_inspections:
++                    inspection_owner = owner
++                    if self.guarded_route_recovery:
++                        inspection_owner = owner.copy()
++                        inspection_owner[~available[i]] = -1
+                     waiting, inspection_choice = self._advance_passage_inspection(
+-                        name, pos, frontiers, frontier_ids, owner, i)
++                        name, pos, frontiers, frontier_ids, inspection_owner, i)
+                     if waiting:
+                         continue
+                 if goal is None and inspection_choice is None:
+@@ -2850,8 +2968,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                             continuation = self.passage_continuations.get(name)
+                             strict = continuation is not None and continuation['steps']
+                             replanned = (astar_grid(self.grid.copy(), start_cell, goal_cell)
+-                                         if strict else self._plan_path(start_cell, goal_cell))
+-                            blocked = bool(strict and not replanned)
++                                         if strict else self._plan_robot_path(name, start_cell, goal_cell))
++                            blocked = bool((strict or self.guarded_route_recovery) and not replanned)
+                             if replanned:
+                                 self.current_path[name] = [
+                                     (self.xs[ix], self.ys[iy])
+@@ -2916,6 +3034,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     own_indices = (np.asarray([policy_index], dtype=np.int64)
+                                    if policy_controls_selection
+                                    else np.flatnonzero(owner == i))
++                    own_indices = self._route_available_indices(name, frontiers, own_indices)
+                     if interruption is not None:
+                         excluded = reroute_exclusions(
+                             frontiers, frontier_ids, interruption, rospy.Time.now().to_sec())
+@@ -2945,8 +3064,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                             candidate_paths = []
+                             candidate_path_costs = []
+                             for candidate in own_frontiers:
+-                                path = self._plan_path(
+-                                    start_cell, self._cell_index(*candidate))
++                                path = self._plan_robot_path(
++                                    name, start_cell, self._cell_index(*candidate))
+                                 candidate_paths.append(path)
+                                 candidate_path_costs.append(
+                                     (len(path) - 1) * GRID_RES if path else
+@@ -3000,7 +3119,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                             selection_source = 'passage_inspection'
+                         elif self.rgb_passage_mode != 'off':
+                             best_index, selected_path = self._passage_target(
+-                                name, pos, best_index, np.flatnonzero(owner == i),
++                                name, pos, best_index,
++                                self._route_available_indices(name, frontiers, np.flatnonzero(owner == i)),
+                                 frontiers, frontier_ids, start_cell, selected_path)
+                             if best_index is None:
+                                 continue
+@@ -3058,7 +3178,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                         path_cells = selected_path
+                         if (path_cells is None and self.selection_mode not in
+                                 EXECUTION_SELECTION_MODES):
+-                            path_cells = self._plan_path(start_cell, goal_cell)
++                            path_cells = self._plan_robot_path(name, start_cell, goal_cell)
+                         if path_cells:
+                             self.current_path[name] = [(self.xs[ix], self.ys[iy]) for (ix, iy) in path_cells]
+                         else:
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index eabee39..37c5f98 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -32,9 +32,10 @@ tf.disable_v2_behavior()
+ import tensorflow.compat.v1.keras.backend as K
+ 
+ from policy_goal import POLICY_IDLE_Z
+-from active_passage import INSPECTION_Z, scan_turn
++from active_passage import INSPECTION_Z, angle_delta, scan_turn
+ from depth_corridor import LOCAL_CAMERA_POSE, depth_image_points, image_intrinsics
+ from depth_velocity import DEPTH_VELOCITY_MODES, DepthVelocityLimiter
++from route_recovery import GUARDED_RECOVERY_DURATION_S, guarded_recovery_command
+ from motion_safety import (
+     clearance_guided_turn_direction, clearance_speed_scale,
+     frontal_clearance)
+@@ -325,6 +326,9 @@ def main():
+         '~safety_stop_range', 0.20))
+     safety_slow_range = float(rospy.get_param(
+         '~safety_slow_range', 0.35))
++    route_recovery_mode = rospy.get_param('~route_recovery_mode', 'legacy')
++    if route_recovery_mode not in ('legacy', 'guarded'):
++        raise ValueError('route_recovery_mode must be legacy or guarded')
+     recovery_direction_mode = rospy.get_param(
+         '~recovery_direction_mode', 'random')
+     if recovery_direction_mode not in ('random', 'clearance'):
+@@ -347,6 +351,7 @@ def main():
+     rospy.loginfo('[%s] safety shield: enabled=%s, stop<=%.3fm, full-speed>=%.3fm',
+                   robot_name, safety_shield_enabled,
+                   safety_stop_range, safety_slow_range)
++    rospy.loginfo('[%s] route recovery mode=%s', robot_name, route_recovery_mode)
+     rospy.loginfo('[%s] recovery direction: mode=%s',
+                   robot_name, recovery_direction_mode)
+     rospy.loginfo('[%s] depth velocity mode=%s', robot_name, agent.depth_velocity_mode)
+@@ -370,6 +375,7 @@ def main():
+     recovering_until = 0.0
+     recovery_turn_dir = 1.0
+     recovery_start_pos = None
++    recovery_start_yaw = 0.0
+ 
+     while not rospy.is_shutdown():
+         now = control_time()
+@@ -397,10 +403,26 @@ def main():
+             recovery_start_pos = None
+         elif now < recovering_until:
+             cmd = Twist()
+-            cmd.linear.x = -0.15
+-            cmd.angular.z = recovery_turn_dir * 0.6
++            if route_recovery_mode == 'guarded':
++                x, y, yaw = agent.get_pose()
++                scan = agent.laser_ig.get_msg(timeout=0.1)
++                elapsed = now - (recovering_until - GUARDED_RECOVERY_DURATION_S)
++                heading_change = recovery_turn_dir * angle_delta(yaw, recovery_start_yaw)
++                front, side, phase = None, None, 'stale'
++                if scan is not None:
++                    cmd.linear.x, cmd.angular.z, front, side, phase = guarded_recovery_command(
++                        scan.ranges, scan.angle_min, scan.angle_increment, scan.range_max,
++                        rospy.get_time() - scan.header.stamp.to_sec(), elapsed, heading_change,
++                        recovery_turn_dir, agent.safety_stop_range, agent.safety_slow_range)
++                rospy.loginfo(
++                    '[%s] guarded recovery phase=%s front=%s side=%s elapsed=%.4f heading=%.4f forward=%.4f turn=%.4f',
++                    robot_name, phase, front, side, elapsed, heading_change, cmd.linear.x, cmd.angular.z)
++            else:
++                cmd.linear.x = -0.15
++                cmd.angular.z = recovery_turn_dir * 0.6
+             agent.pub.publish(cmd)
+-            x, y, _ = agent.get_pose()
++            if route_recovery_mode == 'legacy':
++                x, y, _ = agent.get_pose()
+             pos = (x, y)
+         elif agent.inspection_command is not None:
+             agent.inspect()
+@@ -418,16 +440,21 @@ def main():
+             elif now - stuck_check_time > STUCK_CHECK_WINDOW:
+                 moved = math.hypot(pos[0] - stuck_check_pos[0], pos[1] - stuck_check_pos[1])
+                 if moved < STUCK_DIST_THRESHOLD:
+-                    rospy.logwarn("[%s] stuck detected (moved %.2fm in %.1fs), backing off",
++                    rospy.logwarn("[%s] stuck detected (moved %.2fm in %.1fs), starting recovery",
+                                    robot_name, moved, STUCK_CHECK_WINDOW)
+-                    recovering_until = now + RECOVERY_DURATION
++                    recovery_duration = (GUARDED_RECOVERY_DURATION_S if route_recovery_mode == 'guarded'
++                                         else RECOVERY_DURATION)
++                    recovering_until = now + recovery_duration
+                     recovery_start_pos = pos
++                    if route_recovery_mode == 'guarded':
++                        _, _, recovery_start_yaw = agent.get_pose()
+                     random_direction = agent.rng.choice([-1.0, 1.0])
+-                    if recovery_direction_mode == 'clearance':
++                    if recovery_direction_mode == 'clearance' or route_recovery_mode == 'guarded':
+                         scan = agent.laser_ig.get_msg(timeout=0.1)
+-                        recovery_turn_dir = clearance_guided_turn_direction(
+-                            scan.ranges, scan.angle_min, scan.angle_increment,
+-                            fallback_direction=random_direction)
++                        recovery_turn_dir = (random_direction if scan is None else
++                                             clearance_guided_turn_direction(
++                                                 scan.ranges, scan.angle_min, scan.angle_increment,
++                                                 fallback_direction=random_direction))
+                     else:
+                         recovery_turn_dir = random_direction
+                     # Tell the coordinator to stop immediately retrying this
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py b/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py
+new file mode 100644
+index 0000000..6264157
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py
+@@ -0,0 +1,88 @@
++"""Temporary failure memory and scan-guarded recovery for exploration routes."""
++
++import math
++
++import numpy as np
++
++
++TARGET_COOLDOWN_S = 20.0
++FAILED_TARGET_RADIUS_M = 0.75
++FAILED_ROUTE_RADIUS_M = 0.65
++FAILED_ROUTE_EXTRA_COST = 3.0
++GUARDED_RECOVERY_DURATION_S = 2.50
++RECOVERY_PAUSE_S = GUARDED_RECOVERY_DURATION_S + 0.25
++RECOVERY_TURN_MIN_S = 0.65
++RECOVERY_HEADING_MIN_RAD = 0.35
++MAX_RECOVERY_SCAN_AGE_S = 0.40
++
++
++class RouteFailureMemory:
++    """Keep per-robot failed targets and route locations outside the occupancy map."""
++
++    def __init__(self):
++        self._entries = {}
++
++    def _active(self, robot, now):
++        entries = [entry for entry in self._entries.get(robot, ()) if entry[2] > now]
++        self._entries[robot] = entries
++        return entries
++
++    def record(self, robot, position, target, now):
++        position = tuple(position)
++        target = None if target is None else tuple(target)
++        entries = self._active(robot, now)
++        entries.append((position, target, now + TARGET_COOLDOWN_S))
++
++    def available(self, robot, target, now):
++        return not any(goal is not None and math.dist(target, goal) <= FAILED_TARGET_RADIUS_M
++                       for _, goal, _ in self._active(robot, now))
++
++    def penalties(self, robot, xs, ys, now):
++        entries = self._active(robot, now)
++        if not entries:
++            return None
++        cost = np.zeros((len(ys), len(xs)), dtype=float)
++        for (x, y), _, _ in entries:
++            near = (xs[None, :] - x) ** 2 + (ys[:, None] - y) ** 2 <= FAILED_ROUTE_RADIUS_M ** 2
++            cost[near] = FAILED_ROUTE_EXTRA_COST
++        return cost
++
++
++def available_owner(owner, costs, available):
++    """Transfer an unavailable frontier to the lowest-cost eligible teammate."""
++    owner = np.asarray(owner).copy()
++    for index, robot in enumerate(owner):
++        if available[robot, index]:
++            continue
++        candidates = np.flatnonzero(available[:, index])
++        if len(candidates):
++            owner[index] = candidates[np.argmin(costs[candidates, index])]
++    return owner
++
++
++def guarded_recovery_command(ranges, angle_min, angle_increment, range_max,
++                             scan_age_s, elapsed_s, heading_change, turn_direction,
++                             stop_range, slow_range):
++    """Turn before moving through a fresh, clear forward sector."""
++    if (not 0 <= scan_age_s <= MAX_RECOVERY_SCAN_AGE_S
++            or angle_increment <= 0 or range_max <= 0):
++        return 0.0, 0.0, None, None, 'stale'
++    values = np.asarray(ranges, dtype=float)
++    if values.ndim != 1 or not values.size:
++        return 0.0, 0.0, None, None, 'stale'
++    values = np.clip(np.nan_to_num(values, nan=0.0, posinf=range_max, neginf=0.0), 0, range_max)
++    angles = angle_min + np.arange(values.size) * angle_increment
++
++    def sector(center, half_width):
++        relative = (angles - center + math.pi) % (2.0 * math.pi) - math.pi
++        samples = values[np.abs(relative) <= half_width + 1e-9]
++        return float(samples.min()) if samples.size else 0.0
++
++    front = sector(0.0, math.pi / 6)
++    side = sector(turn_direction * math.pi / 3, math.pi / 6)
++    if (elapsed_s >= RECOVERY_TURN_MIN_S and heading_change >= RECOVERY_HEADING_MIN_RAD
++            and front > stop_range):
++        speed_scale = min(1.0, (front - stop_range) / (slow_range - stop_range))
++        return 0.15 * speed_scale, 0.0, front, side, 'escape'
++    turn_scale = min(1.0, max(0.0, (side - stop_range) / (slow_range - stop_range)))
++    return 0.0, 0.8 * turn_direction * turn_scale, front, side, 'turn'
+diff --git a/turtlebot_ddpg/tests/test_route_recovery.py b/turtlebot_ddpg/tests/test_route_recovery.py
+new file mode 100644
+index 0000000..a53cc57
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_route_recovery.py
+@@ -0,0 +1,107 @@
++"""Regression checks for route retirement, temporary failure memory and recovery."""
++
++import math
++from pathlib import Path
++from queue import SimpleQueue
++import sys
++import unittest
++from unittest.mock import Mock
++
++import numpy as np
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
++from exploration_coordinator import Coordinator, astar_grid
++from recovery_memory import TimedSpatialBlacklist
++from route_recovery import (
++    RECOVERY_PAUSE_S, TARGET_COOLDOWN_S, RouteFailureMemory, available_owner,
++    guarded_recovery_command)
++
++
++class RouteRecoveryTests(unittest.TestCase):
++    def test_memory_is_per_robot_and_expires(self):
++        memory = RouteFailureMemory()
++        memory.record('robot1', (0, 0), (2, 1), 1.0)
++        self.assertFalse(memory.available('robot1', (2.4, 1), 2.0))
++        self.assertTrue(memory.available('robot2', (2.4, 1), 2.0))
++        self.assertTrue(memory.available('robot1', (3, 1), 2.0))
++        self.assertTrue(memory.available('robot1', (2, 1), 1.0 + TARGET_COOLDOWN_S))
++
++    def test_route_penalty_detours_without_changing_occupancy(self):
++        grid = np.ones((11, 11), dtype=np.uint8)
++        axis = np.arange(11) * 0.2
++        memory = RouteFailureMemory()
++        memory.record('robot1', (1, 1), (1.8, 1), 0.0)
++        costs = memory.penalties('robot1', axis, axis, 1.0)
++        direct = astar_grid(grid, (0, 5), (10, 5))
++        detour = astar_grid(grid, (0, 5), (10, 5), cell_penalty=costs)
++        self.assertIn((5, 5), direct)
++        self.assertNotIn((5, 5), detour)
++        self.assertEqual(sum(costs[y, x] for x, y in detour), 0)
++        self.assertTrue((grid == 1).all())
++        self.assertIsNone(memory.penalties('robot2', axis, axis, 1.0))
++        self.assertIsNone(memory.penalties('robot1', axis, axis, TARGET_COOLDOWN_S))
++
++    def test_owner_transfer_and_all_masked_case(self):
++        owner = [0, 1, 0]
++        costs = np.array([[1, 5, 0], [7, 1, 2], [3, 2, 4]])
++        eligible = np.array([[False, True, False], [True, True, False],
++                             [True, True, False]])
++        np.testing.assert_array_equal(available_owner(owner, costs, eligible), [2, 1, 0])
++
++    def command(self, scan, age=0.1, elapsed=1.0, heading=0.6):
++        return guarded_recovery_command(scan, -1.5707, 2 * 1.5707 / 23, 3.5,
++                                       age, elapsed, heading, 1.0, 0.20, 0.35)
++
++    def test_front_only_recovery_turns_then_translates(self):
++        ranges = np.ones(24)
++        self.assertEqual(self.command(ranges, elapsed=0.2)[:2], (0.0, 0.8))
++        self.assertEqual(self.command(ranges, heading=0.2)[:2], (0.0, 0.8))
++        self.assertEqual(self.command(ranges)[:2], (0.15, 0.0))
++        self.assertEqual(self.command(ranges, age=0.41)[:2], (0, 0))
++
++    def test_recovery_speed_scales_and_unknown_is_not_clear(self):
++        ranges = np.ones(24)
++        ranges[12] = 0.275
++        self.assertAlmostEqual(self.command(ranges)[0], 0.075)
++        ranges[12] = np.nan
++        self.assertEqual(self.command(ranges)[:2], (0.0, 0.8))
++        ranges[-1] = 0.15
++        self.assertEqual(self.command(ranges)[:2], (0.0, 0.0))
++        ranges[12] = float('inf')
++        self.assertEqual(self.command(ranges)[:2], (0.15, 0.0))
++
++    def test_reporter_far_goal_is_retired_without_retiring_far_teammate(self):
++        coord = Coordinator.__new__(Coordinator)
++        coord.robot_names = ['robot1', 'robot2']
++        coord.route_recovery_events = SimpleQueue()
++        coord.route_recovery_events.put(('robot1', (0.0, 0.0), 4.9))
++        coord.current_goal = {'robot1': (3.0, 0.0), 'robot2': (3.0, 1.0)}
++        coord.current_goal_id = {'robot1': 12, 'robot2': 14}
++        coord.current_path = {'robot1': [(0.0, 0.0), (3.0, 0.0)], 'robot2': [(3, 1)]}
++        coord.stuck_events = {'robot1': 0, 'robot2': 0}
++        coord.route_failures = RouteFailureMemory()
++        coord.route_pause_until = {}
++        coord.last_consumed_policy_action = {'robot1': 4.0, 'robot2': 4.0}
++        coord.passage_continuations = {'robot1': {}}
++        coord.passage_inspections = {}
++        coord.blacklist = TimedSpatialBlacklist()
++        coord.unique_stuck_regions = 0
++        coord._control_now = Mock(return_value=5.0)
++        coord._frontier_trace_snapshot = Mock(return_value=(4.9, 2.0))
++        coord.frontier_trace = Mock()
++        coord._finish_frontier_attempt = Mock()
++        coord._retire_policy_waypoint = Mock()
++        coord._drain_route_recovery_events()
++        self.assertIsNone(coord.current_goal['robot1'])
++        self.assertIsNone(coord.current_path['robot1'])
++        self.assertEqual(coord.current_goal['robot2'], (3.0, 1.0))
++        self.assertFalse(coord.route_failures.available('robot1', (3.0, 0.0), 6.0))
++        self.assertEqual(coord.route_pause_until['robot1'], 5.0 + RECOVERY_PAUSE_S)
++        self.assertEqual(coord.last_consumed_policy_action['robot1'], 5.0 + RECOVERY_PAUSE_S)
++        coord._finish_frontier_attempt.assert_called_once_with('robot1', 'stuck')
++        coord._retire_policy_waypoint.assert_called_once_with('robot1')
++        self.assertEqual(coord.frontier_trace.record.call_args.kwargs['goal_distance_m'], 3.0)
++
++
++if __name__ == '__main__':
++    unittest.main()

@@ -1,0 +1,13 @@
+scene,seed,strategy,stuck_reports,active_goal,retired_by_report,active_goal_not_retired,repeated_region,repeated_region_20s
+gain_east_exit,71324,active,3,3,2,1,0,0
+gain_east_exit,71324,gain_region,7,7,5,2,3,3
+gain_east_exit,71324,passive,4,4,4,0,0,0
+gain_narrow_east,71321,active,5,5,2,3,1,1
+gain_narrow_east,71321,gain_region,3,3,3,0,0,0
+gain_narrow_east,71321,passive,5,5,4,1,0,0
+gain_narrow_west,71322,active,9,9,3,6,3,3
+gain_narrow_west,71322,gain_region,10,10,3,7,5,5
+gain_narrow_west,71322,passive,3,3,1,2,1,0
+gain_west_exit,71323,active,3,3,3,0,0,0
+gain_west_exit,71323,gain_region,1,1,1,0,0,0
+gain_west_exit,71323,passive,6,6,3,3,2,2

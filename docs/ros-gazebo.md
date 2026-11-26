@@ -91,6 +91,8 @@ The [active passage study](active-passage-study.md) adds bounded camera
 inspection and camera-supported route continuation.
 The [information-aware passage study](gain-passage-study.md) prioritises
 scan-unknown space and associates camera inspections with spatial regions.
+The [route-recovery study](route-recovery-study.md) retires failed
+assignments and tests temporary route memory on repeated new topologies.
 The [RGB encoder audit](rgb-encoder-audit.md) compares the checkpoints
 and tests whether their direction scores agree with the planar scan. The [closed-loop retest](rgb-encoder-retest.md)
 checks the corrected checkpoint with matched trials and a frozen actor.
