@@ -38,11 +38,10 @@ Gazebo start poses and sensor configuration.
 The smoke pair repeats the 120 s diagnostic at seed 71322.
 The formal comparison repeats the six matched seeds from the
 [route-recovery study](route-recovery-study.md). It uses the
-same three map families and two simulation seeds per family.
-For each seed, both arms run for 120 s. The comparison
-measures the change in exclusion scope on these known evaluation
-layouts. The robots still build the unknown interior map from
-their scans.
+same three layouts and two simulation seeds per layout.
+For each seed, both arms run for 120 s. The study compares the
+two exclusion rules as configured, including their radii and
+durations. The robots build the interior map from their scans.
 
 The audit checks the source tree, launch parameters, checkpoint
 hashes, reference masks, robot-specific exclusions and recovery
@@ -53,6 +52,10 @@ availability, travelled distance, new area per metre, stuck
 reports per ten metres and clearance events. Time with at
 most two clustered frontiers includes samples with raw
 frontier cells available and excludes the terminal row.
+The analysis also counts later stuck reports within 0.90 m
+and 20 s of an earlier report. It records whether both reports
+came from the same robot. This is a proximity measure based
+on reported positions.
 
 Prepare the workspace through patch 21 and source it.
 
@@ -74,3 +77,52 @@ threshold triggered twice in the shared arm and once in the
 robot-scoped arm. The source tree passed 153 ROS tests, including
 checks for local exclusion expiry and retaining a nearby
 teammate's goal.
+
+## Formal results
+
+All 12 runs reached the 120 s horizon and passed replay audits.
+Both arms used the same MAPPO, DDPG and RGB checkpoints. The
+[experiment manifest](../ros_gazebo/experiments/2026-11-26-recovery-scope/formal/experiment_manifest.json)
+records the checkpoints, seeds and world hashes.
+
+| Outcome across six runs per arm | Shared | Robot-scoped |
+| --- | ---: | ---: |
+| Mean final coverage | 74.70% | 69.62% |
+| Mean time with at most two clustered frontiers | 7.54 s | 0.00 s |
+| Runs with at least one passage crossing | 6 | 4 |
+| Runs reaching 90% coverage | 1 | 0 |
+| Mean team distance per run | 39.83 m | 42.82 m |
+| Mean newly mapped area per metre | 0.663 m²/m | 0.557 m²/m |
+| Stuck reports | 25 | 33 |
+| Same-robot repeats within 0.90 m and 20 s | 3 | 6 |
+| Cross-robot repeats within 0.90 m and 20 s | 0 | 1 |
+| Near-collision threshold events | 10 | 12 |
+| Recoveries with sufficient displacement | 16/23 | 31/32 |
+
+Robot-scoped exclusion improved coverage in two of six pairs.
+In staggered partitions, seed 71421 gained 16.80 percentage
+points and seed 71422 lost 15.46. Seed 71422 produced three
+same-robot repeats under robot-scoped exclusion. In offset
+approaches, seed 71425 fell by 36.15 points. Neither arm spent
+time with at most two frontiers on that seed. The shared arm
+recorded two robots crossing a passage.
+
+The additional frontier candidates did not consistently
+produce shorter or more productive routes. Across both arms,
+the coordinator retired zero teammate goals through the stuck
+handler. Of the 22 logged threshold events, 21 occurred during
+navigation and one during visual inspection. None occurred
+within five seconds after a stuck report by the same robot.
+This event log covers navigation and inspection callbacks.
+Recovery success here measures displacement during the local
+maneuver. It cannot establish subsequent exploration progress.
+
+The default remains shared. The local variant gives a
+diagnostic comparison for frontier availability and approach
+selection. This comparison uses two seeds per layout and
+changes the spatial and temporal exclusion parameters together
+with scope. An independent comparison would fix those
+parameters across both arms and use new layouts.
+
+[Paired results](../ros_gazebo/experiments/2026-11-26-recovery-scope/analysis/paired_deltas.csv)
+and [comparison figure](../ros_gazebo/experiments/2026-11-26-recovery-scope/analysis/recovery_scope_comparison.pdf).

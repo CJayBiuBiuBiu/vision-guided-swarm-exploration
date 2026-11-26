@@ -1,0 +1,12 @@
+VERIFIED staggered_partitions_71421_shared coverage=61.55% stuck=3 near=1 peer_retirements=0
+VERIFIED staggered_partitions_71421_robot coverage=78.35% stuck=4 near=1 peer_retirements=0
+VERIFIED staggered_partitions_71422_robot coverage=54.12% stuck=7 near=3 peer_retirements=0
+VERIFIED staggered_partitions_71422_shared coverage=69.59% stuck=4 near=0 peer_retirements=0
+VERIFIED divided_rooms_71423_robot coverage=80.57% stuck=7 near=1 peer_retirements=0
+VERIFIED divided_rooms_71423_shared coverage=64.67% stuck=0 near=2 peer_retirements=0
+VERIFIED divided_rooms_71424_shared coverage=79.59% stuck=4 near=2 peer_retirements=0
+VERIFIED divided_rooms_71424_robot coverage=78.21% stuck=3 near=3 peer_retirements=0
+VERIFIED offset_approaches_71425_shared coverage=94.73% stuck=7 near=4 peer_retirements=0
+VERIFIED offset_approaches_71425_robot coverage=58.58% stuck=7 near=1 peer_retirements=0
+VERIFIED offset_approaches_71426_robot coverage=67.89% stuck=5 near=3 peer_retirements=0
+VERIFIED offset_approaches_71426_shared coverage=78.06% stuck=7 near=1 peer_retirements=0

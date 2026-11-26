@@ -3,6 +3,7 @@
 import argparse
 from collections import defaultdict
 import json
+import math
 from pathlib import Path
 from statistics import mean
 
@@ -20,7 +21,8 @@ from run_wait_margin_study import ROBOTS, node_log
 
 METRICS = (
     "coverage_pct", "path_m", "new_area_per_m", "stuck_events", "stuck_per_10m",
-    "repeated_region_20s", "near_collision_events", "robots_crossing", "goal_free_robot_s",
+    "repeated_region_20s", "peer_stuck_region_20s", "near_collision_events",
+    "robots_crossing", "goal_free_robot_s",
     "blocked_frontier_point_seconds", "sparse_frontier_seconds", "route_peer_retirements",
 )
 
@@ -38,8 +40,8 @@ def grouped(rows):
                    **{f"{key}_total": sum(int(row[key]) for row in runs) for key in (
                        "stuck_events", "near_collision_events", "route_goals_retired",
                        "route_far_goals_retired", "route_peer_retirements", "repeated_region_20s",
-                       "logged_near_events", "logged_near_navigation", "logged_near_inspection",
-                       "near_within_5s_of_report")})
+                       "peer_stuck_region_20s", "logged_near_events", "logged_near_navigation",
+                       "logged_near_inspection", "near_within_5s_of_report")})
 
 
 def matched(rows):
@@ -76,7 +78,16 @@ def per_run(formal, original):
             age = min(ages) if ages else None
             event.update(scene=row["scene"], seed=row["environment_seed"], scope=scope,
                          seconds_since_stuck=age, within_5s_of_report=age is not None and age <= 5.0)
+        stuck_events.sort(key=lambda event: event["elapsed_s"])
+        for index, event in enumerate(stuck_events):
+            event["peer_stuck_region_20s"] = any(
+                earlier["robot"] != event["robot"]
+                and 0 < event["elapsed_s"] - earlier["elapsed_s"] <= 20.0
+                and math.hypot(event["stuck_x"] - earlier["stuck_x"],
+                               event["stuck_y"] - earlier["stuck_y"]) <= 0.90
+                for earlier in stuck_events[:index])
         row["route_recovery_mode"] = "guarded"
+        row["peer_stuck_region_20s"] = sum(event["peer_stuck_region_20s"] for event in stuck_events)
         row["near_within_5s_of_report"] = sum(event["within_5s_of_report"] for event in near)
         yield row, stuck_events, near
 
