@@ -1,0 +1,249 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 07843fa..6c1d48b 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -75,6 +75,7 @@
+   <arg name="depth_velocity_trace_dir" default=""/>
+   <arg name="gazebo_lockstep" default="false"/>
+   <arg name="route_recovery_mode" default="legacy"/>
++  <arg name="recovery_frontier_scope" default="shared"/>
+   <arg name="recovery_direction_mode" default="random"
+        doc="random baseline or clearance-guided laser recovery"/>
+   <arg name="recovery_success_distance" default="0.15"
+@@ -291,6 +292,7 @@
+     <param name="stuck_blacklist_ttl" value="$(arg stuck_blacklist_ttl)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_frontier_scope" value="$(arg recovery_frontier_scope)"/>
+     <param name="recovery_success_distance" value="$(arg recovery_success_distance)"/>
+     <param name="near_collision_range" value="$(arg near_collision_range)"/>
+     <param name="near_collision_clear_range"
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index e271419..ef874df 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -246,7 +246,7 @@ METRIC_FIELDS = [
+     'coverage_pct', 'coverage_explored_cells',
+     'coverage_explorable_cells', 'truth_obstacle_cells',
+     'coverage_mask_sha256', 'grid_resolution_m',
+-    'raw_frontiers', 'candidate_frontiers', 'blacklisted_spots',
++    'raw_frontiers', 'frontier_points_after_stuck_filter', 'candidate_frontiers', 'blacklisted_spots',
+     'stuck_blacklist_ttl_s',
+     'goal_assignments', 'goals_reached', 'no_path_fallbacks',
+     'no_path_start_occupied', 'no_path_goal_occupied',
+@@ -630,12 +630,19 @@ class Coordinator(object):
+         if self.route_recovery_mode not in ('legacy', 'guarded'):
+             raise ValueError('route_recovery_mode must be legacy or guarded')
+         self.guarded_route_recovery = self.route_recovery_mode == 'guarded'
++        self.recovery_frontier_scope = rospy.get_param('~recovery_frontier_scope', 'shared')
++        if self.recovery_frontier_scope not in ('shared', 'robot'):
++            raise ValueError('recovery_frontier_scope must be shared or robot')
++        self.robot_recovery_frontiers = self.recovery_frontier_scope == 'robot'
++        if self.robot_recovery_frontiers and not self.guarded_route_recovery:
++            raise ValueError('robot-scoped frontier recovery requires guarded route recovery')
+         if self.guarded_route_recovery and (
+                 self.mapping_mode != 'laser_scan' or self.selection_mode not in EXECUTION_SELECTION_MODES
+                 or rospy.get_param('~policy_wait_mode', 'legacy') == 'legacy'
+                 or not rospy.get_param('~frontier_trace_path', '')):
+             raise ValueError('Guarded route recovery requires traced scan-map execution with waypoint retirement')
+-        self.route_failures = RouteFailureMemory()
++        self.route_failures = RouteFailureMemory(
++            exclude_failed_positions=self.robot_recovery_frontiers)
+         self.route_recovery_events = SimpleQueue()
+         self.route_pause_until = {}
+         self.recovery_direction_mode = rospy.get_param(
+@@ -910,7 +917,8 @@ class Coordinator(object):
+         self._open_metrics_file()
+         rospy.on_shutdown(self._close_metrics_file)
+         if trace_path:
+-            cue_metadata = dict(route_recovery_mode=self.route_recovery_mode)
++            cue_metadata = dict(route_recovery_mode=self.route_recovery_mode,
++                                recovery_frontier_scope=self.recovery_frontier_scope)
+             if self.matched_clearance:
+                 cue_metadata.update(clearance_actor_cue=self.clearance_actor_cue,
+                                     clearance_rules_cue=self.clearance_rules_cue)
+@@ -1299,12 +1307,17 @@ class Coordinator(object):
+             self.current_goal_id[name] = None
+             self.current_path[name] = None
+             self._retire_policy_waypoint(name)
+-            # Preserve the existing shared stuck-position exclusion for nearby teammate goals.
++            if getattr(self, 'robot_recovery_frontiers', False):
++                continue
+             for other in self.robot_names:
+                 if other == name:
+                     continue
+                 other_goal = self.current_goal.get(other)
+                 if other_goal is not None and math.dist(position, other_goal) < STUCK_BLACKLIST_RADIUS:
++                    self.frontier_trace.record(
++                        'route_peer_retirement', robot=other, reporting_robot=name,
++                        elapsed_sim_s=elapsed, control_stamp=now, stuck_xy=list(position),
++                        goal_xy=list(other_goal))
+                     self._finish_frontier_attempt(other, 'stuck')
+                     self.passage_continuations.pop(other, None)
+                     self.current_goal[other] = None
+@@ -2346,7 +2359,7 @@ class Coordinator(object):
+                 self._metrics_writer = None
+ 
+     def _write_metrics(self, coverage, raw_frontiers, candidate_frontiers,
+-                       force=False, observed_free_area=None):
++                       force=False, observed_free_area=None, filtered_frontier_count=None):
+         now = time.time()
+         if not force and now - self._last_metrics_write < self.metrics_period:
+             return
+@@ -2413,6 +2426,7 @@ class Coordinator(object):
+             'coverage_mask_sha256': self.coverage_mask_sha256,
+             'grid_resolution_m': '%.4f' % GRID_RES,
+             'raw_frontiers': len(raw_frontiers),
++            'frontier_points_after_stuck_filter': filtered_frontier_count,
+             'candidate_frontiers': len(candidate_frontiers),
+             'blacklisted_spots': self.blacklist.count(self._control_now()),
+             'stuck_blacklist_ttl_s': '%.3f' % self.stuck_blacklist_ttl,
+@@ -2835,9 +2849,12 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+             # idle this tick rather than falsely declaring the mission done.
+             if self.depth_active:
+                 self._check_active_depth()
+-            frontiers = self.cluster_frontier_points(self.filter_blacklisted(all_frontiers))
++            candidate_points = (all_frontiers if self.robot_recovery_frontiers
++                                else self.filter_blacklisted(all_frontiers))
++            frontiers = self.cluster_frontier_points(candidate_points)
+             self._write_metrics(coverage, all_frontiers, frontiers,
+-                                observed_free_area=observed_free_area)
++                                observed_free_area=observed_free_area,
++                                filtered_frontier_count=len(candidate_points))
+             if len(frontiers) == 0:
+                 for name in tuple(self.passage_inspections):
+                     self.passage_inspections.pop(name, None)
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index 37c5f98..7f1da51 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -207,7 +207,7 @@ class RobotAgent(object):
+         yaw = math.atan2(siny_cosp, cosy_cosp)
+         return pos.x, pos.y, yaw
+ 
+-    def build_state(self):
++    def build_state(self, motion_context="navigation"):
+         x, y, yaw = self.get_pose()
+         laser_msg = self.laser_ig.get_msg(timeout=2.0)
+         if laser_msg is None:
+@@ -228,6 +228,10 @@ class RobotAgent(object):
+                 min_range <= self.near_collision_range):
+             self.near_collision_pub.publish(Bool(data=True))
+             self.near_collision_active = True
++            rospy.loginfo(
++                '[%s] near collision sim=%.6f scan=%.6f x=%.6f y=%.6f clearance=%.6f mode=%s',
++                self.robot_name, rospy.get_time(), self.last_scan_stamp, x, y, min_range,
++                motion_context)
+         elif (self.near_collision_active and
+               min_range >= self.near_collision_clear_range):
+             self.near_collision_active = False
+@@ -253,7 +257,7 @@ class RobotAgent(object):
+ 
+     def inspect(self):
+         command = self.inspection_command
+-        self.build_state()  # Keep scan clearance and collision telemetry live while turning.
++        self.build_state(motion_context="inspection")
+         _, _, yaw = self.get_pose()
+         cmd = Twist()
+         now = rospy.get_time()
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py b/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py
+index 6264157..fc96edf 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py
+@@ -19,8 +19,9 @@ MAX_RECOVERY_SCAN_AGE_S = 0.40
+ class RouteFailureMemory:
+     """Keep per-robot failed targets and route locations outside the occupancy map."""
+ 
+-    def __init__(self):
++    def __init__(self, exclude_failed_positions=False):
+         self._entries = {}
++        self.exclude_failed_positions = exclude_failed_positions
+ 
+     def _active(self, robot, now):
+         entries = [entry for entry in self._entries.get(robot, ()) if entry[2] > now]
+@@ -34,8 +35,12 @@ class RouteFailureMemory:
+         entries.append((position, target, now + TARGET_COOLDOWN_S))
+ 
+     def available(self, robot, target, now):
+-        return not any(goal is not None and math.dist(target, goal) <= FAILED_TARGET_RADIUS_M
+-                       for _, goal, _ in self._active(robot, now))
++        for position, goal, _ in self._active(robot, now):
++            if goal is not None and math.dist(target, goal) <= FAILED_TARGET_RADIUS_M:
++                return False
++            if self.exclude_failed_positions and math.dist(target, position) <= FAILED_ROUTE_RADIUS_M:
++                return False
++        return True
+ 
+     def penalties(self, robot, xs, ys, now):
+         entries = self._active(robot, now)
+diff --git a/turtlebot_ddpg/tests/test_route_recovery.py b/turtlebot_ddpg/tests/test_route_recovery.py
+index a53cc57..fc968df 100644
+--- a/turtlebot_ddpg/tests/test_route_recovery.py
++++ b/turtlebot_ddpg/tests/test_route_recovery.py
+@@ -26,6 +26,14 @@ class RouteRecoveryTests(unittest.TestCase):
+         self.assertTrue(memory.available('robot1', (3, 1), 2.0))
+         self.assertTrue(memory.available('robot1', (2, 1), 1.0 + TARGET_COOLDOWN_S))
+ 
++    def test_failed_position_is_local_and_expires(self):
++        memory = RouteFailureMemory(exclude_failed_positions=True)
++        memory.record('robot1', (0, 0), None, 1.0)
++        self.assertFalse(memory.available('robot1', (0.5, 0), 2.0))
++        self.assertTrue(memory.available('robot2', (0.5, 0), 2.0))
++        self.assertTrue(memory.available('robot1', (0.7, 0), 2.0))
++        self.assertTrue(memory.available('robot1', (0.5, 0), 1.0 + TARGET_COOLDOWN_S))
++
+     def test_route_penalty_detours_without_changing_occupancy(self):
+         grid = np.ones((11, 11), dtype=np.uint8)
+         axis = np.arange(11) * 0.2
+@@ -70,16 +78,17 @@ class RouteRecoveryTests(unittest.TestCase):
+         ranges[12] = float('inf')
+         self.assertEqual(self.command(ranges)[:2], (0.15, 0.0))
+ 
+-    def test_reporter_far_goal_is_retired_without_retiring_far_teammate(self):
++    def recovery_coordinator(self, peer_goal, robot_scope=False):
+         coord = Coordinator.__new__(Coordinator)
+         coord.robot_names = ['robot1', 'robot2']
+         coord.route_recovery_events = SimpleQueue()
+         coord.route_recovery_events.put(('robot1', (0.0, 0.0), 4.9))
+-        coord.current_goal = {'robot1': (3.0, 0.0), 'robot2': (3.0, 1.0)}
++        coord.current_goal = {'robot1': (3.0, 0.0), 'robot2': peer_goal}
+         coord.current_goal_id = {'robot1': 12, 'robot2': 14}
+-        coord.current_path = {'robot1': [(0.0, 0.0), (3.0, 0.0)], 'robot2': [(3, 1)]}
++        coord.current_path = {'robot1': [(0.0, 0.0), (3.0, 0.0)], 'robot2': [peer_goal]}
+         coord.stuck_events = {'robot1': 0, 'robot2': 0}
+-        coord.route_failures = RouteFailureMemory()
++        coord.robot_recovery_frontiers = robot_scope
++        coord.route_failures = RouteFailureMemory(exclude_failed_positions=robot_scope)
+         coord.route_pause_until = {}
+         coord.last_consumed_policy_action = {'robot1': 4.0, 'robot2': 4.0}
+         coord.passage_continuations = {'robot1': {}}
+@@ -91,6 +100,10 @@ class RouteRecoveryTests(unittest.TestCase):
+         coord.frontier_trace = Mock()
+         coord._finish_frontier_attempt = Mock()
+         coord._retire_policy_waypoint = Mock()
++        return coord
++
++    def test_reporter_far_goal_is_retired_without_retiring_far_teammate(self):
++        coord = self.recovery_coordinator((3.0, 1.0))
+         coord._drain_route_recovery_events()
+         self.assertIsNone(coord.current_goal['robot1'])
+         self.assertIsNone(coord.current_path['robot1'])
+@@ -102,6 +115,18 @@ class RouteRecoveryTests(unittest.TestCase):
+         coord._retire_policy_waypoint.assert_called_once_with('robot1')
+         self.assertEqual(coord.frontier_trace.record.call_args.kwargs['goal_distance_m'], 3.0)
+ 
++    def test_scope_controls_retirement_of_nearby_teammate(self):
++        for robot_scope in (False, True):
++            with self.subTest(robot_scope=robot_scope):
++                peer_goal = (0.5, 0.5)
++                coord = self.recovery_coordinator(peer_goal, robot_scope)
++                coord._drain_route_recovery_events()
++                self.assertIsNone(coord.current_goal['robot1'])
++                self.assertEqual(coord.current_goal['robot2'], peer_goal if robot_scope else None)
++                events = [call.args[0] for call in coord.frontier_trace.record.call_args_list]
++                self.assertEqual('route_peer_retirement' in events, not robot_scope)
++
++
+ 
+ if __name__ == '__main__':
+     unittest.main()

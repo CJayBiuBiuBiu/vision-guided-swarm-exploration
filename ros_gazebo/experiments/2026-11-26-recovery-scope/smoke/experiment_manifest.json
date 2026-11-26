@@ -1,0 +1,61 @@
+{
+  "input_sha256": {
+    "actor": "24c3c2edf94593484cf36a596054cc0d0273f922e3039e2fbe5fdd4d45cff212",
+    "audit_gain_passage": "4457eefb0431add2ca38ea2e6f6f0f26e706f9cc7b17957af1f0f545445de251",
+    "audit_recovery_scope": "9093a2421b553fd0849e68292bd87cfc59053540bb7e2981e88ac5255cb55163",
+    "audit_route_recovery": "1e2a74a7078727b1b00d3799b5f0cecba5bda8a62616d91ccecee9b7e4ea62a1",
+    "ddpg": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+    "rgb": "b3115535d34539e380d69335be76f7822ab2eeb9afab5a10674c951030217d21",
+    "run_clearance_study": "c64b843b31495f68c5e1633b9d4ca03dd6065cacb20476afbfacacd5935f9883",
+    "run_dynamic_passage_study": "1b815a9c81f035c5f0e654c32f119c5661395ce15bc6ac91e9a4c76170e13cfc",
+    "run_matched_vision_training": "2fb2759e6fe0a76b645d1b9425e32faa75e6293ee2567509013ad8c6dcfc4cdd",
+    "run_policy_goal_retention": "17cf11a237080376a76df5bc785dab722cb708c65691b334416a58cf2a567f9f",
+    "run_recovery_scope_study": "bbe0f02365e93c096c84a6c6f0c5ac51b7ede25d92e06adeeb95dca67a36a6f7",
+    "run_rgb_clearance_guard_study": "6b3911a0e890f04f60186550eb7e641243838f72d15514032cd6349b7d243b5f",
+    "run_rgb_passage_study": "14b3f7791e6004cb79e96bf1d930664fe22e1cceb4d7dfc80b2460e90bcca1b1",
+    "run_route_recovery_study": "c2ddd0d3cef7502839d22086f94235a954af822ae2e47065cfab194441095640",
+    "run_wait_margin_study": "ac98b9d5db337da8fe230429e866d22a1e3444dab7191f0220b9ea0560be3f9b"
+  },
+  "reference_mask_input_sha256": {
+    "route_diagnostic": "b5fe52acda5a3899b94679eca64b79aa4f45fbb39d9044d5f05e2c1a9dfa6504"
+  },
+  "runs": [
+    {
+      "cue": "lidar",
+      "environment_seed": 71322,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 1,
+      "passage_mode": "rerank",
+      "passage_strategy": "gain_region",
+      "recovery_frontier_scope": "shared",
+      "route_recovery_mode": "guarded",
+      "rule_cue": "lidar",
+      "scene": "route_diagnostic",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    },
+    {
+      "cue": "lidar",
+      "environment_seed": 71322,
+      "horizon": 120,
+      "layout": "passage_audit",
+      "order": 2,
+      "passage_mode": "rerank",
+      "passage_strategy": "gain_region",
+      "recovery_frontier_scope": "robot",
+      "route_recovery_mode": "guarded",
+      "rule_cue": "lidar",
+      "scene": "route_diagnostic",
+      "stage": "eval",
+      "strategy": "margin",
+      "wait_mode": "cancel"
+    }
+  ],
+  "source_tree": "7648109cfc1235f3ee58ea1b6ffbfeedbf7736ee",
+  "stage": "smoke",
+  "world_sha256": {
+    "route_diagnostic": "a94c8720a5772690887b142dd876b0e1c759dfb4cef3b828a65b4fddc828ab29"
+  }
+}

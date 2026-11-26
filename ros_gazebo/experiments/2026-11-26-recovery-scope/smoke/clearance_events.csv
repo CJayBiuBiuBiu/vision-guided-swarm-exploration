@@ -1,0 +1,4 @@
+robot,stamp_s,scan_s,x_m,y_m,clearance_m,motion,scene,seed,scope,seconds_since_stuck,within_5s_of_report
+robot3,95.369,95.368,-3.194578,-3.64936,0.179964,navigation,route_diagnostic,71322,shared,25.596999999999994,False
+robot2,116.269,116.168,1.917328,-0.388924,0.179451,navigation,route_diagnostic,71322,shared,36.39800000000001,False
+robot2,52.375,52.371,1.685447,-0.590998,0.171606,navigation,route_diagnostic,71322,robot,,False
