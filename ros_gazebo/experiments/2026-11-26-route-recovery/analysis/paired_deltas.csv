@@ -1,0 +1,7 @@
+scene,seed,legacy_first_crossing_s,guarded_first_crossing_s,coverage_pct_delta,path_m_delta,new_area_m2_delta,new_area_per_m_delta,stuck_events_delta,stuck_per_10m_delta,repeated_region_delta,repeated_region_20s_delta,active_goal_not_retired_delta,near_collision_events_delta,robots_crossing_delta,goals_reached_delta,goal_free_robot_s_delta
+staggered_partitions,71421,28.751,55.25,-15.3608,-20.8068,-5.96,0.187453,0.0,0.619873,-1.0,-1.0,-3.0,-1.0,0.0,-10.0,118.994
+staggered_partitions,71422,,,-6.701,2.0463,-2.72,-0.176358,0.0,-0.072499,0.0,0.0,-1.0,0.0,0.0,-6.0,16.27
+divided_rooms,71423,,39.251,33.8567,20.6409,10.88,-0.102218,2.0,0.003266,-1.0,-1.0,-2.0,1.0,1.0,3.0,-46.533
+divided_rooms,71424,,,-3.0422,-12.1222,-1.24,0.228362,-2.0,-0.279262,0.0,0.0,-3.0,2.0,0.0,-4.0,35.985
+offset_approaches,71425,,84.004,19.3627,18.9227,6.32,-0.111718,4.0,0.127897,2.0,1.0,-2.0,1.0,1.0,4.0,-61.013
+offset_approaches,71426,,63.502,31.9853,5.3697,10.44,0.20695,-1.0,-0.561517,1.0,1.0,-2.0,0.0,2.0,6.0,-27.021

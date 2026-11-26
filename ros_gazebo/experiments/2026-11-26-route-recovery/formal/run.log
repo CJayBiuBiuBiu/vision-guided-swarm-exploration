@@ -1,0 +1,24 @@
+START staggered_partitions_71421_legacy /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/staggered_partitions_71421_legacy.x2zid49e
+VERIFIED staggered_partitions_71421_legacy coverage=95.15% crossing=2 stuck=6 reported=0 far_goals_retired=0 path=56.47m
+START staggered_partitions_71421_guarded /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/staggered_partitions_71421_guarded.m9kooazz
+VERIFIED staggered_partitions_71421_guarded coverage=79.79% crossing=2 stuck=6 reported=6 far_goals_retired=2 path=35.66m
+START staggered_partitions_71422_guarded /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/staggered_partitions_71422_guarded.1nexshk9
+VERIFIED staggered_partitions_71422_guarded coverage=47.11% crossing=0 stuck=2 reported=2 far_goals_retired=0 path=24.80m
+START staggered_partitions_71422_legacy /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/staggered_partitions_71422_legacy.n5r22ozo
+VERIFIED staggered_partitions_71422_legacy coverage=53.81% crossing=0 stuck=2 reported=0 far_goals_retired=0 path=22.76m
+START divided_rooms_71423_guarded /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/divided_rooms_71423_guarded.7rxg1k5b
+VERIFIED divided_rooms_71423_guarded coverage=93.92% crossing=1 stuck=5 reported=5 far_goals_retired=1 path=51.87m
+START divided_rooms_71423_legacy /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/divided_rooms_71423_legacy.093u83uh
+VERIFIED divided_rooms_71423_legacy coverage=60.06% crossing=0 stuck=3 reported=0 far_goals_retired=0 path=31.23m
+START divided_rooms_71424_legacy /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/divided_rooms_71424_legacy.n106bt9y
+VERIFIED divided_rooms_71424_legacy coverage=61.43% crossing=0 stuck=4 reported=0 far_goals_retired=0 path=37.78m
+START divided_rooms_71424_guarded /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/divided_rooms_71424_guarded.l49dsd80
+VERIFIED divided_rooms_71424_guarded coverage=58.39% crossing=0 stuck=2 reported=2 far_goals_retired=0 path=25.65m
+START offset_approaches_71425_legacy /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/offset_approaches_71425_legacy.xjsyuwq6
+VERIFIED offset_approaches_71425_legacy coverage=56.99% crossing=0 stuck=5 reported=0 far_goals_retired=0 path=27.81m
+START offset_approaches_71425_guarded /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/offset_approaches_71425_guarded.8236bwtw
+VERIFIED offset_approaches_71425_guarded coverage=76.35% crossing=1 stuck=9 reported=9 far_goals_retired=5 path=46.73m
+START offset_approaches_71426_guarded /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/offset_approaches_71426_guarded.pckc9rt3
+VERIFIED offset_approaches_71426_guarded coverage=88.60% crossing=2 stuck=5 reported=5 far_goals_retired=2 path=36.34m
+START offset_approaches_71426_legacy /home/cjay/vision_swarm_front_recovery_20261126.Kho131/formal/offset_approaches_71426_legacy._re3fv03
+VERIFIED offset_approaches_71426_legacy coverage=56.62% crossing=0 stuck=6 reported=0 far_goals_retired=0 path=30.97m

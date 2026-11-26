@@ -19,6 +19,7 @@ METRICS = (
     "coverage_pct", "path_m", "new_area_m2", "new_area_per_m", "stuck_events",
     "stuck_per_10m", "repeated_region", "repeated_region_20s",
     "active_goal_not_retired", "near_collision_events", "robots_crossing", "goals_reached",
+    "goal_free_robot_s",
 )
 
 
@@ -35,9 +36,12 @@ def derived_rows(formal, rows):
         if area < 0 or distance <= 0:
             raise ValueError(f"Invalid area or distance difference in {directory}")
         events = list(diagnose(directory, row))
+        goal_free_time = sum(
+            (float(later["elapsed_sim_s"]) - float(earlier["elapsed_sim_s"])) * int(earlier["idle_robots"])
+            for earlier, later in zip(metrics, metrics[1:]))
         yield dict(**row, initial_coverage_pct=float(initial["coverage_pct"]),
                    new_area_m2=area, path_after_initial_m=distance, new_area_per_m=area / distance,
-                   stuck_per_10m=10 * int(row["stuck_events"]) / float(row["path_m"]),
+                   goal_free_robot_s=goal_free_time, stuck_per_10m=10 * int(row["stuck_events"]) / float(row["path_m"]),
                    **{key: sum(event[key] for event in events) for key in (
                        "repeated_region", "repeated_region_20s", "active_goal_not_retired",
                        "retired_by_report")}), events

@@ -155,3 +155,91 @@ Its observed-area gain per metre was 0.788 versus 0.813 m²/m,
 so the single diagnostic demonstrates mechanism operation
 and higher coverage without a path-efficiency gain. This pair
 is separate from the formal unknown-topology analysis.
+
+## Formal unknown-topology results
+
+All twelve trials completed the 120 s horizon and passed both
+verification passes. Each topology's four runs shared its world
+and coverage mask, and matched seeds used identical checkpoints,
+spawn poses and evaluation options apart from recovery mode.
+The three topology masks were distinct. The comparison excludes
+both prototype diagnostics and the revised seed 71322 pair.
+
+| Topology | Seed | Legacy coverage | Guarded coverage | Stuck reports (legacy / guarded) |
+| --- | ---: | ---: | ---: | ---: |
+| Staggered partitions | 71421 | 95.15% | 79.79% | 6 / 6 |
+| Staggered partitions | 71422 | 53.81% | 47.11% | 2 / 2 |
+| Divided rooms | 71423 | 60.06% | 93.92% | 3 / 5 |
+| Divided rooms | 71424 | 61.43% | 58.39% | 4 / 2 |
+| Offset approaches | 71425 | 56.99% | 76.35% | 5 / 9 |
+| Offset approaches | 71426 | 56.62% | 88.60% | 6 / 5 |
+| Mean | | 64.01% | 74.03% | 4.33 / 4.83 |
+
+The paired mean coverage difference was +10.02 percentage points
+with gains in three of six seeds. The guarded strategy improved
+both offset-approach seeds and lost both staggered-partition
+seeds. Its mean coverage in divided rooms was higher with one
+win and one loss. At least one robot crossed the primary
+partition in four of six guarded trials and one of six legacy
+trials. Team crossing counts were six and two, respectively.
+Each method reached 90% once, and neither reached 97%.
+
+| Formal measure | Legacy | Guarded |
+| --- | ---: | ---: |
+| Mean team path (m) | 34.50 | 36.84 |
+| Mean new area after initial sample (m²) | 22.19 | 25.14 |
+| Mean new observed area per metre (m²/m) | 0.657 | 0.695 |
+| Mean stuck reports per ten metres | 1.283 | 1.256 |
+| Total stuck reports | 26 | 29 |
+| Repeat reports within 0.90 m and 20 s | 2 | 2 |
+| Reports that retained the active goal | 13 | 0 |
+| Completed recoveries translating at least 0.15 m | 23/25 | 26/27 |
+| Mean near-collision threshold events | 1.50 | 2.00 |
+| Mean robot-seconds without an assigned goal | 149.12 | 155.23 |
+
+On average the guarded teams explored 5.9% more new area per
+metre and travelled 2.34 m farther. Per-metre gains occurred
+in three of the six pairs. The motion telemetry therefore
+supports a modest mean efficiency increase alongside an
+increase in total distance and raw stuck reports. The
+near-collision measure tracks clearance threshold events
+from the existing cadence. It does not count physical contacts.
+Completed recovery success uses the same displacement criterion
+with different allowed recovery durations.
+
+### Recovery traces and limits
+
+All 29 guarded reports retired the reporter's active assignment.
+Ten targets were at least 1.8 m from the failure location and
+would have escaped the individual goal-distance check in the
+legacy callback. The command audit verified 674 guarded samples,
+including 461 forward-escape samples with measured turn and
+valid front clearance. No stale sample was recorded in the
+formal rollouts. The newer strategy had two short-window repeat
+reports, the same total as legacy. Coverage and repeats can
+vary independently because map topology and high-level goal
+selection affect where the robot goes after recovery.
+
+The goal-free measure integrates the number of robots without an
+assigned goal over sampled simulation time. It includes active
+recovery and does not imply the robot was physically stopped.
+For example, the 71421 guarded run gained more area per metre
+than legacy but had approximately 119 additional robot-seconds
+without an assigned goal and lower coverage. The difference
+is descriptive and does not isolate the pause or memory effect.
+
+The experiment addresses the stale-goal mechanism and extends
+evaluation to three previously unused layout topologies with two
+seeds each. The combined intervention is still opt-in because
+the paired coverage results vary and raw stuck and near-collision
+counts increased. The comparison combines target retirement,
+memory-based rerouting and forward recovery. Isolating those
+components and testing additional maps and independently trained
+policies would support stronger attribution.
+
+The workspace passed 151 ROS tests, three passage-controller
+checks and 55 project tests. The raw archive contains separate
+prototype and revised runs. The revised archive verification
+matched 420 SHA-256 entries.
+
+[Formal tables, figures, world files and audit logs](../ros_gazebo/experiments/2026-11-26-route-recovery/)

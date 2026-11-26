@@ -1,0 +1,4 @@
+START route_diagnostic_71322_legacy /home/cjay/vision_swarm_front_recovery_20261126.Kho131/smoke/route_diagnostic_71322_legacy.rvbz_n9i
+VERIFIED route_diagnostic_71322_legacy coverage=64.51% crossing=0 stuck=7 reported=0 far_goals_retired=0 path=36.33m
+START route_diagnostic_71322_guarded /home/cjay/vision_swarm_front_recovery_20261126.Kho131/smoke/route_diagnostic_71322_guarded.xdald7k3
+VERIFIED route_diagnostic_71322_guarded coverage=96.80% crossing=2 stuck=2 reported=2 far_goals_retired=1 path=59.97m
