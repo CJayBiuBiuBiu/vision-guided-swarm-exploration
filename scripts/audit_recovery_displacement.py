@@ -6,6 +6,7 @@ import re
 
 OUTCOME = re.compile(
     r"recovery outcome=(\w+) start=([\d.]+) end=([\d.]+) distance=([\d.]+)")
+RECOVERY_TIMESTAMP_SKEW_S = 0.15
 
 
 def recovery_outcomes(logs):
@@ -49,7 +50,8 @@ def audit_displacement(run, events, metrics, logs, directory):
         start, end, distance = (outcome[key] for key in ("start_s", "end_s", "displacement_m"))
         require(pending[robot], "Recovery outcome has no matching stuck report")
         report = pending[robot].pop(0)
-        require(-0.001 <= report["report_stamp"] - start <= 0.15,
+        # The explorer and coordinator can observe adjacent /clock updates.
+        require(abs(report["report_stamp"] - start) <= RECOVERY_TIMESTAMP_SKEW_S,
                 "Logged recovery start differs from the stuck report")
         duration = end - start
         require(0 < duration <= limit + 0.20, "Recovery duration exceeded the run limit")
@@ -67,7 +69,8 @@ def audit_displacement(run, events, metrics, logs, directory):
                     "Unexpected recovery outcome")
         release = resumed.pop((robot, report["report_stamp"]), None)
         if release is not None:
-            require(release["result_stamp"] >= end - 0.001
+            require(release["result_stamp"] >= end - RECOVERY_TIMESTAMP_SKEW_S
+                    and release["pause_until"] >= end - 0.001
                     and abs(release["displacement_m"] - distance) <= 1e-5,
                     "Navigation release differs from the logged completion")
         counts[reason] += 1

@@ -57,7 +57,9 @@ and 20 s of an earlier report. It records whether both reports
 came from the same robot. This is a proximity measure based
 on reported positions.
 
-Prepare the workspace through patch 21 and source it.
+Use repository revision `247691b` to reproduce the archived
+manifest and script hashes. Prepare the workspace through
+patch 21 from that revision and source it.
 
 ```sh
 python3 scripts/run_recovery_scope_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT" --plan-only

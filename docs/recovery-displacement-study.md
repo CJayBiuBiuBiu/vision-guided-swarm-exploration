@@ -38,7 +38,10 @@ during navigation and inspection. The audit separately checks
 all logged guarded recovery commands against scan and speed
 limits. The repeat measure uses simulation time, so
 a longer maneuver can take up part of its 20 s observation
-window. The figure reports sample counts for each pair.
+window. The analysis also counts later reports within 0.90 m
+of the original stuck location in the 20 s after completion.
+It uses episodes with a full 20 s of follow-up for this
+second measure. The figure reports counts for each pair.
 
 Prepare the workspace through patch 22. Run the study in the
 sourced ROS environment.
@@ -66,3 +69,53 @@ from 65.57% to 86.07%. Stuck reports rose from two to five.
 This pair verifies that the new termination and release paths
 execute in Gazebo. The formal schedule supplies the performance
 comparison.
+
+## Formal results
+
+All 16 runs reached the 120 s horizon and passed a second
+audit. The [verified manifest](../ros_gazebo/experiments/2026-11-27-recovery-displacement/formal/verified_manifest.json)
+records the source tree and hashes for the checkpoints,
+layouts and scripts. The initial audit rejected a completed
+run when the explorer and coordinator clocks differed by
+3 ms. The revised audit allows the same 0.15 s tolerance in
+both directions. It rechecked the original output. The
+comparison manifest changed only in the audit script hash.
+
+| Outcome across eight runs per arm | Fixed | Displacement-aware |
+| --- | ---: | ---: |
+| Mean final coverage | 65.31% | 70.13% |
+| Mean final coverage on the new layout | 56.00% | 60.60% |
+| Runs with at least one passage crossing | 5 | 5 |
+| Mean team distance | 41.36 m | 39.25 m |
+| Recoveries clearing 0.65 m | 0/38 | 36/37 |
+| Mean displacement at recovery completion | 0.23 m | 0.64 m |
+| Stuck reports | 38 | 39 |
+| Same-robot repeat reports | 2 | 3 |
+| Repeats in fully observed 20 s post-recovery windows | 2/32 | 3/35 |
+| Near-collision threshold events | 11 | 13 |
+| Near-collision threshold events per 10 m | 0.33 | 0.41 |
+
+Coverage improved in four of eight matched pairs. The mean
+gain was 4.82 percentage points across all pairs and 4.60
+points on the new layout. On that layout, seed 71501 lost
+13.86 points and seed 71502 gained 23.06 points. Each arm
+crossed a passage in one of the two runs. All runs ended
+below 90% coverage.
+
+The extended controller cleared the failed-route radius in
+36 of its 37 logged outcomes. One ended for insufficient
+progress. Two displacement-aware reports near the horizon
+had no completed maneuver in the analysis window. The
+increase in local displacement coexisted with a similar
+number of subsequent stuck reports. Of 24 logged clearance
+events, 23 occurred during navigation and one occurred
+during inspection. The event stream does not cover the
+recovery phase, whose commands have a separate audit.
+
+The guarded controller defaults to fixed recovery. The
+displacement-aware option increased local escape distance
+across the evaluated layouts. The coverage results span gains and
+losses, with two paired seeds on one new layout.
+
+[Paired results](../ros_gazebo/experiments/2026-11-27-recovery-displacement/analysis/paired_deltas.csv)
+and [comparison figure](../ros_gazebo/experiments/2026-11-27-recovery-displacement/analysis/recovery_displacement_comparison.pdf).

@@ -120,8 +120,10 @@ and crossing outcomes. The separate evaluation mask is used for
 coverage metrics only. A lower absolute path length is not in
 itself an improvement if the robot explores less space.
 
-Prepare the patched workspace, source the environment and use the
-same frozen actor and RGB checkpoint as the previous stage.
+Use repository revision `41f2223` to reproduce the archived
+manifest and script hashes. Prepare the patched workspace from
+that revision, source the environment and use the same frozen
+actor and RGB checkpoint as the previous stage.
 
 ```sh
 python3 scripts/run_route_recovery_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT" --plan-only

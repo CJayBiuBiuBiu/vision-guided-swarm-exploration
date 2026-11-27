@@ -11,7 +11,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from audit_recovery_displacement import recovery_outcomes
+from audit_recovery_scope import clearance_events
+from audit_recovery_displacement import RECOVERY_TIMESTAMP_SKEW_S, recovery_outcomes
 from run_matched_vision_training import csv_rows, write_csv
 from run_policy_goal_retention import read_json_lines
 from run_recovery_displacement_study import MODES, schedule
@@ -50,6 +51,23 @@ def repeats(events, metrics):
                        bool(samples) and farthest < FAILED_ROUTE_RADIUS_M))
 
 
+def episode_followup(outcomes, events, horizon_s):
+    reports = defaultdict(list)
+    for event in events:
+        if event["event"] == "route_recovery":
+            reports[event["robot"]].append(event)
+    for event in outcomes:
+        later = reports[event["robot"]]
+        origin = next(report for report in later
+                      if abs(report["report_stamp"] - event["start_s"]) <= RECOVERY_TIMESTAMP_SKEW_S)
+        followup = min(REPEAT_WINDOW_S, max(0.0, horizon_s - event["end_s"]))
+        recurrence = any(0 < report["report_stamp"] - event["end_s"] <= followup
+                         and math.dist(report["stuck_xy"], origin["stuck_xy"]) <= REPEAT_RADIUS_M
+                         for report in later)
+        yield dict(event, duration_s=event["end_s"] - event["start_s"],
+                   followup_s=followup, repeated_during_followup=recurrence)
+
+
 def read_runs(directory, planned):
     manifest = json.loads((directory / "experiment_manifest.json").read_text())
     summaries = csv_rows(directory / "summary.csv")
@@ -68,10 +86,24 @@ def read_runs(directory, planned):
         repeated = [dict(**key, **event) for event in repeats(events, metrics)]
         logs = {robot: node_log(raw, robot + "_explorer") for robot in ROBOTS}
         outcomes = sorted(recovery_outcomes(logs), key=lambda item: item["start_s"])
-        episodes = [dict(**key, **event, duration_s=event["end_s"] - event["start_s"])
-                    for event in outcomes]
+        offset = next(event["control_stamp"] - event["elapsed_sim_s"] for event in events
+                      if "control_stamp" in event and "elapsed_sim_s" in event)
+        horizon_s = offset + float(metrics[-1]["elapsed_sim_s"])
+        episodes = [dict(**key, **event) for event in episode_followup(outcomes, events, horizon_s)]
+        full_followup = [event for event in episodes if event["followup_s"] == REPEAT_WINDOW_S]
+        near = []
+        for event in clearance_events(logs):
+            ages = [event["stamp_s"] - finish["end_s"] for finish in outcomes
+                    if finish["robot"] == event["robot"] and finish["end_s"] <= event["stamp_s"]]
+            age = min(ages) if ages else None
+            near.append(dict(**key, **event, seconds_since_recovery=age,
+                             within_5s_of_recovery=age is not None and age <= 5.0))
         yield dict(**row, repeat_reports=len(repeated), repeats_inside_failed_region=sum(
-            event["sampled_inside_failed_region"] for event in repeated)), repeated, episodes
+            event["sampled_inside_failed_region"] for event in repeated),
+            recovery_full_followups=len(full_followup), recovery_repeats_after_finish=sum(
+                event["repeated_during_followup"] for event in full_followup),
+            near_within_5s_of_recovery=sum(event["within_5s_of_recovery"] for event in near)
+        ), repeated, episodes, near
 
 
 def paired(rows):
@@ -93,19 +125,27 @@ def summarize(rows):
                           and (group == "all" or row["layout_group"] == group)]
             completed = sum(int(row["motion_completions"]) for row in group_rows)
             cleared = sum(int(row["motion_cleared_region"]) for row in group_rows)
+            distance = sum(float(row["path_m"]) for row in group_rows)
+            stuck = sum(int(row["stuck_events"]) for row in group_rows)
+            near = sum(int(row["near_collision_events"]) for row in group_rows)
             yield dict(layout_group=group, mode=mode, runs=len(group_rows),
                        coverage_mean_pct=mean(float(row["coverage_pct"]) for row in group_rows),
                        crossed_runs=sum(int(row["robots_crossing"]) > 0 for row in group_rows),
                        runs_90=sum(bool(row["time_to_90_s"]) for row in group_rows),
                        runs_97=sum(bool(row["time_to_97_s"]) for row in group_rows),
-                       stuck_total=sum(int(row["stuck_events"]) for row in group_rows),
+                       stuck_total=stuck, stuck_per_10m=10.0 * stuck / distance if distance else None,
                        repeat_total=sum(row["repeat_reports"] for row in group_rows),
                        repeats_inside_failed_region=sum(row["repeats_inside_failed_region"]
                                                        for row in group_rows),
-                       near_total=sum(int(row["near_collision_events"]) for row in group_rows),
-                       path_mean_m=mean(float(row["path_m"]) for row in group_rows),
+                       near_total=near, near_per_10m=10.0 * near / distance if distance else None,
+                       path_mean_m=distance / len(group_rows),
+                       near_within_5s_of_recovery=sum(row["near_within_5s_of_recovery"]
+                                                       for row in group_rows),
                        recovery_outcomes=completed, cleared_region=cleared,
                        cleared_region_fraction=cleared / completed if completed else None,
+                       recovery_full_followups=sum(row["recovery_full_followups"] for row in group_rows),
+                       recovery_repeats_after_finish=sum(row["recovery_repeats_after_finish"]
+                                                         for row in group_rows),
                        mean_recovery_displacement_m=(
                            sum(float(row["motion_logged_displacement_sum_m"]) for row in group_rows)
                            / completed if completed else None))
@@ -149,11 +189,12 @@ def main():
     parser.add_argument("--stage", choices=("smoke", "formal"), default="formal")
     args = parser.parse_args()
     planned, _ = schedule(args.stage)
-    rows, repeated, episodes = [], [], []
-    for row, repeat_rows, outcome_rows in read_runs(args.runs, planned):
+    rows, repeated, episodes, near = [], [], [], []
+    for row, repeat_rows, outcome_rows, near_rows in read_runs(args.runs, planned):
         rows.append(row)
         repeated.extend(repeat_rows)
         episodes.extend(outcome_rows)
+        near.extend(near_rows)
     args.output.mkdir(parents=True, exist_ok=False)
     write_csv(args.output / "derived_metrics.csv", rows)
     write_csv(args.output / "group_summary.csv", list(summarize(rows)))
@@ -163,6 +204,8 @@ def main():
         write_csv(args.output / "repeat_reports.csv", repeated)
     if episodes:
         write_csv(args.output / "recovery_episodes.csv", episodes)
+    if near:
+        write_csv(args.output / "clearance_events.csv", near)
     plot(rows, args.output)
 
 

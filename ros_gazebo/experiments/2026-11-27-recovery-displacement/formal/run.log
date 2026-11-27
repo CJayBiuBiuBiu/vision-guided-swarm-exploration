@@ -1,0 +1,16 @@
+VERIFIED staggered_partitions_71421_fixed coverage=54.33% stuck=2 near=1 peer_retirements=0
+VERIFIED staggered_partitions_71421_displacement coverage=75.98% stuck=5 near=0 peer_retirements=0
+VERIFIED staggered_partitions_71422_displacement coverage=54.02% stuck=4 near=2 peer_retirements=0
+VERIFIED staggered_partitions_71422_fixed coverage=63.71% stuck=3 near=0 peer_retirements=0
+VERIFIED divided_rooms_71423_displacement coverage=78.80% stuck=6 near=3 peer_retirements=0
+VERIFIED divided_rooms_71423_fixed coverage=86.06% stuck=6 near=0 peer_retirements=0
+VERIFIED divided_rooms_71424_fixed coverage=59.96% stuck=4 near=1 peer_retirements=0
+VERIFIED divided_rooms_71424_displacement coverage=81.65% stuck=3 near=2 peer_retirements=0
+VERIFIED offset_approaches_71425_fixed coverage=77.08% stuck=6 near=1 peer_retirements=0
+VERIFIED offset_approaches_71425_displacement coverage=62.13% stuck=4 near=3 peer_retirements=0
+VERIFIED offset_approaches_71426_displacement coverage=87.25% stuck=8 near=2 peer_retirements=0
+VERIFIED offset_approaches_71426_fixed coverage=69.36% stuck=6 near=2 peer_retirements=0
+VERIFIED dogleg_passages_71501_fixed coverage=61.53% stuck=6 near=2 peer_retirements=0
+VERIFIED dogleg_passages_71501_displacement coverage=47.67% stuck=3 near=1 peer_retirements=0
+VERIFIED dogleg_passages_71502_displacement coverage=73.53% stuck=6 near=0 peer_retirements=0
+VERIFIED dogleg_passages_71502_fixed coverage=50.47% stuck=5 near=4 peer_retirements=0

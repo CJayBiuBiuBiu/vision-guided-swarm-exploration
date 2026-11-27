@@ -1,0 +1,19 @@
+VERIFIED staggered_partitions_71421_fixed coverage=54.33% stuck=2 near=1 peer_retirements=0
+VERIFIED staggered_partitions_71421_displacement coverage=75.98% stuck=5 near=0 peer_retirements=0
+VERIFIED staggered_partitions_71422_displacement coverage=54.02% stuck=4 near=2 peer_retirements=0
+Traceback (most recent call last):
+  File "scripts/run_recovery_displacement_study.py", line 98, in <module>
+    main()
+  File "scripts/run_recovery_displacement_study.py", line 89, in main
+    results = [trial(run, package, actor, rgb, worlds[run["scene"]], geometries[run["scene"]],
+  File "scripts/run_recovery_displacement_study.py", line 89, in <listcomp>
+    results = [trial(run, package, actor, rgb, worlds[run["scene"]], geometries[run["scene"]],
+  File "/home/cjay/vision_swarm_displacement_20261127.zVSu4Y/scripts/run_recovery_scope_study.py", line 103, in trial
+    result = verify(run, package, actor, rgb, files, geometry, directory)
+  File "/home/cjay/vision_swarm_displacement_20261127.zVSu4Y/scripts/run_recovery_scope_study.py", line 69, in verify
+    motion = audit_displacement(run, events, metrics, logs, directory)
+  File "/home/cjay/vision_swarm_displacement_20261127.zVSu4Y/scripts/audit_recovery_displacement.py", line 52, in audit_displacement
+    require(-0.001 <= report["report_stamp"] - start <= 0.15,
+  File "/home/cjay/vision_swarm_displacement_20261127.zVSu4Y/scripts/audit_recovery_displacement.py", line 31, in require
+    raise ValueError(f"{message} in {directory}")
+ValueError: Logged recovery start differs from the stuck report in /home/cjay/vision_swarm_displacement_20261127.zVSu4Y/formal/staggered_partitions_71422_fixed.3jnqp3b7

@@ -1,0 +1,6 @@
+scene,environment_seed,recovery_motion_mode,layout_group,robot,previous_elapsed_s,elapsed_s,repeat_distance_m,sampled_max_distance_m,position_samples,sampled_inside_failed_region
+staggered_partitions,71421,displacement,repeated,robot2,39.751999999999995,50.251999999999995,0.7063027844895285,0.7063027844895285,9,False
+offset_approaches,71425,fixed,repeated,robot2,20.0,30.0,0.5848275643727437,0.5848275643727437,9,True
+offset_approaches,71426,displacement,repeated,robot3,100.25,107.0,0.05000033229163446,0.052541844717922205,6,True
+offset_approaches,71426,fixed,repeated,robot2,49.25,56.25,0.28874786248096046,0.28874786248096046,6,True
+dogleg_passages,71501,displacement,holdout,robot1,78.501,88.751,0.7841439913053184,0.7841439913053184,9,False
