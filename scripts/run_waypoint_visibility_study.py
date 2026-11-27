@@ -14,7 +14,7 @@ from run_route_recovery_study import schedule as route_schedule
 from run_wait_margin_study import ACTOR_SHA256, RGB_SHA
 
 
-SOURCE_TREE = "5d027e1df28a47a8ead95c1188c3eb328524ef18"
+SOURCE_TREE = "d7de9992ed5aaaa4033c7c6ee94ce88614dd1512"
 MODES = ("observe", "shorten")
 HOLDOUT = "split_approach_lanes"
 HOLDOUT_SEEDS = (71601, 71602)

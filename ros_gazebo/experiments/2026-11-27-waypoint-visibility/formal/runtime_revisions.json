@@ -1,0 +1,16 @@
+{
+  "retained_completed_source_trees": {
+    "divided_rooms_71423_observe": "5d027e1df28a47a8ead95c1188c3eb328524ef18",
+    "divided_rooms_71423_shorten": "5d027e1df28a47a8ead95c1188c3eb328524ef18",
+    "divided_rooms_71424_observe": "5d027e1df28a47a8ead95c1188c3eb328524ef18",
+    "staggered_partitions_71421_observe": "5d027e1df28a47a8ead95c1188c3eb328524ef18",
+    "staggered_partitions_71421_shorten": "5d027e1df28a47a8ead95c1188c3eb328524ef18",
+    "staggered_partitions_71422_observe": "5d027e1df28a47a8ead95c1188c3eb328524ef18",
+    "staggered_partitions_71422_shorten": "5d027e1df28a47a8ead95c1188c3eb328524ef18"
+  },
+  "resumed_source_tree": "d7de9992ed5aaaa4033c7c6ee94ce88614dd1512",
+  "interrupted_trial": "divided_rooms_71424_shorten.qtwxu8mv",
+  "cause": "Depth waypoint cleanup accessed depth-only state with depth inactive.",
+  "compatibility": "None of the retained runs entered the withheld waypoint branch.",
+  "code_checkpoint": "cde61ae"
+}

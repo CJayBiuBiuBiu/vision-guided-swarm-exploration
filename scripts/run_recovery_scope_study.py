@@ -90,9 +90,15 @@ def trial(run, package, actor, rgb, files, geometry, output, audit_only):
     elif audit_only:
         raise ValueError(f"Missing completed trial {name}")
     else:
-        previous = [directory for directory in sorted(output.glob(name + ".*"))
-                    if (directory / "exit_status.txt").is_file()
-                    and (directory / "exit_status.txt").read_text().strip() == "0"]
+        previous = []
+        for directory in sorted(output.glob(name + ".*")):
+            status = directory / "exit_status.txt"
+            metrics = directory / "metrics.csv"
+            if not status.is_file() or status.read_text().strip() != "0" or not metrics.is_file():
+                continue
+            rows = csv_rows(metrics)
+            if rows and rows[-1]["evaluation_horizon_reached"] == "1":
+                previous.append(directory)
         if previous:
             directory = previous[0]
         else:

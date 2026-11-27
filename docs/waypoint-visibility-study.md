@@ -62,3 +62,17 @@ arms reported four and six stuck events. They triggered
 the laser near-collision threshold once and zero times.
 The pair validates the live command check. The formal
 schedule measures the exploration trade-off.
+
+## Runtime correction
+
+The eighth formal attempt stopped when waypoint retirement
+accessed a depth-only cache with depth checking disabled.
+The coordinator now clears the cache only when it exists by
+configuration. The runner ignores incomplete attempts on
+resume, including ROS launches that return zero after a
+node stops. The earlier seven valid runs never entered the
+retirement branch and passed the same audits after the fix.
+The interrupted logs and both source trees are retained.
+
+[Runtime tree ledger](../ros_gazebo/experiments/2026-11-27-waypoint-visibility/formal/runtime_revisions.json)
+and [resumed manifest](../ros_gazebo/experiments/2026-11-27-waypoint-visibility/formal/verified_manifest.json).

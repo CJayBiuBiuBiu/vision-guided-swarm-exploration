@@ -19,7 +19,7 @@ index e730e26..0d36f78 100644
      <param name="near_collision_range" value="$(arg near_collision_range)"/>
      <param name="near_collision_clear_range"
 diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
-index e4d1e5e..b01bd8f 100755
+index e4d1e5e..e6eeb91 100755
 --- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
 +++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
 @@ -64,6 +64,7 @@ from route_recovery import (
@@ -54,7 +54,7 @@ index e4d1e5e..b01bd8f 100755
              if self.matched_clearance:
                  cue_metadata.update(clearance_actor_cue=self.clearance_actor_cue,
                                      clearance_rules_cue=self.clearance_rules_cue)
-@@ -1668,6 +1677,42 @@ class Coordinator(object):
+@@ -1668,6 +1677,43 @@ class Coordinator(object):
          distance = np.linalg.norm(direction)
          return pos + direction * min(1.0, MAX_WAYPOINT_DIST / max(distance, 1e-9))
 
@@ -84,7 +84,8 @@ index e4d1e5e..b01bd8f 100755
 +            self.current_goal_id[name] = None
 +            self.current_path[name] = None
 +            self.passage_continuations.pop(name, None)
-+            self.depth_commanded_waypoints.pop(name, None)
++            if self.depth_active:
++                self.depth_commanded_waypoints.pop(name, None)
 +            self._retire_policy_waypoint(name)
 +            return
 +
@@ -97,7 +98,7 @@ index e4d1e5e..b01bd8f 100755
      def _check_active_depth(self):
          now = rospy.Time.now().to_sec()
          for name in self.robot_names:
-@@ -2146,6 +2191,11 @@ class Coordinator(object):
+@@ -2146,6 +2192,11 @@ class Coordinator(object):
                  name, start, self._cell_index(*frontiers[index]))
              path_xy = [(self.xs[ix], self.ys[iy]) for ix, iy in path] if path else None
              waypoint = self._next_waypoint(position, frontiers[index], path_xy)
@@ -109,7 +110,7 @@ index e4d1e5e..b01bd8f 100755
              depth_hit = None if depth is None else corridor_hit(depth[1], position, waypoint, 3)
              laser_hit = None if scan is None else corridor_hit(scan[1], position, waypoint, 1)
              evaluated.append(dict(frontier_id=int(frontier_ids[index]),
-@@ -3260,15 +3310,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+@@ -3260,15 +3311,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
                      self._hold_depth_interruption(name)
                      continue
 
@@ -173,10 +174,10 @@ index 0000000..5d4ca07
 +    return None
 diff --git a/turtlebot_ddpg/tests/test_waypoint_visibility.py b/turtlebot_ddpg/tests/test_waypoint_visibility.py
 new file mode 100644
-index 0000000..465810e
+index 0000000..1b7415d
 --- /dev/null
 +++ b/turtlebot_ddpg/tests/test_waypoint_visibility.py
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,72 @@
 +"""Check scan-visible lookahead and retirement of obstructed commands."""
 +
 +from pathlib import Path
@@ -213,7 +214,7 @@ index 0000000..465810e
 +        grid[1, 1] = 2
 +        self.assertIsNone(visible_lookahead(grid, pos, None, target, locate, 3.0))
 +
-+    def test_blocked_command_retires_previous_waypoint_and_active_goal(self):
++    def check_blocked_command_retirement(self, depth_active):
 +        coord = Coordinator.__new__(Coordinator)
 +        name = 'robot1'
 +        coord.waypoint_visibility_mode = 'shorten'
@@ -228,7 +229,9 @@ index 0000000..465810e
 +        coord.positions = {name: (0.0, 0.0)}
 +        coord.targets_pub = {name: Mock()}
 +        coord.passage_continuations = {}
-+        coord.depth_commanded_waypoints = {name: np.array([2.0, 0.0])}
++        coord.depth_active = depth_active
++        if depth_active:
++            coord.depth_commanded_waypoints = {name: np.array([2.0, 0.0])}
 +        coord.goals_dropped_blocked = 0
 +        coord._finish_frontier_attempt = Mock()
 +        coord._publish_navigation_waypoint(name, np.array([0.0, 0.0]),
@@ -236,7 +239,14 @@ index 0000000..465810e
 +        coord._finish_frontier_attempt.assert_called_once_with(name, 'blocked')
 +        self.assertIsNone(coord.current_goal[name])
 +        self.assertIsNone(coord.current_goal_id[name])
-+        self.assertNotIn(name, coord.depth_commanded_waypoints)
++        if depth_active:
++            self.assertNotIn(name, coord.depth_commanded_waypoints)
 +        self.assertNotIn(name, coord.policy_waypoints)
 +        self.assertEqual(coord.targets_pub[name].publish.call_args.args[0].z, POLICY_IDLE_Z)
 +        self.assertEqual(coord.goals_dropped_blocked, 1)
++
++    def test_blocked_command_retires_waypoint_with_depth_on(self):
++        self.check_blocked_command_retirement(depth_active=True)
++
++    def test_blocked_command_retires_waypoint_with_depth_off(self):
++        self.check_blocked_command_retirement(depth_active=False)
