@@ -52,7 +52,8 @@ shield. A target counts as reached after 0.25 s within
 coordinator, RGB decisions and stuck recovery are outside
 this controlled test.
 
-Prepare and source the ROS workspace through patch 24.
+Use repository revision `50b8478` and prepare the ROS workspace
+through patch 24 to match the benchmark's archived source tree.
 
 ```sh
 python3 scripts/probe_ddpg_tracking.py "$ROS_PROJECT" "$PROBE_OUT"

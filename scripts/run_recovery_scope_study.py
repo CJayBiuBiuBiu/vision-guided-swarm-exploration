@@ -40,6 +40,9 @@ def inputs(run, package, actor, rgb, files, geometry, directory):
         record["launch"].append(f"recovery_motion_mode:={run['recovery_motion_mode']}")
     if "waypoint_visibility_mode" in run:
         record["launch"].append(f"waypoint_visibility_mode:={run['waypoint_visibility_mode']}")
+    if "local_tracking_mode" in run:
+        record["launch"].extend((f"local_tracking_mode:={run['local_tracking_mode']}",
+                                 f"local_tracking_trace_dir:={directory / 'local_tracking'}"))
     return record
 
 
@@ -74,15 +77,22 @@ def verify(run, package, actor, rgb, files, geometry, directory):
         from audit_waypoint_visibility import audit_waypoints
 
         visibility = audit_waypoints(run, events, directory)
+    tracking = {}
+    if "local_tracking_mode" in run:
+        from audit_local_tracking import audit_tracking
+
+        tracking = audit_tracking(run, logs, directory)
     return dict(**run, **result, **audit_decisions(run, directory, logs), **actions,
                 **audit_rechecks(run, directory, actions["recheck_requests"]),
                 **audit_gain(run, events, directory), **recovery, **scoped, **motion, **visibility,
+                **tracking,
                 **crossing_audit(metrics, geometry))
 
 
 def trial(run, package, actor, rgb, files, geometry, output, audit_only):
-    condition = run.get("waypoint_visibility_mode",
-                        run.get("recovery_motion_mode", run["recovery_frontier_scope"]))
+    condition = next(run[key] for key in ("local_tracking_mode", "waypoint_visibility_mode",
+                                         "recovery_motion_mode", "recovery_frontier_scope")
+                     if key in run)
     name = f"{run['scene']}_{run['environment_seed']}_{condition}"
     marker = output / f"{name}.complete.json"
     if marker.exists():

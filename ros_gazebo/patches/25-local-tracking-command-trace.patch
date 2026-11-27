@@ -1,0 +1,141 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index f5c4f54..6d1c6f9 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -78,6 +78,7 @@
+   <arg name="recovery_motion_mode" default="fixed"/>
+   <arg name="waypoint_visibility_mode" default="off"/>
+   <arg name="local_tracking_mode" default="ddpg"/>
++  <arg name="local_tracking_trace_dir" default=""/>
+   <arg name="recovery_frontier_scope" default="shared"/>
+   <arg name="recovery_direction_mode" default="random"
+        doc="random baseline or clearance-guided laser recovery"/>
+@@ -321,6 +322,7 @@
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
++    <param name="local_tracking_trace_dir" value="$(arg local_tracking_trace_dir)" type="str"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -338,6 +340,7 @@
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
++    <param name="local_tracking_trace_dir" value="$(arg local_tracking_trace_dir)" type="str"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -355,6 +358,7 @@
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
++    <param name="local_tracking_trace_dir" value="$(arg local_tracking_trace_dir)" type="str"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -371,6 +375,7 @@
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
++    <param name="local_tracking_trace_dir" value="$(arg local_tracking_trace_dir)" type="str"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -387,6 +392,7 @@
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
++    <param name="local_tracking_trace_dir" value="$(arg local_tracking_trace_dir)" type="str"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -403,6 +409,7 @@
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
++    <param name="local_tracking_trace_dir" value="$(arg local_tracking_trace_dir)" type="str"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -419,6 +426,7 @@
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
++    <param name="local_tracking_trace_dir" value="$(arg local_tracking_trace_dir)" type="str"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index 25c7f05..780ee5f 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -99,7 +99,7 @@ class RobotAgent(object):
+                  safety_stop_range=0.20,
+                  safety_slow_range=0.35,
+                  depth_velocity_mode='off', depth_velocity_trace_dir='',
+-                 local_tracking_mode='ddpg'):
++                 local_tracking_mode='ddpg', local_tracking_trace_dir=''):
+         self.robot_name = robot_name
+         robot_index = int(robot_name[-1]) if robot_name[-1:].isdigit() else 0
+         self.experiment_seed = int(experiment_seed) + robot_index
+@@ -166,6 +166,11 @@ class RobotAgent(object):
+             raise ValueError('local_tracking_mode must be ddpg or near_goal')
+         self.local_tracking_mode = local_tracking_mode
+         self.last_tracking_source = 'ddpg'
++        self.local_tracking_trace = None
++        if local_tracking_trace_dir:
++            destination = Path(local_tracking_trace_dir)
++            destination.mkdir(parents=True, exist_ok=True)
++            self.local_tracking_trace = (destination / (robot_name + '.jsonl')).open('x', buffering=1)
+
+     def _depth_info_cb(self, msg):
+         info = image_intrinsics(msg)
+@@ -280,9 +285,13 @@ class RobotAgent(object):
+     def step(self, actor_model):
+         state, pos, distance, front_clearance = self.build_state()
+         tracking = None
++        scan_age = None
++        if self.local_tracking_mode == 'near_goal' or self.local_tracking_trace is not None:
++            stamp = rospy.get_time()
++            scan_age = stamp - self.last_scan_stamp
++        bearing = float(state[0, -3])
+         if self.local_tracking_mode == 'near_goal':
+-            tracking = near_goal_command(distance, float(state[0, -3]), self.last_min_range,
+-                                         rospy.get_time() - self.last_scan_stamp)
++            tracking = near_goal_command(distance, bearing, self.last_min_range, scan_age)
+         if tracking is None:
+             action = actor_model.predict(state, verbose=0)
+             angular = float(action[0][0])
+@@ -291,6 +300,7 @@ class RobotAgent(object):
+         else:
+             linear, angular = tracking
+             self.last_tracking_source = 'near_goal'
++        requested_speed = linear
+         if self.safety_shield_enabled:
+             linear *= clearance_speed_scale(
+                 front_clearance, self.safety_stop_range,
+@@ -312,6 +322,13 @@ class RobotAgent(object):
+         cmd.linear.x = linear
+         cmd.angular.z = angular
+         self.pub.publish(cmd)
++        if self.local_tracking_trace is not None:
++            record = dict(sim_s=stamp, scan_s=self.last_scan_stamp, xy=pos,
++                          distance_m=distance, bearing_rad=bearing,
++                          min_laser_m=self.last_min_range, front_laser_m=front_clearance,
++                          source=self.last_tracking_source, requested_mps=requested_speed,
++                          linear_mps=linear, angular_rps=angular)
++            self.local_tracking_trace.write(json.dumps(record, allow_nan=False) + '\n')
+
+         self.prev_linear = linear
+         self.prev_angular = angular
+@@ -370,7 +387,8 @@ def main():
+         safety_slow_range=safety_slow_range,
+         depth_velocity_mode=rospy.get_param('~depth_velocity_mode', 'off'),
+         depth_velocity_trace_dir=rospy.get_param('~depth_velocity_trace_dir', ''),
+-        local_tracking_mode=rospy.get_param('~local_tracking_mode', 'ddpg'))
++        local_tracking_mode=rospy.get_param('~local_tracking_mode', 'ddpg'),
++        local_tracking_trace_dir=rospy.get_param('~local_tracking_trace_dir', ''))
+     rospy.loginfo('[%s] experiment_seed=%d (robot seed=%d)',
+                   robot_name, experiment_seed, agent.experiment_seed)
+     rospy.loginfo('[%s] near-collision hysteresis: event<=%.3fm, clear>=%.3fm',

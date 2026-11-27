@@ -45,9 +45,9 @@ def schedule(stage):
     return runs, geometries
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("stage", choices=("smoke", "formal"))
+def run_study(source_tree, plan, stages, dependencies, description):
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("stage", choices=stages)
     parser.add_argument("ros_project", type=Path)
     parser.add_argument("actor", type=Path)
     parser.add_argument("rgb", type=Path)
@@ -63,16 +63,16 @@ def main():
     tree = subprocess.check_output(["git", "-C", str(project), "write-tree"], text=True).strip()
     subprocess.run(["git", "-C", str(project), "diff", "--quiet", "--",
                     "turtlebot_ddpg", "turtlebot3_description", "laser_filters"], check=True)
-    if tree != SOURCE_TREE:
-        raise ValueError("Use the audited scan-visible waypoint source tree")
+    if tree != source_tree:
+        raise ValueError("Use the audited source tree for this study")
     sys.path.insert(0, str(package / "scripts/voronoi_exploration"))
-    runs, geometries = schedule(args.stage)
-    dependencies = ("run_waypoint_visibility_study", "audit_waypoint_visibility",
+    runs, geometries = plan(args.stage)
+    dependencies = tuple(dict.fromkeys((*dependencies, "run_waypoint_visibility_study", "audit_waypoint_visibility",
                     "run_recovery_scope_study", "run_route_recovery_study",
                     "audit_recovery_displacement", "audit_recovery_scope", "audit_route_recovery",
                     "audit_gain_passage", "run_dynamic_passage_study", "run_wait_margin_study",
                     "run_policy_goal_retention", "run_matched_vision_training", "run_clearance_study",
-                    "run_rgb_clearance_guard_study", "run_rgb_passage_study")
+                    "run_rgb_clearance_guard_study", "run_rgb_passage_study")))
     sources = {name: Path(__file__).with_name(name + ".py") for name in dependencies}
     sources.update(actor=actor, rgb=rgb, ddpg=package / "scripts/fd_replay/play_human_data/actormodel-450-500.h5")
     output.mkdir(parents=True, exist_ok=True)
@@ -92,6 +92,10 @@ def main():
             if len({row["coverage_mask_sha256"] for row in results if row["scene"] == scene}) != 1:
                 raise ValueError(f"Reference masks differ for {scene}")
         write_csv(output / "summary.csv", results)
+
+
+def main():
+    run_study(SOURCE_TREE, schedule, ("smoke", "formal"), (), __doc__)
 
 
 if __name__ == "__main__":

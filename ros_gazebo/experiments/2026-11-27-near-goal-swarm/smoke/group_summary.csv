@@ -1,0 +1,5 @@
+layout_group,mode,runs,coverage_mean_pct,path_mean_m,crossed_runs,runs_90,runs_97,stuck_per_10m,near_per_10m,near_goal_sample_pct,assignments,reached,stuck_events,near_collision_events,tracking_samples,near_goal_samples,eligible_samples,short_target_samples,short_large_bearing_samples,short_large_bearing_opposed_turns,wait_endings,wait_endings_within_3s,withheld_waypoints,shortened_waypoints,published_blocked_waypoints
+all,ddpg,1,65.5738,45.9925,0,0,0,1.739414034896994,0.21742675436212425,0.0,34,13,8,1,2378,0,442,474,150,101,9,1,0,102,0
+all,near_goal,1,88.0328,50.9573,1,0,0,0.9812136828285644,0.0,41.570805236017456,41,26,5,0,2521,1048,1048,1048,33,0,4,0,0,91,0
+diagnostic,ddpg,1,65.5738,45.9925,0,0,0,1.739414034896994,0.21742675436212425,0.0,34,13,8,1,2378,0,442,474,150,101,9,1,0,102,0
+diagnostic,near_goal,1,88.0328,50.9573,1,0,0,0.9812136828285644,0.0,41.570805236017456,41,26,5,0,2521,1048,1048,1048,33,0,4,0,0,91,0
