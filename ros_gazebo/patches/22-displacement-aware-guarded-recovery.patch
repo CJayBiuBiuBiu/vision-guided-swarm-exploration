@@ -1,0 +1,376 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 6c1d48b..e730e26 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -75,6 +75,7 @@
+   <arg name="depth_velocity_trace_dir" default=""/>
+   <arg name="gazebo_lockstep" default="false"/>
+   <arg name="route_recovery_mode" default="legacy"/>
++  <arg name="recovery_motion_mode" default="fixed"/>
+   <arg name="recovery_frontier_scope" default="shared"/>
+   <arg name="recovery_direction_mode" default="random"
+        doc="random baseline or clearance-guided laser recovery"/>
+@@ -292,6 +293,7 @@
+     <param name="stuck_blacklist_ttl" value="$(arg stuck_blacklist_ttl)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="recovery_frontier_scope" value="$(arg recovery_frontier_scope)"/>
+     <param name="recovery_success_distance" value="$(arg recovery_success_distance)"/>
+     <param name="near_collision_range" value="$(arg near_collision_range)"/>
+@@ -314,6 +316,7 @@
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -329,6 +332,7 @@
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -344,6 +348,7 @@
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -358,6 +363,7 @@
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -372,6 +378,7 @@
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -386,6 +393,7 @@
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -400,6 +408,7 @@
+     <param name="safety_slow_range" value="$(arg safety_slow_range)"/>
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
++    <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index ef874df..e4d1e5e 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -59,7 +59,8 @@ from active_passage import (
+     angle_delta, continuation_point, corridor_is_free, fresh_score, heading, inspection_candidate,
+     rebind_candidate)
+ from route_recovery import (
+-    RECOVERY_PAUSE_S, TARGET_COOLDOWN_S, RouteFailureMemory, available_owner)
++    EXTENDED_RECOVERY_PAUSE_S, RECOVERY_MOTION_MODES, RECOVERY_PAUSE_S,
++    RECOVERY_RELEASE_DELAY_S, TARGET_COOLDOWN_S, RouteFailureMemory, available_owner)
+ from passage_information import (
+     MIN_GAIN_CELLS, map_evidence, region_indices, select_gain, select_inspection,
+     unknown_corridor_cells, useful_gain)
+@@ -630,6 +631,12 @@ class Coordinator(object):
+         if self.route_recovery_mode not in ('legacy', 'guarded'):
+             raise ValueError('route_recovery_mode must be legacy or guarded')
+         self.guarded_route_recovery = self.route_recovery_mode == 'guarded'
++        self.recovery_motion_mode = rospy.get_param('~recovery_motion_mode', 'fixed')
++        if self.recovery_motion_mode not in RECOVERY_MOTION_MODES:
++            raise ValueError('recovery_motion_mode must be fixed or displacement')
++        self.displacement_recovery = self.recovery_motion_mode == 'displacement'
++        if self.displacement_recovery and not self.guarded_route_recovery:
++            raise ValueError('displacement recovery requires guarded route recovery')
+         self.recovery_frontier_scope = rospy.get_param('~recovery_frontier_scope', 'shared')
+         if self.recovery_frontier_scope not in ('shared', 'robot'):
+             raise ValueError('recovery_frontier_scope must be shared or robot')
+@@ -645,6 +652,8 @@ class Coordinator(object):
+             exclude_failed_positions=self.robot_recovery_frontiers)
+         self.route_recovery_events = SimpleQueue()
+         self.route_pause_until = {}
++        self.route_report_stamp = {}
++        self.route_finished_events = SimpleQueue()
+         self.recovery_direction_mode = rospy.get_param(
+             '~recovery_direction_mode', 'random')
+         if self.recovery_direction_mode not in ('random', 'clearance'):
+@@ -918,7 +927,8 @@ class Coordinator(object):
+         rospy.on_shutdown(self._close_metrics_file)
+         if trace_path:
+             cue_metadata = dict(route_recovery_mode=self.route_recovery_mode,
+-                                recovery_frontier_scope=self.recovery_frontier_scope)
++                                recovery_frontier_scope=self.recovery_frontier_scope,
++                                recovery_motion_mode=self.recovery_motion_mode)
+             if self.matched_clearance:
+                 cue_metadata.update(clearance_actor_cue=self.clearance_actor_cue,
+                                     clearance_rules_cue=self.clearance_rules_cue)
+@@ -1282,7 +1292,11 @@ class Coordinator(object):
+             goal_id = self.current_goal_id.get(name)
+             self.stuck_events[name] += 1
+             self.route_failures.record(name, position, goal, now)
+-            self.route_pause_until[name] = now + RECOVERY_PAUSE_S
++            if getattr(self, 'displacement_recovery', False):
++                self.route_pause_until[name] = now + EXTENDED_RECOVERY_PAUSE_S
++                self.route_report_stamp[name] = reported
++            else:
++                self.route_pause_until[name] = now + RECOVERY_PAUSE_S
+             self.last_consumed_policy_action[name] = max(
+                 self.last_consumed_policy_action[name], self.route_pause_until[name])
+             self.passage_continuations.pop(name, None)
+@@ -1324,6 +1338,28 @@ class Coordinator(object):
+                     self.current_goal_id[other] = None
+                     self.current_path[other] = None
+
++    def _drain_route_finished_events(self):
++        while True:
++            try:
++                name, received, displacement = self.route_finished_events.get_nowait()
++            except Empty:
++                return
++            reported = self.route_report_stamp.get(name)
++            now = self._control_now()
++            deadline = self.route_pause_until.get(name, -math.inf)
++            if reported is None or not reported <= received <= now or now >= deadline:
++                continue
++            self.route_report_stamp.pop(name)
++            resume = min(deadline, now + RECOVERY_RELEASE_DELAY_S)
++            self.route_pause_until[name] = resume
++            if self.last_consumed_policy_action[name] == deadline:
++                self.last_consumed_policy_action[name] = resume
++            elapsed, _ = self._frontier_trace_snapshot()
++            self.frontier_trace.record(
++                'route_recovery_resume', robot=name, elapsed_sim_s=elapsed, control_stamp=now,
++                report_stamp=reported, result_stamp=received,
++                displacement_m=displacement, pause_until=resume)
++
+     def _route_target_available(self, name, target):
+         return (not getattr(self, 'guarded_route_recovery', False) or
+                 self.route_failures.available(name, target, self._control_now()))
+@@ -1345,6 +1381,8 @@ class Coordinator(object):
+         if recovery_succeeded(
+                 displacement, self.recovery_success_distance):
+             self.recovery_successes += 1
++        if self.displacement_recovery:
++            self.route_finished_events.put((name, self._control_now(), displacement))
+
+     def _clearance_cb(self, msg, name):
+         self.clearance_telemetry.observe(
+@@ -2667,6 +2705,8 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+
+             if self.guarded_route_recovery:
+                 self._drain_route_recovery_events()
++                if self.displacement_recovery:
++                    self._drain_route_finished_events()
+             if self.vision_enabled and self.clearance_mode:
+                 self._refresh_directional_clearance()
+             if (self.vision_enabled and
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index 7f1da51..430c939 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -35,7 +35,9 @@ from policy_goal import POLICY_IDLE_Z
+ from active_passage import INSPECTION_Z, angle_delta, scan_turn
+ from depth_corridor import LOCAL_CAMERA_POSE, depth_image_points, image_intrinsics
+ from depth_velocity import DEPTH_VELOCITY_MODES, DepthVelocityLimiter
+-from route_recovery import GUARDED_RECOVERY_DURATION_S, guarded_recovery_command
++from route_recovery import (
++    EXTENDED_RECOVERY_DURATION_S, GUARDED_RECOVERY_DURATION_S, RECOVERY_MOTION_MODES,
++    displacement_recovery_stop, guarded_recovery_command)
+ from motion_safety import (
+     clearance_guided_turn_direction, clearance_speed_scale,
+     frontal_clearance)
+@@ -333,6 +335,12 @@ def main():
+     route_recovery_mode = rospy.get_param('~route_recovery_mode', 'legacy')
+     if route_recovery_mode not in ('legacy', 'guarded'):
+         raise ValueError('route_recovery_mode must be legacy or guarded')
++    recovery_motion_mode = rospy.get_param('~recovery_motion_mode', 'fixed')
++    if recovery_motion_mode not in RECOVERY_MOTION_MODES:
++        raise ValueError('recovery_motion_mode must be fixed or displacement')
++    displacement_recovery = recovery_motion_mode == 'displacement'
++    if displacement_recovery and route_recovery_mode != 'guarded':
++        raise ValueError('displacement recovery requires guarded route recovery')
+     recovery_direction_mode = rospy.get_param(
+         '~recovery_direction_mode', 'random')
+     if recovery_direction_mode not in ('random', 'clearance'):
+@@ -356,6 +364,7 @@ def main():
+                   robot_name, safety_shield_enabled,
+                   safety_stop_range, safety_slow_range)
+     rospy.loginfo('[%s] route recovery mode=%s', robot_name, route_recovery_mode)
++    rospy.loginfo('[%s] recovery motion mode=%s', robot_name, recovery_motion_mode)
+     rospy.loginfo('[%s] recovery direction: mode=%s',
+                   robot_name, recovery_direction_mode)
+     rospy.loginfo('[%s] depth velocity mode=%s', robot_name, agent.depth_velocity_mode)
+@@ -379,20 +388,31 @@ def main():
+     recovering_until = 0.0
+     recovery_turn_dir = 1.0
+     recovery_start_pos = None
++    recovery_start_time = 0.0
+     recovery_start_yaw = 0.0
+
+     while not rospy.is_shutdown():
+         now = control_time()
+
+-        if recovery_start_pos is not None and now >= recovering_until:
++        finish = None
++        if recovery_start_pos is not None and (displacement_recovery or now >= recovering_until):
+             x, y, _ = agent.get_pose()
+             displacement = math.hypot(
+                 x - recovery_start_pos[0], y - recovery_start_pos[1])
++            if displacement_recovery:
++                finish = displacement_recovery_stop(now - recovery_start_time, displacement)
++            else:
++                finish = 'fixed_duration'
++        if finish is not None:
++            recovering_until = now
+             agent.recovery_displacement_pub.publish(
+                 Float32(data=displacement))
+             rospy.loginfo(
+                 '[%s] recovery displacement: %.3fm',
+                 robot_name, displacement)
++            rospy.loginfo(
++                '[%s] recovery outcome=%s start=%.6f end=%.6f distance=%.6f',
++                robot_name, finish, recovery_start_time, now, displacement)
+             recovery_start_pos = None
+             stuck_check_pos = (x, y)
+             stuck_check_time = now
+@@ -410,7 +430,7 @@ def main():
+             if route_recovery_mode == 'guarded':
+                 x, y, yaw = agent.get_pose()
+                 scan = agent.laser_ig.get_msg(timeout=0.1)
+-                elapsed = now - (recovering_until - GUARDED_RECOVERY_DURATION_S)
++                elapsed = now - recovery_start_time
+                 heading_change = recovery_turn_dir * angle_delta(yaw, recovery_start_yaw)
+                 front, side, phase = None, None, 'stale'
+                 if scan is not None:
+@@ -446,10 +466,14 @@ def main():
+                 if moved < STUCK_DIST_THRESHOLD:
+                     rospy.logwarn("[%s] stuck detected (moved %.2fm in %.1fs), starting recovery",
+                                    robot_name, moved, STUCK_CHECK_WINDOW)
+-                    recovery_duration = (GUARDED_RECOVERY_DURATION_S if route_recovery_mode == 'guarded'
+-                                         else RECOVERY_DURATION)
++                    if displacement_recovery:
++                        recovery_duration = EXTENDED_RECOVERY_DURATION_S
++                    else:
++                        recovery_duration = (GUARDED_RECOVERY_DURATION_S if route_recovery_mode == 'guarded'
++                                             else RECOVERY_DURATION)
+                     recovering_until = now + recovery_duration
+                     recovery_start_pos = pos
++                    recovery_start_time = now
+                     if route_recovery_mode == 'guarded':
+                         _, _, recovery_start_yaw = agent.get_pose()
+                     random_direction = agent.rng.choice([-1.0, 1.0])
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py b/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py
+index fc96edf..e4f909f 100644
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/route_recovery.py
+@@ -10,12 +10,28 @@ FAILED_TARGET_RADIUS_M = 0.75
+ FAILED_ROUTE_RADIUS_M = 0.65
+ FAILED_ROUTE_EXTRA_COST = 3.0
+ GUARDED_RECOVERY_DURATION_S = 2.50
+-RECOVERY_PAUSE_S = GUARDED_RECOVERY_DURATION_S + 0.25
++RECOVERY_RELEASE_DELAY_S = 0.25
++RECOVERY_PAUSE_S = GUARDED_RECOVERY_DURATION_S + RECOVERY_RELEASE_DELAY_S
++EXTENDED_RECOVERY_DURATION_S = 6.25
++EXTENDED_RECOVERY_PAUSE_S = EXTENDED_RECOVERY_DURATION_S + RECOVERY_RELEASE_DELAY_S
++MIN_RECOVERY_PROGRESS_M = 0.12
++RECOVERY_MOTION_MODES = ('fixed', 'displacement')
+ RECOVERY_TURN_MIN_S = 0.65
+ RECOVERY_HEADING_MIN_RAD = 0.35
+ MAX_RECOVERY_SCAN_AGE_S = 0.40
+
+
++def displacement_recovery_stop(elapsed_s, displacement_m):
++    """Continue beyond the fixed window only if the robot has made progress."""
++    if displacement_m >= FAILED_ROUTE_RADIUS_M:
++        return 'cleared_region'
++    if elapsed_s >= EXTENDED_RECOVERY_DURATION_S:
++        return 'time_limit'
++    if elapsed_s >= GUARDED_RECOVERY_DURATION_S and displacement_m < MIN_RECOVERY_PROGRESS_M:
++        return 'insufficient_progress'
++    return None
++
++
+ class RouteFailureMemory:
+     """Keep per-robot failed targets and route locations outside the occupancy map."""
+
+diff --git a/turtlebot_ddpg/tests/test_route_recovery.py b/turtlebot_ddpg/tests/test_route_recovery.py
+index fc968df..19be22f 100644
+--- a/turtlebot_ddpg/tests/test_route_recovery.py
++++ b/turtlebot_ddpg/tests/test_route_recovery.py
+@@ -13,7 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_ex
+ from exploration_coordinator import Coordinator, astar_grid
+ from recovery_memory import TimedSpatialBlacklist
+ from route_recovery import (
+-    RECOVERY_PAUSE_S, TARGET_COOLDOWN_S, RouteFailureMemory, available_owner,
++    EXTENDED_RECOVERY_DURATION_S, EXTENDED_RECOVERY_PAUSE_S, FAILED_ROUTE_RADIUS_M,
++    GUARDED_RECOVERY_DURATION_S, RECOVERY_PAUSE_S, RECOVERY_RELEASE_DELAY_S,
++    TARGET_COOLDOWN_S, RouteFailureMemory, available_owner, displacement_recovery_stop,
+     guarded_recovery_command)
+
+
+@@ -78,6 +80,16 @@ class RouteRecoveryTests(unittest.TestCase):
+         ranges[12] = float('inf')
+         self.assertEqual(self.command(ranges)[:2], (0.15, 0.0))
+
++    def test_displacement_recovery_only_extends_motion_with_progress(self):
++        self.assertIsNone(displacement_recovery_stop(1.0, 0))
++        self.assertEqual(displacement_recovery_stop(GUARDED_RECOVERY_DURATION_S, 0.05),
++                         'insufficient_progress')
++        self.assertIsNone(displacement_recovery_stop(GUARDED_RECOVERY_DURATION_S, 0.20))
++        self.assertEqual(displacement_recovery_stop(5.2, FAILED_ROUTE_RADIUS_M),
++                         'cleared_region')
++        self.assertEqual(displacement_recovery_stop(EXTENDED_RECOVERY_DURATION_S, 0.62),
++                         'time_limit')
++
+     def recovery_coordinator(self, peer_goal, robot_scope=False):
+         coord = Coordinator.__new__(Coordinator)
+         coord.robot_names = ['robot1', 'robot2']
+@@ -90,6 +102,8 @@ class RouteRecoveryTests(unittest.TestCase):
+         coord.robot_recovery_frontiers = robot_scope
+         coord.route_failures = RouteFailureMemory(exclude_failed_positions=robot_scope)
+         coord.route_pause_until = {}
++        coord.route_report_stamp = {}
++        coord.route_finished_events = SimpleQueue()
+         coord.last_consumed_policy_action = {'robot1': 4.0, 'robot2': 4.0}
+         coord.passage_continuations = {'robot1': {}}
+         coord.passage_inspections = {}
+@@ -126,6 +140,23 @@ class RouteRecoveryTests(unittest.TestCase):
+                 events = [call.args[0] for call in coord.frontier_trace.record.call_args_list]
+                 self.assertEqual('route_peer_retirement' in events, not robot_scope)
+
++    def test_displacement_recovery_releases_only_after_a_current_result(self):
++        coord = self.recovery_coordinator((3.0, 1.0))
++        coord.displacement_recovery = True
++        coord._drain_route_recovery_events()
++        deadline = 5.0 + EXTENDED_RECOVERY_PAUSE_S
++        self.assertEqual(coord.route_pause_until['robot1'], deadline)
++        coord.route_finished_events.put(('robot1', 4.8, 0.4))
++        coord._drain_route_finished_events()
++        self.assertEqual(coord.route_pause_until['robot1'], deadline)
++        coord._control_now.return_value = 9.5
++        coord.route_finished_events.put(('robot1', 9.45, 0.66))
++        coord._drain_route_finished_events()
++        self.assertEqual(coord.route_pause_until['robot1'], 9.5 + RECOVERY_RELEASE_DELAY_S)
++        self.assertEqual(coord.last_consumed_policy_action['robot1'],
++                         coord.route_pause_until['robot1'])
++        self.assertNotIn('robot1', coord.route_report_stamp)
++
+
+
+ if __name__ == '__main__':

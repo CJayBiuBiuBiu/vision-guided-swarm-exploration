@@ -95,6 +95,8 @@ The [route-recovery study](route-recovery-study.md) retires failed
 assignments and tests temporary route memory on repeated new topologies.
 The [frontier exclusion study](recovery-scope-study.md) compares shared
 and robot-scoped masks after a navigation failure.
+The [recovery displacement study](recovery-displacement-study.md)
+tests how far each robot moves before the coordinator resumes navigation.
 The [RGB encoder audit](rgb-encoder-audit.md) compares the checkpoints
 and tests whether their direction scores agree with the planar scan. The [closed-loop retest](rgb-encoder-retest.md)
 checks the corrected checkpoint with matched trials and a frozen actor.

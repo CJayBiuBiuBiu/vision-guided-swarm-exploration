@@ -1,0 +1,5 @@
+layout_group,mode,runs,coverage_mean_pct,crossed_runs,runs_90,runs_97,stuck_total,repeat_total,repeats_inside_failed_region,near_total,path_mean_m,recovery_outcomes,cleared_region,cleared_region_fraction,mean_recovery_displacement_m
+all,fixed,1,65.5738,0,0,0,2,0,0,0,32.3651,2,0,0.0,0.23916500000000002
+all,displacement,1,86.0656,1,0,0,5,1,0,1,54.4486,5,5,1.0,0.66233
+diagnostic,fixed,1,65.5738,0,0,0,2,0,0,0,32.3651,2,0,0.0,0.23916500000000002
+diagnostic,displacement,1,86.0656,1,0,0,5,1,0,1,54.4486,5,5,1.0,0.66233

@@ -36,6 +36,8 @@ def schedule(stage):
 def inputs(run, package, actor, rgb, files, geometry, directory):
     record = route_inputs(run, package, actor, rgb, files, geometry, directory)
     record["launch"].append(f"recovery_frontier_scope:={run['recovery_frontier_scope']}")
+    if "recovery_motion_mode" in run:
+        record["launch"].append(f"recovery_motion_mode:={run['recovery_motion_mode']}")
     return record
 
 
@@ -60,14 +62,20 @@ def verify(run, package, actor, rgb, files, geometry, directory):
     recovery = audit_route(run, original_events, logs, result, directory)
     scoped = audit_scope(run, events, metrics, logs, directory)
     recovery["route_target_rejections"] = scoped["scope_target_rejections"]
+    motion = {}
+    if "recovery_motion_mode" in run:
+        from audit_recovery_displacement import audit_displacement
+
+        motion = audit_displacement(run, events, metrics, logs, directory)
     return dict(**run, **result, **audit_decisions(run, directory, logs), **actions,
                 **audit_rechecks(run, directory, actions["recheck_requests"]),
-                **audit_gain(run, events, directory), **recovery, **scoped,
+                **audit_gain(run, events, directory), **recovery, **scoped, **motion,
                 **crossing_audit(metrics, geometry))
 
 
 def trial(run, package, actor, rgb, files, geometry, output, audit_only):
-    name = f"{run['scene']}_{run['environment_seed']}_{run['recovery_frontier_scope']}"
+    condition = run.get("recovery_motion_mode", run["recovery_frontier_scope"])
+    name = f"{run['scene']}_{run['environment_seed']}_{condition}"
     marker = output / f"{name}.complete.json"
     if marker.exists():
         directory = output / json.loads(marker.read_text())["directory"]

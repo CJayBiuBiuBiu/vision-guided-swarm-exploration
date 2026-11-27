@@ -1,0 +1,8 @@
+scene,environment_seed,recovery_motion_mode,layout_group,robot,reason,start_s,end_s,displacement_m,duration_s
+route_diagnostic,71322,fixed,diagnostic,robot1,fixed_duration,25.175,27.675,0.228406,2.5
+route_diagnostic,71322,fixed,diagnostic,robot2,fixed_duration,92.774,95.274,0.249924,2.5
+route_diagnostic,71322,displacement,diagnostic,robot1,cleared_region,11.074,16.374,0.660218,5.299999999999999
+route_diagnostic,71322,displacement,diagnostic,robot1,cleared_region,51.874,57.274,0.663998,5.399999999999999
+route_diagnostic,71322,displacement,diagnostic,robot3,cleared_region,89.373,94.573,0.663589,5.199999999999989
+route_diagnostic,71322,displacement,diagnostic,robot1,cleared_region,92.374,97.674,0.662486,5.300000000000011
+route_diagnostic,71322,displacement,diagnostic,robot1,cleared_region,101.982,107.374,0.661359,5.391999999999996

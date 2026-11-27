@@ -19,6 +19,12 @@ def audit_route(run, events, logs, result, directory):
 
     mode = run["route_recovery_mode"]
     guarded = mode == "guarded"
+    adaptive = run.get("recovery_motion_mode") == "displacement"
+    pause_duration = RECOVERY_PAUSE_S
+    if adaptive:
+        from route_recovery import EXTENDED_RECOVERY_PAUSE_S, RECOVERY_RELEASE_DELAY_S
+
+        pause_duration = EXTENDED_RECOVERY_PAUSE_S
     counts = dict.fromkeys(ROUTE_FIELDS, 0)
 
     def require(ok, reason):
@@ -30,7 +36,7 @@ def audit_route(run, events, logs, result, directory):
         "Recovery configuration differs")
     offset = next(event["control_stamp"] - event["elapsed_sim_s"] for event in events
                   if "control_stamp" in event and "elapsed_sim_s" in event)
-    active, pending, pauses = {}, {}, {}
+    active, pending, pauses, reports = {}, {}, {}, {}
     memory = RouteFailureMemory()
     for event in events[1:]:
         kind, robot = event["event"], event.get("robot")
@@ -52,7 +58,7 @@ def audit_route(run, events, logs, result, directory):
             require(guarded and robot not in pending, "Unexpected recovery event")
             now = event["control_stamp"]
             require(event["report_stamp"] <= now + 1e-6
-                    and abs(event["pause_until"] - now - RECOVERY_PAUSE_S) < 1e-6
+                    and abs(event["pause_until"] - now - pause_duration) < 1e-6
                     and abs(event["memory_until"] - now - TARGET_COOLDOWN_S) < 1e-6,
                     "Recovery timing differs")
             goal, fid = event["goal_xy"], event["goal_id"]
@@ -67,8 +73,18 @@ def audit_route(run, events, logs, result, directory):
             else:
                 require(goal is None and fid is None, "Untraced recovery target")
             pauses[robot] = event["pause_until"]
+            reports[robot] = event["report_stamp"]
             memory.record(robot, event["stuck_xy"], goal, now)
             counts["route_events"] += 1
+        elif kind == "route_recovery_resume":
+            now = event["control_stamp"]
+            require(adaptive and robot in reports
+                    and reports[robot] == event["report_stamp"]
+                    and event["report_stamp"] <= event["result_stamp"] <= now < pauses[robot]
+                    and event["pause_until"] == min(pauses[robot], now + RECOVERY_RELEASE_DELAY_S),
+                    "Navigation resumed outside the recovery window")
+            pauses[robot] = event["pause_until"]
+            del reports[robot]
         elif kind == "route_target_rejected":
             require(guarded and not memory.available(
                 robot, event["target_xy"], event["control_stamp"] - 1e-6),
