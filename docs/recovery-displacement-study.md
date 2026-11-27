@@ -43,8 +43,9 @@ of the original stuck location in the 20 s after completion.
 It uses episodes with a full 20 s of follow-up for this
 second measure. The figure reports counts for each pair.
 
-Prepare the workspace through patch 22. Run the study in the
-sourced ROS environment.
+Use repository revision `2d07c4c` to match the verified
+script hashes. Prepare the workspace through patch 22 and run
+the study in the sourced ROS environment.
 
 ```sh
 python3 scripts/run_recovery_displacement_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT" --plan-only

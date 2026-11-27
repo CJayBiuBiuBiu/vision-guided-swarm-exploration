@@ -1,0 +1,242 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index e730e26..0d36f78 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -76,6 +76,7 @@
+   <arg name="gazebo_lockstep" default="false"/>
+   <arg name="route_recovery_mode" default="legacy"/>
+   <arg name="recovery_motion_mode" default="fixed"/>
++  <arg name="waypoint_visibility_mode" default="off"/>
+   <arg name="recovery_frontier_scope" default="shared"/>
+   <arg name="recovery_direction_mode" default="random"
+        doc="random baseline or clearance-guided laser recovery"/>
+@@ -295,6 +296,7 @@
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
+     <param name="recovery_frontier_scope" value="$(arg recovery_frontier_scope)"/>
++    <param name="waypoint_visibility_mode" value="$(arg waypoint_visibility_mode)"/>
+     <param name="recovery_success_distance" value="$(arg recovery_success_distance)"/>
+     <param name="near_collision_range" value="$(arg near_collision_range)"/>
+     <param name="near_collision_clear_range"
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+index e4d1e5e..b01bd8f 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/exploration_coordinator.py
+@@ -64,6 +64,7 @@ from route_recovery import (
+ from passage_information import (
+     MIN_GAIN_CELLS, map_evidence, region_indices, select_gain, select_inspection,
+     unknown_corridor_cells, useful_gain)
++from waypoint_visibility import WAYPOINT_VISIBILITY_MODES, visible_lookahead
+ from depth_corridor import (
+     MAX_POSE_SKEW_S, MAX_SENSOR_SKEW_S, ActiveDepthConfirmation, corridor_hit,
+     depth_image_points, fresh_sample, image_intrinsics, laser_points, reroute_exclusions)
+@@ -654,6 +655,13 @@ class Coordinator(object):
+         self.route_pause_until = {}
+         self.route_report_stamp = {}
+         self.route_finished_events = SimpleQueue()
++        self.waypoint_visibility_mode = rospy.get_param('~waypoint_visibility_mode', 'off')
++        if self.waypoint_visibility_mode not in WAYPOINT_VISIBILITY_MODES:
++            raise ValueError('Invalid waypoint_visibility_mode')
++        if self.waypoint_visibility_mode == 'shorten' and (
++                self.mapping_mode != 'laser_scan' or
++                rospy.get_param('~policy_wait_mode', 'legacy') == 'legacy'):
++            raise ValueError('Waypoint shortening requires scan mapping and waypoint retirement')
+         self.recovery_direction_mode = rospy.get_param(
+             '~recovery_direction_mode', 'random')
+         if self.recovery_direction_mode not in ('random', 'clearance'):
+@@ -928,7 +936,8 @@ class Coordinator(object):
+         if trace_path:
+             cue_metadata = dict(route_recovery_mode=self.route_recovery_mode,
+                                 recovery_frontier_scope=self.recovery_frontier_scope,
+-                                recovery_motion_mode=self.recovery_motion_mode)
++                                recovery_motion_mode=self.recovery_motion_mode,
++                                waypoint_visibility_mode=self.waypoint_visibility_mode)
+             if self.matched_clearance:
+                 cue_metadata.update(clearance_actor_cue=self.clearance_actor_cue,
+                                     clearance_rules_cue=self.clearance_rules_cue)
+@@ -1668,6 +1677,42 @@ class Coordinator(object):
+         distance = np.linalg.norm(direction)
+         return pos + direction * min(1.0, MAX_WAYPOINT_DIST / max(distance, 1e-9))
+
++    def _publish_navigation_waypoint(self, name, pos, goal, path):
++        requested = self._next_waypoint(pos, goal, path)
++        waypoint = requested
++        if self.waypoint_visibility_mode != 'off':
++            grid = self.grid.copy()
++            visible = visible_lookahead(grid, pos, path, requested, self._cell_index,
++                                        MAX_WAYPOINT_DIST)
++            if self.waypoint_visibility_mode == 'shorten':
++                waypoint = visible
++            if self.frontier_trace is not None:
++                elapsed, _ = self._frontier_trace_snapshot()
++                self.frontier_trace.record(
++                    'waypoint_visibility', robot=name, elapsed_sim_s=elapsed,
++                    control_stamp=self._control_now(), frontier_id=int(self.current_goal_id[name]),
++                    origin_xy=pos.tolist(), target_xy=list(goal), path_xy=path,
++                    requested_xy=requested.tolist(),
++                    candidate_xy=None if visible is None else visible.tolist(),
++                    published_xy=None if waypoint is None else waypoint.tolist(),
++                    map=map_evidence(grid, self.xs, self.ys))
++        if waypoint is None:
++            self._finish_frontier_attempt(name, 'blocked')
++            self.goals_dropped_blocked += 1
++            self.current_goal[name] = None
++            self.current_goal_id[name] = None
++            self.current_path[name] = None
++            self.passage_continuations.pop(name, None)
++            self.depth_commanded_waypoints.pop(name, None)
++            self._retire_policy_waypoint(name)
++            return
++
++        self.targets_pub[name].publish(Point(x=waypoint[0], y=waypoint[1], z=0.0))
++        if self.policy_wait_mode != 'legacy':
++            self.policy_waypoints.add(name)
++        if self.depth_active:
++            self.depth_commanded_waypoints[name] = waypoint
++
+     def _check_active_depth(self):
+         now = rospy.Time.now().to_sec()
+         for name in self.robot_names:
+@@ -2146,6 +2191,11 @@ class Coordinator(object):
+                 name, start, self._cell_index(*frontiers[index]))
+             path_xy = [(self.xs[ix], self.ys[iy]) for ix, iy in path] if path else None
+             waypoint = self._next_waypoint(position, frontiers[index], path_xy)
++            if getattr(self, 'waypoint_visibility_mode', 'off') == 'shorten':
++                waypoint = visible_lookahead(self.grid.copy(), position, path_xy, waypoint,
++                                             self._cell_index, MAX_WAYPOINT_DIST)
++                if waypoint is None:
++                    continue
+             depth_hit = None if depth is None else corridor_hit(depth[1], position, waypoint, 3)
+             laser_hit = None if scan is None else corridor_hit(scan[1], position, waypoint, 1)
+             evaluated.append(dict(frontier_id=int(frontier_ids[index]),
+@@ -3260,15 +3310,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px 14px; text-align: left; }}
+                     self._hold_depth_interruption(name)
+                     continue
+
+-                path_xy = self.current_path.get(name)
+-                waypoint = self._next_waypoint(pos, goal, path_xy)
+-
+-                msg = Point(x=waypoint[0], y=waypoint[1], z=0.0)
+-                self.targets_pub[name].publish(msg)
+-                if self.policy_wait_mode != 'legacy':
+-                    self.policy_waypoints.add(name)
+-                if self.depth_active:
+-                    self.depth_commanded_waypoints[name] = waypoint
++                self._publish_navigation_waypoint(name, pos, goal, self.current_path.get(name))
+
+             rate = self._safe_sleep(rate)
+
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/waypoint_visibility.py b/turtlebot_ddpg/scripts/voronoi_exploration/waypoint_visibility.py
+new file mode 100644
+index 0000000..5d4ca07
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/waypoint_visibility.py
+@@ -0,0 +1,39 @@
++"""Keep lookahead commands from cutting through occupied scan-map cells."""
++
++import math
++
++import numpy as np
++
++from scan_mapping import bresenham_cells
++
++
++WAYPOINT_VISIBILITY_MODES = ('off', 'observe', 'shorten')
++
++
++def waypoint_ray_blocked(grid, start, end):
++    """Ignore the robot's own cell and test the remaining rasterised ray."""
++    return any(grid[y, x] == 2 for x, y in bresenham_cells(start, end)[1:])
++
++
++def visible_lookahead(grid, pos, path, requested, cell_index, lookahead):
++    """Return the requested point or the farthest visible preceding path point."""
++    start = cell_index(*pos)
++    if not waypoint_ray_blocked(grid, start, cell_index(*requested)):
++        return requested
++    if not path:
++        return None
++
++    nearest = int(np.argmin(np.linalg.norm(np.asarray(path) - pos, axis=1)))
++    travelled = 0.0
++    candidates = []
++    for before, after in zip(path[nearest:], path[nearest + 1:]):
++        travelled += math.dist(before, after)
++        if travelled > lookahead:
++            break
++        candidates.append(after)
++
++    for point in reversed(candidates):
++        cell = cell_index(*point)
++        if cell != start and not waypoint_ray_blocked(grid, start, cell):
++            return np.asarray(point)
++    return None
+diff --git a/turtlebot_ddpg/tests/test_waypoint_visibility.py b/turtlebot_ddpg/tests/test_waypoint_visibility.py
+new file mode 100644
+index 0000000..465810e
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_waypoint_visibility.py
+@@ -0,0 +1,63 @@
++"""Check scan-visible lookahead and retirement of obstructed commands."""
++
++from pathlib import Path
++import sys
++import unittest
++from unittest.mock import Mock
++
++import numpy as np
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
++from exploration_coordinator import Coordinator, POLICY_IDLE_Z
++from waypoint_visibility import visible_lookahead, waypoint_ray_blocked
++
++
++class WaypointVisibilityTests(unittest.TestCase):
++    def test_shortens_to_farther_clear_path_cell_around_corner(self):
++        grid = np.ones((4, 4), dtype=np.uint8)
++        grid[1, 1] = 2
++        path = [(0, 0), (0, 1), (0, 2), (1, 2), (2, 2)]
++        locate = lambda x, y: (int(x), int(y))
++        pos = np.array([0.0, 0.0])
++        original = np.array([2.0, 2.0])
++        selected = visible_lookahead(grid, pos, path, original, locate, 4.0)
++        self.assertTrue(waypoint_ray_blocked(grid, (0, 0), (2, 2)))
++        np.testing.assert_array_equal(selected, [0, 2])
++        self.assertEqual(grid[1, 1], 2)
++
++    def test_preserves_unobstructed_target_and_suppresses_blocked_beeline(self):
++        grid = np.zeros((3, 3), dtype=np.uint8)
++        grid[0, 0] = 2
++        locate = lambda x, y: (int(x), int(y))
++        pos, target = np.array([0, 0]), np.array([2, 2])
++        self.assertIs(visible_lookahead(grid, pos, None, target, locate, 3.0), target)
++        grid[1, 1] = 2
++        self.assertIsNone(visible_lookahead(grid, pos, None, target, locate, 3.0))
++
++    def test_blocked_command_retires_previous_waypoint_and_active_goal(self):
++        coord = Coordinator.__new__(Coordinator)
++        name = 'robot1'
++        coord.waypoint_visibility_mode = 'shorten'
++        coord.frontier_trace = None
++        coord.grid = np.zeros((3, 3), dtype=np.uint8)
++        coord.grid[0, 1] = 2
++        coord._cell_index = lambda x, y: (int(x), int(y))
++        coord.current_goal = {name: (2.0, 0.0)}
++        coord.current_goal_id = {name: 9}
++        coord.current_path = {name: None}
++        coord.policy_waypoints = {name}
++        coord.positions = {name: (0.0, 0.0)}
++        coord.targets_pub = {name: Mock()}
++        coord.passage_continuations = {}
++        coord.depth_commanded_waypoints = {name: np.array([2.0, 0.0])}
++        coord.goals_dropped_blocked = 0
++        coord._finish_frontier_attempt = Mock()
++        coord._publish_navigation_waypoint(name, np.array([0.0, 0.0]),
++                                           coord.current_goal[name], None)
++        coord._finish_frontier_attempt.assert_called_once_with(name, 'blocked')
++        self.assertIsNone(coord.current_goal[name])
++        self.assertIsNone(coord.current_goal_id[name])
++        self.assertNotIn(name, coord.depth_commanded_waypoints)
++        self.assertNotIn(name, coord.policy_waypoints)
++        self.assertEqual(coord.targets_pub[name].publish.call_args.args[0].z, POLICY_IDLE_Z)
++        self.assertEqual(coord.goals_dropped_blocked, 1)

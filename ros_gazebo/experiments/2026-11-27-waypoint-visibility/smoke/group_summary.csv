@@ -1,0 +1,5 @@
+layout_group,mode,runs,mean_coverage_pct,mean_path_m,crossing_runs,reached_90,reached_97,stuck_per_10m,near_per_10m,published_blocked_pct,waypoint_checks,published_waypoints,requested_blocked_waypoints,published_blocked_waypoints,shortened_waypoints,withheld_waypoints,stuck_events,near_collision_events,assignments,reached
+all,observe,1,98.2787,51.4494,1,1,1,0.7774629053011308,0.1943657263252827,6.679764243614931,1018,1018,68,68,0,0,4,1,38,19
+all,shorten,1,86.2295,50.858,1,0,0,1.1797553973809431,0.0,0.0,1049,1049,84,0,84,0,6,0,36,16
+diagnostic,observe,1,98.2787,51.4494,1,1,1,0.7774629053011308,0.1943657263252827,6.679764243614931,1018,1018,68,68,0,0,4,1,38,19
+diagnostic,shorten,1,86.2295,50.858,1,0,0,1.1797553973809431,0.0,0.0,1049,1049,84,0,84,0,6,0,36,16
