@@ -1,0 +1,245 @@
+{
+  "ddpg_sha256": "2eae93434e7cc755f15992a73edec561ae2569e0573c4b9faf6b4d85a443bc21",
+  "schedule": [
+    {
+      "dwell_s": 0.25,
+      "gazebo_seed": 71701,
+      "horizon_s": 12.0,
+      "layout": "open_floor",
+      "obstacles": [],
+      "runs": [
+        {
+          "bearing_deg": 90,
+          "distance_m": 0.25,
+          "mode": "ddpg",
+          "name": "left_025"
+        },
+        {
+          "bearing_deg": 90,
+          "distance_m": 0.25,
+          "mode": "near_goal",
+          "name": "left_025"
+        },
+        {
+          "bearing_deg": -90,
+          "distance_m": 0.25,
+          "mode": "near_goal",
+          "name": "right_025"
+        },
+        {
+          "bearing_deg": -90,
+          "distance_m": 0.25,
+          "mode": "ddpg",
+          "name": "right_025"
+        },
+        {
+          "bearing_deg": 90,
+          "distance_m": 0.6,
+          "mode": "ddpg",
+          "name": "left_060"
+        },
+        {
+          "bearing_deg": 90,
+          "distance_m": 0.6,
+          "mode": "near_goal",
+          "name": "left_060"
+        },
+        {
+          "bearing_deg": -90,
+          "distance_m": 0.6,
+          "mode": "near_goal",
+          "name": "right_060"
+        },
+        {
+          "bearing_deg": -90,
+          "distance_m": 0.6,
+          "mode": "ddpg",
+          "name": "right_060"
+        },
+        {
+          "bearing_deg": 135,
+          "distance_m": 0.6,
+          "mode": "ddpg",
+          "name": "left_rear_060"
+        },
+        {
+          "bearing_deg": 135,
+          "distance_m": 0.6,
+          "mode": "near_goal",
+          "name": "left_rear_060"
+        },
+        {
+          "bearing_deg": -135,
+          "distance_m": 0.6,
+          "mode": "near_goal",
+          "name": "right_rear_060"
+        },
+        {
+          "bearing_deg": -135,
+          "distance_m": 0.6,
+          "mode": "ddpg",
+          "name": "right_rear_060"
+        },
+        {
+          "bearing_deg": 0,
+          "distance_m": 0.35,
+          "mode": "ddpg",
+          "name": "near_forward"
+        },
+        {
+          "bearing_deg": 0,
+          "distance_m": 0.35,
+          "mode": "near_goal",
+          "name": "near_forward"
+        },
+        {
+          "bearing_deg": 0,
+          "distance_m": 2.0,
+          "mode": "near_goal",
+          "name": "long_forward"
+        },
+        {
+          "bearing_deg": 0,
+          "distance_m": 2.0,
+          "mode": "ddpg",
+          "name": "long_forward"
+        }
+      ],
+      "tolerance_m": 0.12
+    },
+    {
+      "dwell_s": 0.25,
+      "gazebo_seed": 71702,
+      "horizon_s": 12.0,
+      "layout": "offset_posts",
+      "obstacles": [
+        [
+          0.52,
+          -0.61,
+          0.72,
+          -0.42
+        ],
+        [
+          0.75,
+          0.48,
+          0.95,
+          0.69
+        ],
+        [
+          -0.67,
+          0.65,
+          -0.47,
+          0.85
+        ]
+      ],
+      "runs": [
+        {
+          "bearing_deg": 90,
+          "distance_m": 0.25,
+          "mode": "near_goal",
+          "name": "left_025"
+        },
+        {
+          "bearing_deg": 90,
+          "distance_m": 0.25,
+          "mode": "ddpg",
+          "name": "left_025"
+        },
+        {
+          "bearing_deg": -90,
+          "distance_m": 0.25,
+          "mode": "ddpg",
+          "name": "right_025"
+        },
+        {
+          "bearing_deg": -90,
+          "distance_m": 0.25,
+          "mode": "near_goal",
+          "name": "right_025"
+        },
+        {
+          "bearing_deg": 90,
+          "distance_m": 0.6,
+          "mode": "near_goal",
+          "name": "left_060"
+        },
+        {
+          "bearing_deg": 90,
+          "distance_m": 0.6,
+          "mode": "ddpg",
+          "name": "left_060"
+        },
+        {
+          "bearing_deg": -90,
+          "distance_m": 0.6,
+          "mode": "ddpg",
+          "name": "right_060"
+        },
+        {
+          "bearing_deg": -90,
+          "distance_m": 0.6,
+          "mode": "near_goal",
+          "name": "right_060"
+        },
+        {
+          "bearing_deg": 135,
+          "distance_m": 0.6,
+          "mode": "near_goal",
+          "name": "left_rear_060"
+        },
+        {
+          "bearing_deg": 135,
+          "distance_m": 0.6,
+          "mode": "ddpg",
+          "name": "left_rear_060"
+        },
+        {
+          "bearing_deg": -135,
+          "distance_m": 0.6,
+          "mode": "ddpg",
+          "name": "right_rear_060"
+        },
+        {
+          "bearing_deg": -135,
+          "distance_m": 0.6,
+          "mode": "near_goal",
+          "name": "right_rear_060"
+        },
+        {
+          "bearing_deg": 0,
+          "distance_m": 0.35,
+          "mode": "near_goal",
+          "name": "near_forward"
+        },
+        {
+          "bearing_deg": 0,
+          "distance_m": 0.35,
+          "mode": "ddpg",
+          "name": "near_forward"
+        },
+        {
+          "bearing_deg": 0,
+          "distance_m": 2.0,
+          "mode": "ddpg",
+          "name": "long_forward"
+        },
+        {
+          "bearing_deg": 0,
+          "distance_m": 2.0,
+          "mode": "near_goal",
+          "name": "long_forward"
+        }
+      ],
+      "tolerance_m": 0.12
+    }
+  ],
+  "scripts": {
+    "collect_ddpg_waypoints.py": "64b8ba8c6604cadaa0a4ab910dbc6d16bdb4a35bd3268448775cddabdbe29b75",
+    "run_ddpg_waypoint_benchmark.py": "f1c9b53c5ed2e8e69c1aeae12a4c0df29a1e7dbd3fe9ff6ede221c35b2be9ddc"
+  },
+  "source_tree": "ca3c862a1de8ae16bf6bcff95d9586cb68129c81",
+  "world_sha256": {
+    "offset_posts": "12b7499ad6c12dce22ed93314c2eccc7334c1079e0e73b81d004aa922457aa6d",
+    "open_floor": "bf79e6ed9b2f410c270ef17a2cb3fba8337906c6327f8097435f41a749729bdf"
+  }
+}

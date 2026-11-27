@@ -99,6 +99,8 @@ The [recovery displacement study](recovery-displacement-study.md)
 tests how far each robot moves before the coordinator resumes navigation.
 The [waypoint visibility study](waypoint-visibility-study.md)
 tests whether the live scan map can prevent obstructed path shortcuts.
+The [DDPG waypoint benchmark](ddpg-waypoint-benchmark.md) compares
+the frozen local policy with geometric tracking of close goals.
 The [RGB encoder audit](rgb-encoder-audit.md) compares the checkpoints
 and tests whether their direction scores agree with the planar scan. The [closed-loop retest](rgb-encoder-retest.md)
 checks the corrected checkpoint with matched trials and a frozen actor.

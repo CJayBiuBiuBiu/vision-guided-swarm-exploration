@@ -41,7 +41,8 @@ Coverage, passage crossing, stuck reports and laser
 near-collision threshold events are reported alongside the
 number of shortened and withheld points.
 
-Prepare the ROS workspace through patch 23 and source it.
+Use repository revision `06e4969` to match the archived study
+scripts. Prepare the ROS workspace through patch 23 and source it.
 
 ```sh
 python3 scripts/run_waypoint_visibility_study.py formal "$ROS_PROJECT" "$ACTOR" "$RGB" "$FORMAL_OUT" --plan-only

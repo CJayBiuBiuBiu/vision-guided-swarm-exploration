@@ -1,0 +1,202 @@
+diff --git a/turtlebot_ddpg/launch/gazebo_research_experiment.launch b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+index 0d36f78..f5c4f54 100644
+--- a/turtlebot_ddpg/launch/gazebo_research_experiment.launch
++++ b/turtlebot_ddpg/launch/gazebo_research_experiment.launch
+@@ -77,6 +77,7 @@
+   <arg name="route_recovery_mode" default="legacy"/>
+   <arg name="recovery_motion_mode" default="fixed"/>
+   <arg name="waypoint_visibility_mode" default="off"/>
++  <arg name="local_tracking_mode" default="ddpg"/>
+   <arg name="recovery_frontier_scope" default="shared"/>
+   <arg name="recovery_direction_mode" default="random"
+        doc="random baseline or clearance-guided laser recovery"/>
+@@ -319,6 +320,7 @@
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
++    <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -335,6 +337,7 @@
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
++    <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -351,6 +354,7 @@
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
++    <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -366,6 +370,7 @@
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
++    <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -381,6 +386,7 @@
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
++    <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -396,6 +402,7 @@
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
++    <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+@@ -411,6 +418,7 @@
+     <param name="recovery_direction_mode" value="$(arg recovery_direction_mode)"/>
+     <param name="route_recovery_mode" value="$(arg route_recovery_mode)"/>
+     <param name="recovery_motion_mode" value="$(arg recovery_motion_mode)"/>
++    <param name="local_tracking_mode" value="$(arg local_tracking_mode)"/>
+     <param name="depth_velocity_mode" value="$(arg depth_velocity_mode)"/>
+     <param name="depth_velocity_trace_dir" value="$(arg depth_velocity_trace_dir)" type="str"/>
+   </node>
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+index 430c939..25c7f05 100755
+--- a/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/multi_robot_explorer.py
+@@ -41,6 +41,7 @@ from route_recovery import (
+ from motion_safety import (
+     clearance_guided_turn_direction, clearance_speed_scale,
+     frontal_clearance)
++from near_goal_tracking import LOCAL_TRACKING_MODES, near_goal_command
+
+ STATE_DIM = 28
+ WEIGHTS_PATH = os.path.normpath(os.path.join(
+@@ -97,7 +98,8 @@ class RobotAgent(object):
+                  safety_shield_enabled=False,
+                  safety_stop_range=0.20,
+                  safety_slow_range=0.35,
+-                 depth_velocity_mode='off', depth_velocity_trace_dir=''):
++                 depth_velocity_mode='off', depth_velocity_trace_dir='',
++                 local_tracking_mode='ddpg'):
+         self.robot_name = robot_name
+         robot_index = int(robot_name[-1]) if robot_name[-1:].isdigit() else 0
+         self.experiment_seed = int(experiment_seed) + robot_index
+@@ -160,6 +162,10 @@ class RobotAgent(object):
+
+         self.prev_linear = 0.0
+         self.prev_angular = 0.0
++        if local_tracking_mode not in LOCAL_TRACKING_MODES:
++            raise ValueError('local_tracking_mode must be ddpg or near_goal')
++        self.local_tracking_mode = local_tracking_mode
++        self.last_tracking_source = 'ddpg'
+
+     def _depth_info_cb(self, msg):
+         info = image_intrinsics(msg)
+@@ -273,9 +279,18 @@ class RobotAgent(object):
+
+     def step(self, actor_model):
+         state, pos, distance, front_clearance = self.build_state()
+-        action = actor_model.predict(state, verbose=0)
+-        angular = float(action[0][0])
+-        linear = float(action[0][1]) * 0.26
++        tracking = None
++        if self.local_tracking_mode == 'near_goal':
++            tracking = near_goal_command(distance, float(state[0, -3]), self.last_min_range,
++                                         rospy.get_time() - self.last_scan_stamp)
++        if tracking is None:
++            action = actor_model.predict(state, verbose=0)
++            angular = float(action[0][0])
++            linear = float(action[0][1]) * 0.26
++            self.last_tracking_source = 'ddpg'
++        else:
++            linear, angular = tracking
++            self.last_tracking_source = 'near_goal'
+         if self.safety_shield_enabled:
+             linear *= clearance_speed_scale(
+                 front_clearance, self.safety_stop_range,
+@@ -354,7 +369,8 @@ def main():
+         safety_stop_range=safety_stop_range,
+         safety_slow_range=safety_slow_range,
+         depth_velocity_mode=rospy.get_param('~depth_velocity_mode', 'off'),
+-        depth_velocity_trace_dir=rospy.get_param('~depth_velocity_trace_dir', ''))
++        depth_velocity_trace_dir=rospy.get_param('~depth_velocity_trace_dir', ''),
++        local_tracking_mode=rospy.get_param('~local_tracking_mode', 'ddpg'))
+     rospy.loginfo('[%s] experiment_seed=%d (robot seed=%d)',
+                   robot_name, experiment_seed, agent.experiment_seed)
+     rospy.loginfo('[%s] near-collision hysteresis: event<=%.3fm, clear>=%.3fm',
+@@ -368,6 +384,7 @@ def main():
+     rospy.loginfo('[%s] recovery direction: mode=%s',
+                   robot_name, recovery_direction_mode)
+     rospy.loginfo('[%s] depth velocity mode=%s', robot_name, agent.depth_velocity_mode)
++    rospy.loginfo('[%s] local tracking mode=%s', robot_name, agent.local_tracking_mode)
+
+     rospy.loginfo("[%s] waiting for first laser/model_states message...", robot_name)
+     agent.laser_ig.get_msg(timeout=10.0)
+diff --git a/turtlebot_ddpg/scripts/voronoi_exploration/near_goal_tracking.py b/turtlebot_ddpg/scripts/voronoi_exploration/near_goal_tracking.py
+new file mode 100644
+index 0000000..2d1a125
+--- /dev/null
++++ b/turtlebot_ddpg/scripts/voronoi_exploration/near_goal_tracking.py
+@@ -0,0 +1,26 @@
++"""Track close waypoints geometrically while the filtered laser is clear."""
++
++import math
++
++
++LOCAL_TRACKING_MODES = ('ddpg', 'near_goal')
++NEAR_GOAL_RANGE_M = 1.0
++NEAR_GOAL_CLEARANCE_M = 0.35
++NEAR_GOAL_STOP_M = 0.08
++MAX_SCAN_AGE_S = 0.40
++FORWARD_ALIGNMENT_RAD = math.pi / 4
++
++
++def near_goal_command(distance_m, bearing_rad, clearance_m, scan_age_s):
++    """Return a bounded point-tracking action or defer to DDPG."""
++    if not all(math.isfinite(value) for value in (distance_m, bearing_rad, clearance_m, scan_age_s)):
++        return None
++    if not (0 <= distance_m <= NEAR_GOAL_RANGE_M and
++            clearance_m >= NEAR_GOAL_CLEARANCE_M and 0 <= scan_age_s <= MAX_SCAN_AGE_S):
++        return None
++    if distance_m <= NEAR_GOAL_STOP_M:
++        return 0.0, 0.0
++    alignment = max(0.0, 1.0 - abs(bearing_rad) / FORWARD_ALIGNMENT_RAD)
++    linear = min(0.20, 0.55 * distance_m) * alignment
++    angular = min(0.80, max(-0.80, 1.8 * bearing_rad))
++    return linear, angular
+diff --git a/turtlebot_ddpg/tests/test_near_goal_tracking.py b/turtlebot_ddpg/tests/test_near_goal_tracking.py
+new file mode 100644
+index 0000000..8fba50b
+--- /dev/null
++++ b/turtlebot_ddpg/tests/test_near_goal_tracking.py
+@@ -0,0 +1,23 @@
++"""Check the near-goal action bounds and the handoff to the frozen policy."""
++
++import math
++from pathlib import Path
++import sys
++import unittest
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/voronoi_exploration'))
++from near_goal_tracking import near_goal_command
++
++
++class NearGoalTrackingTests(unittest.TestCase):
++    def test_rotates_toward_a_close_target_before_advancing(self):
++        self.assertEqual(near_goal_command(0.60, math.pi / 2, 0.50, 0.10), (0.0, 0.80))
++        self.assertEqual(near_goal_command(0.60, -math.pi / 2, 0.50, 0.10), (0.0, -0.80))
++        self.assertEqual(near_goal_command(0.60, 0.0, 0.50, 0.10), (0.20, 0.0))
++        self.assertEqual(near_goal_command(0.05, 1.0, 0.50, 0.10), (0.0, 0.0))
++
++    def test_defers_when_clearance_distance_or_scan_age_is_outside_gate(self):
++        self.assertIsNone(near_goal_command(1.01, 0, 0.50, 0.10))
++        self.assertIsNone(near_goal_command(0.60, 0, 0.34, 0.10))
++        self.assertIsNone(near_goal_command(0.60, 0, 0.50, 0.41))
++        self.assertIsNone(near_goal_command(0.60, 0, math.nan, 0.10))

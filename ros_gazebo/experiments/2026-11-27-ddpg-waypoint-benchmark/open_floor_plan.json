@@ -1,0 +1,106 @@
+{
+  "dwell_s": 0.25,
+  "gazebo_seed": 71701,
+  "horizon_s": 12.0,
+  "layout": "open_floor",
+  "obstacles": [],
+  "runs": [
+    {
+      "bearing_deg": 90,
+      "distance_m": 0.25,
+      "mode": "ddpg",
+      "name": "left_025"
+    },
+    {
+      "bearing_deg": 90,
+      "distance_m": 0.25,
+      "mode": "near_goal",
+      "name": "left_025"
+    },
+    {
+      "bearing_deg": -90,
+      "distance_m": 0.25,
+      "mode": "near_goal",
+      "name": "right_025"
+    },
+    {
+      "bearing_deg": -90,
+      "distance_m": 0.25,
+      "mode": "ddpg",
+      "name": "right_025"
+    },
+    {
+      "bearing_deg": 90,
+      "distance_m": 0.6,
+      "mode": "ddpg",
+      "name": "left_060"
+    },
+    {
+      "bearing_deg": 90,
+      "distance_m": 0.6,
+      "mode": "near_goal",
+      "name": "left_060"
+    },
+    {
+      "bearing_deg": -90,
+      "distance_m": 0.6,
+      "mode": "near_goal",
+      "name": "right_060"
+    },
+    {
+      "bearing_deg": -90,
+      "distance_m": 0.6,
+      "mode": "ddpg",
+      "name": "right_060"
+    },
+    {
+      "bearing_deg": 135,
+      "distance_m": 0.6,
+      "mode": "ddpg",
+      "name": "left_rear_060"
+    },
+    {
+      "bearing_deg": 135,
+      "distance_m": 0.6,
+      "mode": "near_goal",
+      "name": "left_rear_060"
+    },
+    {
+      "bearing_deg": -135,
+      "distance_m": 0.6,
+      "mode": "near_goal",
+      "name": "right_rear_060"
+    },
+    {
+      "bearing_deg": -135,
+      "distance_m": 0.6,
+      "mode": "ddpg",
+      "name": "right_rear_060"
+    },
+    {
+      "bearing_deg": 0,
+      "distance_m": 0.35,
+      "mode": "ddpg",
+      "name": "near_forward"
+    },
+    {
+      "bearing_deg": 0,
+      "distance_m": 0.35,
+      "mode": "near_goal",
+      "name": "near_forward"
+    },
+    {
+      "bearing_deg": 0,
+      "distance_m": 2.0,
+      "mode": "near_goal",
+      "name": "long_forward"
+    },
+    {
+      "bearing_deg": 0,
+      "distance_m": 2.0,
+      "mode": "ddpg",
+      "name": "long_forward"
+    }
+  ],
+  "tolerance_m": 0.12
+}
