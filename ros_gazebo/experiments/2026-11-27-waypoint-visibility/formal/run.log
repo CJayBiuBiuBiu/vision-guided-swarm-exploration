@@ -1,0 +1,16 @@
+VERIFIED staggered_partitions_71421_observe coverage=54.64% stuck=1 near=1 peer_retirements=0
+VERIFIED staggered_partitions_71421_shorten coverage=75.77% stuck=4 near=1 peer_retirements=0
+VERIFIED staggered_partitions_71422_shorten coverage=54.12% stuck=7 near=0 peer_retirements=0
+VERIFIED staggered_partitions_71422_observe coverage=77.11% stuck=5 near=0 peer_retirements=0
+VERIFIED divided_rooms_71423_shorten coverage=84.49% stuck=6 near=2 peer_retirements=0
+VERIFIED divided_rooms_71423_observe coverage=85.18% stuck=1 near=2 peer_retirements=0
+VERIFIED divided_rooms_71424_observe coverage=70.07% stuck=6 near=2 peer_retirements=0
+VERIFIED divided_rooms_71424_shorten coverage=71.44% stuck=8 near=2 peer_retirements=0
+VERIFIED offset_approaches_71425_observe coverage=74.75% stuck=1 near=3 peer_retirements=0
+VERIFIED offset_approaches_71425_shorten coverage=56.86% stuck=7 near=1 peer_retirements=1
+VERIFIED offset_approaches_71426_shorten coverage=55.27% stuck=3 near=1 peer_retirements=0
+VERIFIED offset_approaches_71426_observe coverage=59.68% stuck=6 near=1 peer_retirements=1
+VERIFIED split_approach_lanes_71601_observe coverage=46.70% stuck=5 near=1 peer_retirements=0
+VERIFIED split_approach_lanes_71601_shorten coverage=76.32% stuck=3 near=3 peer_retirements=0
+VERIFIED split_approach_lanes_71602_shorten coverage=61.41% stuck=9 near=2 peer_retirements=0
+VERIFIED split_approach_lanes_71602_observe coverage=83.89% stuck=6 near=2 peer_retirements=0

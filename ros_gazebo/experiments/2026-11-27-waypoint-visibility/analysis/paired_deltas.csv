@@ -1,0 +1,9 @@
+scene,seed,layout_group,coverage_pct_delta,path_m_delta,stuck_events_delta,near_collision_events_delta,robots_crossing_delta,reached_delta,published_blocked_waypoints_delta,published_blocked_pct_delta
+staggered_partitions,71421,repeated,21.134,29.16,3.0,0.0,2.0,8.0,-169.0,-24.108417
+staggered_partitions,71422,repeated,-22.9897,-14.9588,2.0,0.0,-2.0,-4.0,-103.0,-10.107949
+divided_rooms,71423,repeated,-0.687,-7.8442,5.0,0.0,-1.0,1.0,-243.0,-24.035608
+divided_rooms,71424,repeated,1.3739,8.1284,2.0,0.0,-1.0,4.0,-249.0,-27.213115
+offset_approaches,71425,repeated,-17.8922,-17.9556,6.0,-2.0,-3.0,-6.0,-183.0,-17.329545
+offset_approaches,71426,repeated,-4.4118,-16.2489,-3.0,0.0,0.0,0.0,-148.0,-19.602649
+split_approach_lanes,71601,holdout,29.6216,5.2807,-2.0,2.0,1.0,10.0,-184.0,-23.469388
+split_approach_lanes,71602,holdout,-22.4865,-14.3033,3.0,0.0,-1.0,-7.0,-149.0,-16.021505

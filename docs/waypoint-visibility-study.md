@@ -76,3 +76,49 @@ The interrupted logs and both source trees are retained.
 
 [Runtime tree ledger](../ros_gazebo/experiments/2026-11-27-waypoint-visibility/formal/runtime_revisions.json)
 and [resumed manifest](../ros_gazebo/experiments/2026-11-27-waypoint-visibility/formal/verified_manifest.json).
+
+## Formal results
+
+All 16 runs reached the 120 s horizon and passed the repeat
+audit. The controller replay checks each command against
+the observed map at the time it was issued.
+
+| Outcome across eight runs per arm | Standard | Scan-visible |
+| --- | ---: | ---: |
+| Published commands through occupied cells | 1,428/7,171 | 0/6,882 |
+| Goals with at least one such command | 151 | 0 |
+| Shortened commands | 0 | 1,329 |
+| Withheld commands | 0 | 2 |
+| Mean final coverage | 69.00% | 66.96% |
+| Runs with at least one passage crossing | 5 | 5 |
+| Mean team distance | 41.19 m | 37.60 m |
+| Stuck reports | 31 | 47 |
+| Stuck reports per 10 m | 0.94 | 1.56 |
+| Laser near-collision threshold events | 12 | 12 |
+
+The scan-visible arm improved coverage in three of eight
+pairs. Its mean coverage fell by 2.04 percentage points
+across all layouts. On the new split-approach layout the
+mean rose from 65.30% to 68.86%. The two changes there
+were +29.62 and −22.49 points. Two scan-visible runs and
+one standard run crossed a passage on that layout. Both
+arms stayed below 90% coverage in the formal schedule.
+
+The guard changed which points reached the local controller.
+Among shortened commands, the median target distance fell
+from 1.67 m to 0.60 m. There were 345 issued targets closer
+than 0.35 m among these commands. Repeated commands can
+refer to the same waypoint or assignment. The results
+measure the combined response of waypoint selection and
+the frozen local controller. They do not establish the
+cause of an individual stuck episode.
+
+The selectable scan-visible mode removes the observed
+geometry error. The default continues to use standard
+lookahead because the scan-visible mode recorded more
+stuck events and lower mean coverage in this comparison.
+
+[Paired results](../ros_gazebo/experiments/2026-11-27-waypoint-visibility/analysis/paired_deltas.csv)
+· [Per-goal audit](../ros_gazebo/experiments/2026-11-27-waypoint-visibility/analysis/attempt_waypoints.csv)
+· [Target distance measurements](../ros_gazebo/experiments/2026-11-27-waypoint-visibility/analysis/shortened_distances.csv)
+· [Comparison figure](../ros_gazebo/experiments/2026-11-27-waypoint-visibility/analysis/waypoint_visibility_comparison.pdf).

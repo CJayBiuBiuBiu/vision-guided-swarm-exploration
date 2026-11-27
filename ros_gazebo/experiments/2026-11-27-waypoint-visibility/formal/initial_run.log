@@ -1,0 +1,21 @@
+VERIFIED staggered_partitions_71421_observe coverage=54.64% stuck=1 near=1 peer_retirements=0
+VERIFIED staggered_partitions_71421_shorten coverage=75.77% stuck=4 near=1 peer_retirements=0
+VERIFIED staggered_partitions_71422_shorten coverage=54.12% stuck=7 near=0 peer_retirements=0
+VERIFIED staggered_partitions_71422_observe coverage=77.11% stuck=5 near=0 peer_retirements=0
+VERIFIED divided_rooms_71423_shorten coverage=84.49% stuck=6 near=2 peer_retirements=0
+VERIFIED divided_rooms_71423_observe coverage=85.18% stuck=1 near=2 peer_retirements=0
+VERIFIED divided_rooms_71424_observe coverage=70.07% stuck=6 near=2 peer_retirements=0
+Traceback (most recent call last):
+  File "scripts/run_waypoint_visibility_study.py", line 98, in <module>
+    main()
+  File "scripts/run_waypoint_visibility_study.py", line 89, in main
+    results = [trial(run, package, actor, rgb, worlds[run["scene"]], geometries[run["scene"]],
+  File "scripts/run_waypoint_visibility_study.py", line 89, in <listcomp>
+    results = [trial(run, package, actor, rgb, worlds[run["scene"]], geometries[run["scene"]],
+  File "/home/cjay/vision_swarm_waypoints_20261127.Z7fFQm/scripts/run_recovery_scope_study.py", line 111, in trial
+    result = verify(run, package, actor, rgb, files, geometry, directory)
+  File "/home/cjay/vision_swarm_waypoints_20261127.Z7fFQm/scripts/run_recovery_scope_study.py", line 50, in verify
+    result = verify_metrics(directory, run, rules=run["rule_cue"])
+  File "/home/cjay/vision_swarm_waypoints_20261127.Z7fFQm/scripts/run_matched_vision_training.py", line 84, in verify_metrics
+    raise ValueError(f"Node failure in {directory}")
+ValueError: Node failure in /home/cjay/vision_swarm_waypoints_20261127.Z7fFQm/formal/divided_rooms_71424_shorten.qtwxu8mv

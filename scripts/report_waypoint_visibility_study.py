@@ -3,6 +3,7 @@
 import argparse
 from collections import defaultdict
 import json
+import math
 from pathlib import Path
 from statistics import mean
 
@@ -12,11 +13,53 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 from run_matched_vision_training import csv_rows, write_csv
+from run_policy_goal_retention import read_json_lines
 from run_waypoint_visibility_study import MODES, schedule
 
 
 PAIR_FIELDS = ("coverage_pct", "path_m", "stuck_events", "near_collision_events", "robots_crossing",
                "reached", "published_blocked_waypoints", "published_blocked_pct")
+
+
+def attempt_evidence(directory, row):
+    scope = row["waypoint_visibility_mode"]
+    name = f"{row['scene']}_{row['environment_seed']}_{scope}"
+    marker = json.loads((directory / f"{name}.complete.json").read_text())
+    trace = read_json_lines(directory / marker["directory"] / "decisions.jsonl")
+    active = {}
+    for event in trace:
+        kind = event["event"]
+        if kind == "assigned":
+            active[event["robot"]] = dict(scene=row["scene"], seed=row["environment_seed"],
+                                          mode=scope, robot=event["robot"],
+                                          attempt_id=event["attempt_id"], checks=0,
+                                          blocked_requests=0, blocked_published=0,
+                                          shortened=0, withheld=0, distances=[])
+        elif kind == "waypoint_visibility":
+            attempt = active[event["robot"]]
+            requested, candidate, issued = (event[key] for key in (
+                "requested_xy", "candidate_xy", "published_xy"))
+            blocked = candidate != requested
+            attempt["checks"] += 1
+            attempt["blocked_requests"] += blocked
+            attempt["blocked_published"] += blocked and issued == requested
+            shortened = issued is not None and issued != requested
+            attempt["shortened"] += shortened
+            attempt["withheld"] += issued is None
+            if shortened:
+                origin = event["origin_xy"]
+                attempt["distances"].append(dict(
+                    scene=attempt["scene"], seed=attempt["seed"], robot=attempt["robot"],
+                    attempt_id=attempt["attempt_id"], elapsed_s=event["elapsed_sim_s"],
+                    requested_m=math.dist(origin, requested), published_m=math.dist(origin, issued)))
+        elif kind == "outcome":
+            attempt = active.pop(event["robot"])
+            if attempt["attempt_id"] != event["attempt_id"]:
+                raise ValueError(f"Attempt closure mismatch in {name}")
+            distances = attempt.pop("distances")
+            yield dict(attempt, outcome=event["outcome"]), distances
+    if active:
+        raise ValueError(f"Unclosed attempt in {name}")
 
 
 def groups(rows):
@@ -28,7 +71,9 @@ def groups(rows):
             total = {field: sum(int(row[field]) for row in selected) for field in (
                 "waypoint_checks", "published_waypoints", "requested_blocked_waypoints",
                 "published_blocked_waypoints", "shortened_waypoints", "withheld_waypoints",
-                "stuck_events", "near_collision_events", "assignments", "reached")}
+                "stuck_events", "near_collision_events", "assignments", "reached",
+                "attempts_with_waypoint_checks", "attempts_with_blocked_commands",
+                "attempts_adjusted")}
             yield dict(layout_group=group, mode=mode, runs=len(selected),
                        mean_coverage_pct=mean(float(row["coverage_pct"]) for row in selected),
                        mean_path_m=path / len(selected),
@@ -67,7 +112,7 @@ def plot(rows, output):
                      label=("Standard lookahead", "Scan-visible lookahead")[i])
     seeds = [row["environment_seed"] + ("*" if row["layout_group"] == "holdout" else "")
              for row in rows if row["waypoint_visibility_mode"] == MODES[0]]
-    for axis, label in zip(axes, ("Final coverage (%)", "Published points crossing occupied cells (%)",
+    for axis, label in zip(axes, ("Final coverage (%)", "Blocked waypoint commands (%)",
                                   "Stuck reports")):
         axis.set_xticks(range(len(seeds)))
         axis.set_xticklabels(seeds, rotation=45, ha="right")
@@ -97,13 +142,32 @@ def main():
             or any(any(row[key] != str(value) for key, value in condition.items())
                    for row, condition in zip(rows, planned))):
         raise ValueError("Summary does not match the locked schedule")
+    attempts, distances = [], []
     for row in rows:
         row["published_blocked_pct"] = (100.0 * int(row["published_blocked_waypoints"])
                                          / int(row["published_waypoints"]))
+        current = []
+        for attempt, changed in attempt_evidence(args.runs, row):
+            current.append(attempt)
+            distances.extend(changed)
+        for attempt_field, summary_field in (
+            ("checks", "waypoint_checks"), ("blocked_requests", "requested_blocked_waypoints"),
+            ("blocked_published", "published_blocked_waypoints"), ("shortened", "shortened_waypoints"),
+            ("withheld", "withheld_waypoints"),
+        ):
+            if sum(item[attempt_field] for item in current) != int(row[summary_field]):
+                raise ValueError(f"Waypoint totals differ for seed {row['environment_seed']}")
+        row["attempts_with_waypoint_checks"] = sum(item["checks"] > 0 for item in current)
+        row["attempts_with_blocked_commands"] = sum(item["blocked_published"] > 0 for item in current)
+        row["attempts_adjusted"] = sum(item["shortened"] > 0 or item["withheld"] > 0 for item in current)
+        attempts.extend(current)
     args.output.mkdir(parents=True, exist_ok=False)
     write_csv(args.output / "derived_metrics.csv", rows)
     write_csv(args.output / "group_summary.csv", list(groups(rows)))
     write_csv(args.output / "paired_deltas.csv", list(pairs(rows)))
+    write_csv(args.output / "attempt_waypoints.csv", attempts)
+    if distances:
+        write_csv(args.output / "shortened_distances.csv", distances)
     plot(rows, args.output)
 
 
