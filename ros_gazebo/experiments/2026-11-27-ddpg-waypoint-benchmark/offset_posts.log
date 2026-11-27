@@ -1,0 +1,26 @@
+WARNING:tensorflow:From /home/cjay/catkin_ws/venv/lib/python3.8/site-packages/tensorflow/python/compat/v2_compat.py:107: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+2026-11-27 03:23:02.858776: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:375] MLIR V1 optimization pass is not enabled
+2026-11-27 03:23:02.864733: W tensorflow/c/c_api.cc:304] Operation '{name:'dense_4/kernel/Assign' id:96 op device:{requested: '', assigned: ''} def:{{{node dense_4/kernel/Assign}} = AssignVariableOp[_has_manual_control_dependencies=true, dtype=DT_FLOAT, validate_shape=false](dense_4/kernel, dense_4/kernel/Initializer/random_uniform)}}' was changed by setting attribute after it was run by a session. This mutation will have no effect, and will trigger an error in the future. Either don't modify nodes after running them or create a new session.
+VERIFIED offset_posts left_025 near_goal reached=1 final=0.100m
+2026-11-27 03:23:11.308671: W tensorflow/c/c_api.cc:304] Operation '{name:'concatenate/concat' id:109 op device:{requested: '', assigned: ''} def:{{{node concatenate/concat}} = ConcatV2[N=2, T=DT_FLOAT, Tidx=DT_INT32, _has_manual_control_dependencies=true](dense_3/Tanh, dense_4/Sigmoid, concatenate/concat/axis)}}' was changed by setting attribute after it was run by a session. This mutation will have no effect, and will trigger an error in the future. Either don't modify nodes after running them or create a new session.
+VERIFIED offset_posts left_025 ddpg reached=0 final=0.274m
+VERIFIED offset_posts right_025 ddpg reached=0 final=0.240m
+VERIFIED offset_posts right_025 near_goal reached=1 final=0.101m
+VERIFIED offset_posts left_060 near_goal reached=1 final=0.100m
+VERIFIED offset_posts left_060 ddpg reached=0 final=0.620m
+[INFO] [1795749844.204213, 58.869000]: [robot1] near collision sim=58.869000 scan=58.776000 x=0.364808 y=-0.382289 clearance=0.174281 mode=navigation
+VERIFIED offset_posts right_060 ddpg reached=1 final=0.030m
+VERIFIED offset_posts right_060 near_goal reached=1 final=0.098m
+VERIFIED offset_posts left_rear_060 near_goal reached=1 final=0.099m
+VERIFIED offset_posts left_rear_060 ddpg reached=0 final=0.621m
+VERIFIED offset_posts right_rear_060 ddpg reached=1 final=0.078m
+VERIFIED offset_posts right_rear_060 near_goal reached=1 final=0.096m
+VERIFIED offset_posts near_forward near_goal reached=1 final=0.099m
+VERIFIED offset_posts near_forward ddpg reached=1 final=0.066m
+VERIFIED offset_posts long_forward ddpg reached=0 final=0.375m
+[INFO] [1795749912.008890, 126.630000]: [robot1] near collision sim=126.630000 scan=126.576000 x=0.834517 y=0.294941 clearance=0.167787 mode=navigation
+VERIFIED offset_posts long_forward near_goal reached=1 final=0.095m
+/home/cjay/catkin_ws/venv/lib/python3.8/site-packages/keras/src/engine/training_v1.py:2359: UserWarning: `Model.state_updates` will be removed in a future version. This property should not be used in TensorFlow 2.0, as `updates` are applied automatically.
+  updates=self.state_updates,

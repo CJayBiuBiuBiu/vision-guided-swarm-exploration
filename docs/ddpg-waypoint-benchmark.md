@@ -60,3 +60,42 @@ xvfb-run -a python3 scripts/run_ddpg_waypoint_benchmark.py "$ROS_PROJECT" "$BENC
 python3 scripts/run_ddpg_waypoint_benchmark.py "$ROS_PROJECT" "$BENCH_OUT" --audit-only
 python3 scripts/report_ddpg_waypoint_benchmark.py "$BENCH_OUT" "$ANALYSIS_OUT"
 ```
+
+## Results
+
+The frozen actor probe returned a turn in the opposite
+direction to the goal bearing for 122 of 300 inputs at
+0.60 m and 90 degrees. It did so for 25 of 300 inputs
+with the same laser and previous-action features at 2.50 m.
+The numbers describe a controlled input change. They do not
+classify individual actions as unsafe.
+
+All 32 Gazebo trials passed a second audit. The policies
+used identical targets and the same DDPG checkpoint.
+
+| Outcome | Frozen DDPG | Near-goal controller |
+| --- | ---: | ---: |
+| Reached targets within 1 m | 8/14 | 14/14 |
+| Reached 2 m forward targets | 0/2 | 2/2 |
+| Reached targets across both layouts | 8/16 | 16/16 |
+| Laser threshold events across both layouts | 1 | 1 |
+
+Both 0.25 m targets timed out with frozen DDPG in each
+layout. All four reached the tolerance band with near-goal
+tracking. For the 0.60 m left target in the open room,
+the frozen actor reached the target after 10.5 s and
+the near-goal mode after 5.6 s. In the room with posts,
+the same case timed out with DDPG and reached in 5.5 s
+with near-goal tracking. The 2 m cases start under DDPG
+in both arms. The near-goal option changes final approach
+after entering its operating range.
+
+The 16 pairs share two layouts and one physics seed per
+layout. The results support a limited correction for
+fixed-target tracking. DDPG remains the default for team
+exploration pending a matched integration comparison.
+
+[Trial summary](../ros_gazebo/experiments/2026-11-27-ddpg-waypoint-benchmark/summary.csv)
+· [Frozen actor probe](../ros_gazebo/experiments/2026-11-27-ddpg-waypoint-benchmark/offline/actor_response.csv)
+· [Paired results](../ros_gazebo/experiments/2026-11-27-ddpg-waypoint-benchmark/analysis/paired_results.csv)
+· [Trajectory figure](../ros_gazebo/experiments/2026-11-27-ddpg-waypoint-benchmark/analysis/fixed_waypoint_trajectories.pdf).

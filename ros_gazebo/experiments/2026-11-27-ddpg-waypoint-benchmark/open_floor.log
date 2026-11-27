@@ -1,0 +1,24 @@
+WARNING:tensorflow:From /home/cjay/catkin_ws/venv/lib/python3.8/site-packages/tensorflow/python/compat/v2_compat.py:107: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+2026-11-27 03:20:52.628196: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:375] MLIR V1 optimization pass is not enabled
+2026-11-27 03:20:52.634486: W tensorflow/c/c_api.cc:304] Operation '{name:'dense_3/bias/Assign' id:80 op device:{requested: '', assigned: ''} def:{{{node dense_3/bias/Assign}} = AssignVariableOp[_has_manual_control_dependencies=true, dtype=DT_FLOAT, validate_shape=false](dense_3/bias, dense_3/bias/Initializer/zeros)}}' was changed by setting attribute after it was run by a session. This mutation will have no effect, and will trigger an error in the future. Either don't modify nodes after running them or create a new session.
+2026-11-27 03:20:56.273345: W tensorflow/c/c_api.cc:304] Operation '{name:'concatenate/concat' id:109 op device:{requested: '', assigned: ''} def:{{{node concatenate/concat}} = ConcatV2[N=2, T=DT_FLOAT, Tidx=DT_INT32, _has_manual_control_dependencies=true](dense_3/Tanh, dense_4/Sigmoid, concatenate/concat/axis)}}' was changed by setting attribute after it was run by a session. This mutation will have no effect, and will trigger an error in the future. Either don't modify nodes after running them or create a new session.
+VERIFIED open_floor left_025 ddpg reached=0 final=0.344m
+VERIFIED open_floor left_025 near_goal reached=1 final=0.096m
+VERIFIED open_floor right_025 near_goal reached=1 final=0.098m
+VERIFIED open_floor right_025 ddpg reached=0 final=0.257m
+VERIFIED open_floor left_060 ddpg reached=1 final=0.031m
+VERIFIED open_floor left_060 near_goal reached=1 final=0.097m
+VERIFIED open_floor right_060 near_goal reached=1 final=0.097m
+VERIFIED open_floor right_060 ddpg reached=1 final=0.100m
+VERIFIED open_floor left_rear_060 ddpg reached=1 final=0.049m
+VERIFIED open_floor left_rear_060 near_goal reached=1 final=0.101m
+VERIFIED open_floor right_rear_060 near_goal reached=1 final=0.096m
+VERIFIED open_floor right_rear_060 ddpg reached=1 final=0.071m
+VERIFIED open_floor near_forward ddpg reached=1 final=0.074m
+VERIFIED open_floor near_forward near_goal reached=1 final=0.096m
+VERIFIED open_floor long_forward near_goal reached=1 final=0.097m
+VERIFIED open_floor long_forward ddpg reached=0 final=0.344m
+/home/cjay/catkin_ws/venv/lib/python3.8/site-packages/keras/src/engine/training_v1.py:2359: UserWarning: `Model.state_updates` will be removed in a future version. This property should not be used in TensorFlow 2.0, as `updates` are applied automatically.
+  updates=self.state_updates,
